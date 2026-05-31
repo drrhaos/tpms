@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TPMS Monitor</string>
+    <string name="notification_channel_status">TPMS Status</string>
+    <string name="notification_channel_alert">TPMS Alerts</string>
+    <string name="notification_service_running">TPMS monitor is active</string>
+    <string name="notification_alert_low_pressure">Low tire pressure detected</string>
+    <string name="notification_alert_high_pressure">High tire pressure detected</string>
+    <string name="notification_alert_high_temp">High tire temperature detected</string>
+    <string name="notification_alert_battery_low">TPMS sensor battery low</string>
+    <string name="notification_alert_sensor_lost">TPMS sensor signal lost</string>
+    <string name="notification_action_check">Check now</string>
+    <string name="notification_action_open">Open</string>
+    <string name="notification_action_mute">Mute 30m</string>
+    <string name="label_pressure">Pressure</string>
+    <string name="label_temperature">Temperature</string>
+    <string name="label_battery">Battery</string>
+    <string name="label_disconnected">Disconnected</string>
+    <string name="label_connecting">Connecting…</string>
+    <string name="label_connected">Connected</string>
+    <string name="label_ok">OK</string>
+    <string name="label_warning">Warning</string>
+    <string name="label_alert">Alert</string>
+    <string name="setting_units">Pressure units</string>
+    <string name="setting_thresholds">Alert thresholds</string>
+    <string name="setting_notifications">Notifications</string>
+    <string name="setting_sensor_names">Sensor names</string>
+    <string name="setting_tyes_permissions">Tyes permissions</string>
+    <string name="unit_psi">PSI</string>
+    <string name="unit_kpa">kPa</string>
+    <string name="unit_bar">Bar</string>
+    <string name="sensor_fl">Front Left</string>
+    <string name="sensor_fr">Front Right</string>
+    <string name="sensor_rl">Rear Left</string>
+    <string name="sensor_rr">Rear Right</string>
+</resources>
