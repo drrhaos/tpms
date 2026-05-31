@@ -38,7 +38,7 @@ object StatusColors {
 
 @Composable
 fun TpmsTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
