@@ -67,7 +67,9 @@ private fun TireIndicator(sensor: TireSensor, pressureUnit: PressureUnit) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa)),
+                text = if (sensor.pressureKpa.isFinite())
+                    "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa))
+                else "--",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = color

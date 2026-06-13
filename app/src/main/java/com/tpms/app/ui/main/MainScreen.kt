@@ -200,13 +200,17 @@ private fun SensorDetailCard(sensor: TireSensor, unit: PressureUnit) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "%.0f°C · ${sensor.batteryPercent}% batt".format(sensor.temperatureCelsius),
+                    text = if (sensor.temperatureCelsius.isFinite())
+                        "%.0f°C · ${sensor.batteryPercent}% batt".format(sensor.temperatureCelsius)
+                    else "--°C · ${sensor.batteryPercent}% batt",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
-                text = "%.1f %s".format(unit.fromKpa(sensor.pressureKpa), unit.label),
+                text = if (sensor.pressureKpa.isFinite())
+                    "%.1f %s".format(unit.fromKpa(sensor.pressureKpa), unit.label)
+                else "-- ${unit.label}",
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
                 color = statusColor

@@ -14,6 +14,7 @@ import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +51,14 @@ class TpmsRepository @Inject constructor(
 
     fun findDongle(): UsbDevice? = usbConnection.findDongle(dongleDetector)
 
+    fun isUsbConnected(): Boolean = usbConnection.isConnected
+
+    fun isOpenDevicePresent(): Boolean =
+        runCatching { usbConnection.isOpenDevicePresent() }.getOrDefault(false)
+
+    fun probeUsbConnection(): Boolean =
+        runCatching { usbConnection.probe() }.getOrDefault(false)
+
     fun scanUsbDevices(): String = buildString {
         val devices = usbConnection.listAllDevices()
         appendLine("USB devices attached: ${devices.size}")
@@ -59,11 +68,16 @@ class TpmsRepository @Inject constructor(
             appendLine("Check cable, OTG/host port, and that the dongle LED is on.")
         }
         devices.forEach { device ->
-            appendLine("─── ${UsbDeviceInfo.shortLabel(device)} ───")
-            append(UsbDeviceInfo.describe(device))
-            appendLine("  Permission: ${if (hasUsbPermission(device)) "GRANTED" else "NOT GRANTED"}")
-            appendLine("  Supported: ${dongleDetector.isSupportedDongle(device)}")
-            appendLine("  Reason: ${dongleDetector.rejectionReason(device)}")
+            try {
+                appendLine("─── ${UsbDeviceInfo.shortLabel(device)} ───")
+                append(UsbDeviceInfo.describe(device))
+                appendLine("  Permission: ${if (hasUsbPermission(device)) "GRANTED" else "NOT GRANTED"}")
+                appendLine("  Supported: ${dongleDetector.isSupportedDongle(device)}")
+                appendLine("  Reason: ${dongleDetector.rejectionReason(device)}")
+            } catch (e: Exception) {
+                appendLine("─── (device unreadable) ───")
+                appendLine("  Error: ${e.message}")
+            }
             appendLine()
         }
         val selected = findDongle()
@@ -88,28 +102,49 @@ class TpmsRepository @Inject constructor(
     fun activeProtocol(): DongleProtocol? = activeProtocol
 
     suspend fun openDongle(device: UsbDevice): Boolean {
-        val protocol = dongleDetector.resolve(device, settingsStore.dongleProtocolMode.value)
-        val opened = usbConnection.open(device, protocol)
-        if (opened) {
-            activeProtocol = protocol
-            protocolRouter.onDongleOpened(protocol, usbConnection)
-            debugLog.info("Repository", "Dongle opened with ${protocol.displayName}")
-        } else {
-            debugLog.error("Repository", "Failed to open dongle ${UsbDeviceInfo.vidPid(device)}")
+        return try {
+            if (usbConnection.isSameDevice(device)) {
+                return true
+            }
+            val protocol = dongleDetector.resolve(device, settingsStore.dongleProtocolMode.value)
+            val opened = usbConnection.open(device, protocol)
+            if (opened) {
+                activeProtocol = protocol
+                protocolRouter.onDongleOpened(protocol, usbConnection)
+                debugLog.info("Repository", "Dongle opened with ${protocol.displayName}")
+            } else {
+                debugLog.error("Repository", "Failed to open dongle ${UsbDeviceInfo.vidPid(device)}")
+            }
+            opened
+        } catch (e: Exception) {
+            debugLog.error("Repository", "openDongle crashed: ${e.message}")
+            false
         }
-        return opened
     }
 
     suspend fun readSensor(): TireSensor? {
-        val raw = usbConnection.read() ?: return null
-        val timestamp = System.currentTimeMillis()
-        val parsed = protocolRouter.parse(raw, timestamp) { checkAlert(it) }
-        var last: TireSensor? = null
-        for (sensor in parsed) {
-            applySensorUpdate(sensor)
-            last = sensor
+        return try {
+            val raw = usbConnection.read() ?: return null
+            val timestamp = System.currentTimeMillis()
+            val parsed = protocolRouter.parse(raw, timestamp) { checkAlert(it) }
+            if (parsed.isNotEmpty()) {
+                debugLog.info(
+                    "Repository",
+                    parsed.joinToString { "${it.label} %.0f kPa %.0f°C".format(it.pressureKpa, it.temperatureCelsius) }
+                )
+            }
+            var last: TireSensor? = null
+            for (sensor in parsed) {
+                applySensorUpdate(sensor)
+                last = sensor
+            }
+            last
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            debugLog.warn("Repository", "readSensor failed: ${e.message}")
+            null
         }
-        return last
     }
 
     fun checkSensorTimeouts(now: Long = System.currentTimeMillis()): List<TireSensor> {
@@ -142,59 +177,82 @@ class TpmsRepository @Inject constructor(
     fun getThresholds(): AlertThresholds = settingsStore.thresholds.value
 
     fun closeUsb() {
-        usbConnection.close()
-        protocolRouter.onDongleClosed()
-        activeProtocol = null
-        lastSeen.clear()
-        _sensors.value = emptyMap()
-        _state.value = TpmsState.Disconnected
+        try {
+            usbConnection.close()
+            protocolRouter.onDongleClosed()
+            activeProtocol = null
+            lastSeen.clear()
+            _sensors.value = emptyMap()
+            _state.value = TpmsState.Disconnected
+        } catch (e: Exception) {
+            debugLog.warn("Repository", "closeUsb failed: ${e.message}")
+            activeProtocol = null
+            _state.value = TpmsState.Disconnected
+        }
     }
 
     fun recentHistory(limit: Int = 20): Flow<List<SensorReading>> =
         sensorDao.recentReadings(limit)
 
     private suspend fun applySensorUpdate(sensor: TireSensor) {
-        lastSeen[sensor.id] = sensor.timestamp
-        val updated = _sensors.value.toMutableMap()
-        updated[sensor.id] = sensor
-        _sensors.value = updated
-        sensorDao.insert(sensor.toReading())
-        if (sensor.isAlert) {
-            emitAlert(sensor)
+        try {
+            lastSeen[sensor.id] = sensor.timestamp
+            val updated = _sensors.value.toMutableMap()
+            updated[sensor.id] = sensor
+            _sensors.value = updated
+            runCatching { sensorDao.insert(sensor.toReading()) }
+                .onFailure { debugLog.warn("Repository", "DB insert failed: ${it.message}") }
+            if (sensor.isAlert) {
+                emitAlert(sensor)
+            }
+            refreshConnectionState(sensor.timestamp)
+        } catch (e: Exception) {
+            debugLog.warn("Repository", "applySensorUpdate failed: ${e.message}")
         }
-        refreshConnectionState(sensor.timestamp)
     }
 
     private fun refreshConnectionState(timestamp: Long) {
-        val sensorList = _sensors.value.values.toList()
-        if (sensorList.isEmpty()) return
+        try {
+            val sensorList = _sensors.value.values.toList()
+            if (sensorList.isEmpty()) return
 
-        val alerting = sensorList.firstOrNull { it.isAlert }
-        _state.value = if (alerting != null) {
-            TpmsState.Alert(
-                sensor = alerting,
-                type = alerting.alertType!!,
-                previousState = TpmsState.Connected(sensorList, timestamp)
-            )
-        } else {
-            TpmsState.Connected(sensorList, timestamp)
+            val alerting = sensorList.firstOrNull { it.isAlert && it.alertType != null }
+            _state.value = if (alerting != null) {
+                TpmsState.Alert(
+                    sensor = alerting,
+                    type = alerting.alertType!!,
+                    previousState = TpmsState.Connected(sensorList, timestamp)
+                )
+            } else {
+                TpmsState.Connected(sensorList, timestamp)
+            }
+        } catch (e: Exception) {
+            debugLog.warn("Repository", "refreshConnectionState failed: ${e.message}")
         }
     }
 
     private fun checkAlert(sensor: TireSensor): AlertType? {
-        val thresholds = settingsStore.thresholds.value
-        return when {
-            sensor.pressureKpa < thresholds.lowPressureKpa -> AlertType.LOW_PRESSURE
-            sensor.pressureKpa > thresholds.highPressureKpa -> AlertType.HIGH_PRESSURE
-            sensor.temperatureCelsius > thresholds.highTempCelsius -> AlertType.HIGH_TEMP
-            sensor.batteryPercent < 10 -> AlertType.BATTERY_LOW
-            else -> null
+        return try {
+            val thresholds = settingsStore.thresholds.value
+            when {
+                sensor.pressureKpa < thresholds.lowPressureKpa -> AlertType.LOW_PRESSURE
+                sensor.pressureKpa > thresholds.highPressureKpa -> AlertType.HIGH_PRESSURE
+                sensor.temperatureCelsius > thresholds.highTempCelsius -> AlertType.HIGH_TEMP
+                sensor.batteryPercent < 10 -> AlertType.BATTERY_LOW
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
     private fun emitAlert(sensor: TireSensor) {
-        onAlertCallback?.invoke(sensor)
-        _alertTrigger.tryEmit(sensor)
+        try {
+            onAlertCallback?.invoke(sensor)
+            _alertTrigger.tryEmit(sensor)
+        } catch (e: Exception) {
+            debugLog.warn("Repository", "emitAlert failed: ${e.message}")
+        }
     }
 
     private fun TireSensor.toReading() = SensorReading(

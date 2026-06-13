@@ -14,19 +14,43 @@ import com.tpms.app.data.usb.UsbPermissionHelper
 class UsbAttachedReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != UsbManager.ACTION_USB_DEVICE_ATTACHED) return
+        when (intent.action) {
+            UsbManager.ACTION_USB_DEVICE_ATTACHED -> handleAttached(context, intent)
+            UsbManager.ACTION_USB_DEVICE_DETACHED -> handleDetached(context, intent)
+        }
+    }
 
+    private fun handleAttached(context: Context, intent: Intent) {
         val device = intent.parcelableDevice(UsbManager.EXTRA_DEVICE) ?: return
         Log.d(TAG, "USB device attached: ${device.deviceName}")
 
         val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
-        val helper = UsbPermissionHelper(usbManager, DongleDetector(UsbDebugLog()), UsbDebugLog())
+        val detector = DongleDetector(UsbDebugLog())
+        if (!detector.isSupportedDongle(device)) {
+            Log.d(TAG, "Attached device is not a TPMS dongle, ignoring")
+            return
+        }
+
+        val helper = UsbPermissionHelper(usbManager, detector, UsbDebugLog())
 
         if (helper.hasPermission(device)) {
-            TpmsMonitorService.start(context)
+            TpmsMonitorService.wake(context)
         } else {
             helper.requestPermission(context, device)
         }
+    }
+
+    private fun handleDetached(context: Context, intent: Intent) {
+        val device = intent.parcelableDevice(UsbManager.EXTRA_DEVICE) ?: return
+        Log.d(TAG, "USB device detached: ${device.deviceName}")
+
+        val detector = DongleDetector(UsbDebugLog())
+        if (!detector.isSupportedDongle(device)) return
+
+        val serviceIntent = Intent(context, TpmsMonitorService::class.java).apply {
+            action = TpmsMonitorService.ACTION_USB_DETACHED
+        }
+        context.startService(serviceIntent)
     }
 
     @Suppress("DEPRECATION")

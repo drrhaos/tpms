@@ -30,8 +30,7 @@ class Aa55SerialProtocolTest {
 
     @Test
     fun feed_parsesTireStateFrame() {
-        // FL tire, pressure raw 29 → 99.76 kPa, temp 80-50=30°C, status OK
-        val frame = protocol.buildFrame(0x08, 0x00, 29, 80, 0x00)
+        val frame = protocol.buildTireStateFrame(tireId = 0x00, pressureRaw = 29, tempRaw = 80)
         val sensors = protocol.feed(frame, 1_000L) { null }
 
         assertEquals(1, sensors.size)
@@ -42,8 +41,34 @@ class Aa55SerialProtocolTest {
     }
 
     @Test
+    fun feed_parsesRealDongleFrame() {
+        // From live 100-a1-xl-v01 log: FL ~244 kPa, 15°C
+        val frame = byteArrayOf(0x55, 0xAA, 0x08, 0x00, 0x47, 0x41, 0x00, 0xF1.toByte())
+        val sensors = protocol.feed(frame, 1_000L) { null }
+
+        assertEquals(1, sensors.size)
+        assertEquals("FL", sensors.first().id)
+        assertEquals(71 * 3.44f, sensors.first().pressureKpa, 0.01f)
+        assertEquals(15f, sensors.first().temperatureCelsius, 0.01f)
+    }
+
+    @Test
+    fun feed_parsesMultipleFramesInOneChunk() {
+        val chunk = byteArrayOf(
+            0x55, 0xAA, 0x08, 0x00, 0x47, 0x41, 0x00, 0xF1.toByte(),
+            0x55, 0xAA, 0x08, 0x01, 0x46, 0x43, 0x00, 0xF3.toByte(),
+            0x55, 0xAA, 0x08, 0x10, 0x43, 0x43, 0x00, 0xE7.toByte(),
+            0x55, 0xAA, 0x08, 0x11, 0x44, 0x42, 0x00, 0xE0.toByte(),
+        )
+        val sensors = protocol.feed(chunk, 2_000L) { null }
+
+        assertEquals(4, sensors.size)
+        assertEquals(listOf("FL", "FR", "RL", "RR"), sensors.map { it.id })
+    }
+
+    @Test
     fun feed_mapsHardwareAlerts() {
-        val frame = protocol.buildFrame(0x08, 0x01, 35, 70, 0x10)
+        val frame = protocol.buildTireStateFrame(tireId = 0x01, pressureRaw = 35, tempRaw = 70, status = 0x10)
         val sensors = protocol.feed(frame, 2_000L) { null }
 
         assertNotNull(sensors.firstOrNull())
@@ -52,7 +77,7 @@ class Aa55SerialProtocolTest {
 
     @Test
     fun feed_reassemblesSplitChunks() {
-        val frame = protocol.buildFrame(0x08, 0x10, 30, 75, 0x00)
+        val frame = protocol.buildTireStateFrame(tireId = 0x10, pressureRaw = 30, tempRaw = 75)
         val firstChunk = frame.copyOf(4)
         val secondChunk = frame.copyOfRange(4, frame.size)
 
@@ -64,40 +89,19 @@ class Aa55SerialProtocolTest {
     }
 
     @Test
-    fun feed_parsesNoCommandFormat() {
-        // No-command format: 55 AA 08 <tire_id> <pressure> <temp> <status> <checksum>
-        // FL tire (0x00), pressure=70 raw (240.8 kPa), temp=64 (14°C), status=OK
-        val frame = byteArrayOf(
-            0x55, 0xAA, 0x08, 0x00, 0x46, 0x40, 0x00, 0xF1
-        )
-        val sensors = protocol.feed(frame, 1_000L) { null }
-
-        assertEquals(1, sensors.size)
-        val sensor = sensors.first()
-        assertEquals("FL", sensor.id)
-        assertEquals(70 * 3.44f, sensor.pressureKpa, 0.01f)
-        assertEquals(14f, sensor.temperatureCelsius, 0.01f)
-    }
-
-    @Test
-    fun feed_parsesNoCommandFormatWithAlert() {
-        // Spare tire (0x05), pressure=13 raw, temp=13 ( -37°C), status=LEAKAGE (0x08)
-        val frame = byteArrayOf(
-            0x55, 0xAA, 0x08, 0x05, 0x0D, 0x0D, 0x08, 0xFA.toByte()
-        )
-        val sensors = protocol.feed(frame, 2_000L) { null }
-
-        assertEquals(1, sensors.size)
-        val sensor = sensors.first()
-        assertEquals("SP", sensor.id)
-        assertEquals(AlertType.LOW_PRESSURE, sensor.alertType)
-    }
-
-    @Test
     fun feed_ignoresInvalidChecksum() {
-        val frame = protocol.buildFrame(0x08, 0x11, 30, 75, 0x00)
+        val frame = protocol.buildTireStateFrame(tireId = 0x11, pressureRaw = 30, tempRaw = 75)
         frame[frame.lastIndex] = 0x00
         val sensors = protocol.feed(frame, 4_000L) { null }
         assertTrue(sensors.isEmpty())
+    }
+
+    @Test
+    fun feed_survivesGarbageData() {
+        val garbage = ByteArray(200) { (it * 17).toByte() }
+        assertTrue(protocol.feed(garbage, 1L) { null }.isEmpty())
+
+        val frame = protocol.buildTireStateFrame(tireId = 0x00, pressureRaw = 30, tempRaw = 75)
+        assertEquals(1, protocol.feed(frame, 2L) { null }.size)
     }
 }

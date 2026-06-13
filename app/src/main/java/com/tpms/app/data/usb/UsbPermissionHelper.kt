@@ -15,10 +15,16 @@ class UsbPermissionHelper @Inject constructor(
     private val dongleDetector: DongleDetector,
     private val debugLog: UsbDebugLog
 ) {
+    private var lastNoDongleLogCount: Int? = null
+
     fun findDongle(): UsbDevice? {
+        val count = usbManager.deviceList.size
         val device = dongleDetector.findDongle(usbManager.deviceList.values)
-        if (device == null) {
-            debugLog.usb("UsbPermission", "findDongle: no device in list of ${usbManager.deviceList.size}")
+        if (device == null && count != lastNoDongleLogCount) {
+            lastNoDongleLogCount = count
+            debugLog.usb("UsbPermission", "findDongle: no device in list of $count")
+        } else if (device != null) {
+            lastNoDongleLogCount = null
         }
         return device
     }

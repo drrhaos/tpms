@@ -5,6 +5,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import com.tpms.app.data.usb.UsbDeviceInfo
@@ -19,6 +21,7 @@ import com.tpms.app.ui.main.MainActivity
 import com.tpms.app.ui.widget.TpmsWidget
 import com.tpms.app.ui.widget.WidgetSnapshot
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -43,6 +47,7 @@ class TpmsMonitorService : Service() {
     private var pollingJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var muteUntil: Long = 0
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
@@ -53,8 +58,10 @@ class TpmsMonitorService : Service() {
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tpms:poll")
 
         repository.onAlert { sensor ->
-            if (System.currentTimeMillis() < muteUntil) return@onAlert
-            alertNotifier.notify(sensor)
+            mainHandler.post {
+                if (System.currentTimeMillis() < muteUntil) return@post
+                alertNotifier.notify(sensor)
+            }
         }
     }
 
@@ -72,11 +79,19 @@ class TpmsMonitorService : Service() {
                 serviceScope.launch { pollOnce() }
                 return START_STICKY
             }
+            ACTION_USB_DETACHED -> {
+                serviceScope.launch {
+                    runCatching { repository.closeUsb() }
+                }
+                return START_STICKY
+            }
         }
 
         startForeground(NOTIF_ID, buildPersistentNotification())
         _isRunning.value = true
-        startPolling()
+        if (pollingJob?.isActive != true) {
+            startPolling()
+        }
         return START_STICKY
     }
 
@@ -97,8 +112,10 @@ class TpmsMonitorService : Service() {
     private fun startPolling() {
         pollingJob?.cancel()
         pollingJob = serviceScope.launch {
-            repository.updateState(TpmsState.Disconnected)
-            delay(500)
+            if (!repository.isUsbConnected()) {
+                repository.updateState(TpmsState.Disconnected)
+                delay(500)
+            }
 
             while (isActive) {
                 val dongle = repository.findDongle()
@@ -123,13 +140,35 @@ class TpmsMonitorService : Service() {
                 repository.updateState(TpmsState.Connecting(attempt = 0))
                 Log.d(TAG, "USB dongle opened: ${dongle.deviceName} (${UsbDeviceInfo.vidPid(dongle)})")
 
-                while (isActive && repository.findDongle() != null) {
-                    pollOnce()
+                var absentPolls = 0
+                while (isActive && repository.isUsbConnected()) {
+                    try {
+                        pollOnce()
+
+                        val present = repository.isOpenDevicePresent()
+                        if (present) {
+                            absentPolls = 0
+                        } else {
+                            absentPolls++
+                            if (absentPolls >= DETACH_ABSENT_POLLS) {
+                                if (repository.probeUsbConnection()) {
+                                    absentPolls = DETACH_ABSENT_POLLS - 1
+                                } else {
+                                    Log.d(TAG, "Dongle lost (absent from USB list, probe failed)")
+                                    break
+                                }
+                            }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Poll iteration failed", e)
+                    }
                     delay(POLL_INTERVAL_MS)
                 }
 
                 Log.d(TAG, "USB dongle detached, reconnecting...")
-                repository.closeUsb()
+                runCatching { repository.closeUsb() }
                 delay(RECONNECT_DEBOUNCE_MS)
             }
         }
@@ -138,12 +177,23 @@ class TpmsMonitorService : Service() {
     private suspend fun pollOnce() {
         acquireWakeLock()
         try {
-            repository.readSensor()
-            repository.checkSensorTimeouts()
+            runCatching { repository.readSensor() }
+            runCatching { repository.checkSensorTimeouts() }
+            runCatching { updateWidget() }
         } finally {
             releaseWakeLock()
         }
-        updateWidget()
+    }
+
+    private suspend fun updateWidget() {
+        val snapshot = WidgetSnapshot.from(
+            state = repository.state.value,
+            sensors = repository.sensors.value,
+            unit = settingsStore.pressureUnit.value
+        )
+        withContext(Dispatchers.Main) {
+            runCatching { TpmsWidget.pushUpdate(this@TpmsMonitorService, snapshot) }
+        }
     }
 
     private fun acquireWakeLock() {
@@ -154,15 +204,6 @@ class TpmsMonitorService : Service() {
         wakeLock?.let {
             if (it.isHeld) it.release()
         }
-    }
-
-    private fun updateWidget() {
-        val snapshot = WidgetSnapshot.from(
-            state = repository.state.value,
-            sensors = repository.sensors.value,
-            unit = settingsStore.pressureUnit.value
-        )
-        TpmsWidget.pushUpdate(this, snapshot)
     }
 
     private fun buildPersistentNotification() =
@@ -204,14 +245,23 @@ class TpmsMonitorService : Service() {
         private const val POLL_INTERVAL_MS = 2000L
         private const val USB_CHECK_INTERVAL_MS = 5000L
         private const val RECONNECT_DEBOUNCE_MS = 5000L
+        private const val DETACH_ABSENT_POLLS = 3
         private const val MUTE_DURATION_MS = 30 * 60 * 1000L
 
         const val ACTION_MUTE = "com.tpms.app.action.MUTE"
         const val ACTION_STOP = "com.tpms.app.action.STOP"
         const val ACTION_CHECK_NOW = "com.tpms.app.action.CHECK_NOW"
+        const val ACTION_USB_DETACHED = "com.tpms.app.action.USB_DETACHED"
 
         fun start(context: Context) {
-            val intent = Intent(context, TpmsMonitorService::class.java)
+            context.startForegroundService(Intent(context, TpmsMonitorService::class.java))
+        }
+
+        /** Wake an already-running service without restarting the USB polling loop. */
+        fun wake(context: Context) {
+            val intent = Intent(context, TpmsMonitorService::class.java).apply {
+                action = ACTION_CHECK_NOW
+            }
             context.startForegroundService(intent)
         }
 

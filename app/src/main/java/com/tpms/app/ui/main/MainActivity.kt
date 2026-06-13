@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         if (intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
             requestUsbPermissionIfNeeded()
-            TpmsMonitorService.start(this)
+            TpmsMonitorService.wake(this)
         }
     }
 

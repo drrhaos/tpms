@@ -117,7 +117,7 @@ fun CarTopDown(
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = if (sensor != null)
+                        text = if (sensor != null && sensor.pressureKpa.isFinite())
                             "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa))
                         else "--",
                         fontSize = 18.sp,
@@ -126,7 +126,7 @@ fun CarTopDown(
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = if (sensor != null)
+                        text = if (sensor != null && sensor.temperatureCelsius.isFinite())
                             "%.0f°C".format(sensor.temperatureCelsius)
                         else "--°C",
                         fontSize = 11.sp,

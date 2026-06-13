@@ -31,10 +31,14 @@ class TpmsProtocolRouter @Inject constructor(
 
     suspend fun onDongleOpened(protocol: DongleProtocol, connection: UsbConnection) {
         setActiveProtocol(protocol)
-        when (protocol) {
-            DongleProtocol.DEELIFE -> deelifeProtocol.sendHandshake(connection)
-            DongleProtocol.SERIAL_AA55 -> sendSerialKickstart(connection)
-            DongleProtocol.HID_GENERIC -> Unit
+        runCatching {
+            when (protocol) {
+                DongleProtocol.DEELIFE -> deelifeProtocol.sendHandshake(connection)
+                DongleProtocol.SERIAL_AA55 -> sendSerialKickstart(connection)
+                DongleProtocol.HID_GENERIC -> Unit
+            }
+        }.onFailure { e ->
+            debugLog.warn(TAG, "Handshake failed: ${e.message}")
         }
     }
 
@@ -55,20 +59,28 @@ class TpmsProtocolRouter @Inject constructor(
         timestamp: Long,
         alertChecker: (TireSensor) -> AlertType?
     ): List<TireSensor> {
+        if (raw.isEmpty()) return emptyList()
         val protocol = activeProtocol ?: return emptyList()
-        logFrame(protocol, raw)
-        return when (protocol) {
-            DongleProtocol.HID_GENERIC -> {
-                hidProtocol.parse(raw, timestamp, alertChecker)?.let { listOf(it) } ?: emptyList()
+        return try {
+            logFrame(protocol, raw)
+            val parsed = when (protocol) {
+                DongleProtocol.HID_GENERIC -> {
+                    hidProtocol.parse(raw, timestamp, alertChecker)?.let { listOf(it) } ?: emptyList()
+                }
+                DongleProtocol.SERIAL_AA55 -> aa55Protocol.feed(raw, timestamp, alertChecker)
+                DongleProtocol.DEELIFE -> deelifeProtocol.feed(raw, timestamp, alertChecker)
             }
-            DongleProtocol.SERIAL_AA55 -> aa55Protocol.feed(raw, timestamp, alertChecker)
-            DongleProtocol.DEELIFE -> deelifeProtocol.feed(raw, timestamp, alertChecker)
+            parsed.mapNotNull { SensorValidator.sanitize(it) }
+        } catch (e: Exception) {
+            debugLog.warn(TAG, "Parse error (${protocol.displayName}): ${e.message}")
+            emptyList()
         }
     }
 
     private fun logFrame(protocol: DongleProtocol, raw: ByteArray) {
-        val hex = raw.joinToString(" ") { "%02X".format(it) }
-        debugLog.raw(TAG, "${protocol.displayName} $hex")
+        val preview = raw.take(32).joinToString(" ") { "%02X".format(it) }
+        val suffix = if (raw.size > 32) " …(+${raw.size - 32}b)" else ""
+        debugLog.raw(TAG, "${protocol.displayName} $preview$suffix")
     }
 
     companion object {

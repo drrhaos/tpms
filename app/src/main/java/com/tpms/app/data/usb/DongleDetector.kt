@@ -12,6 +12,7 @@ import javax.inject.Singleton
 class DongleDetector @Inject constructor(
     private val debugLog: UsbDebugLog
 ) {
+    private var lastLogSignature: String? = null
 
     fun findDongle(devices: Collection<UsbDevice>): UsbDevice? {
         val candidates = devices.mapNotNull { device ->
@@ -19,14 +20,32 @@ class DongleDetector @Inject constructor(
             if (score > 0) device to score else null
         }
         if (candidates.isEmpty()) {
-            debugLog.usb(TAG, "No supported dongle among ${devices.size} USB device(s)")
-            devices.forEach { debugLog.usb(TAG, "  rejected: ${UsbDeviceInfo.shortLabel(it)} — ${rejectionReason(it)}") }
+            val signature = "none:" + devices.map { UsbDeviceInfo.vidPid(it) }.sorted().joinToString(",")
+            logOnce(signature) {
+                debugLog.usb(TAG, "No supported dongle among ${devices.size} USB device(s)")
+                devices.filterNot { isIgnoredDevice(it) }.forEach {
+                    debugLog.usb(TAG, "  rejected: ${UsbDeviceInfo.shortLabel(it)} — ${rejectionReason(it)}")
+                }
+            }
             return null
         }
         val best = candidates.maxBy { it.second }.first
-        debugLog.usb(TAG, "Selected dongle: ${UsbDeviceInfo.shortLabel(best)} (score=${scoreDevice(best)})")
+        val signature = "sel:${UsbDeviceInfo.vidPid(best)}"
+        logOnce(signature) {
+            debugLog.usb(TAG, "Selected dongle: ${UsbDeviceInfo.shortLabel(best)} (score=${scoreDevice(best)})")
+        }
         return best
     }
+
+    private fun logOnce(signature: String, block: () -> Unit) {
+        if (signature == lastLogSignature) return
+        lastLogSignature = signature
+        block()
+    }
+
+    /** Head-unit internal devices that are never TPMS dongles — skip rejection spam. */
+    private fun isIgnoredDevice(device: UsbDevice): Boolean =
+        device.vendorId to device.productId in IGNORED_VID_PID
 
     fun isSupportedDongle(device: UsbDevice): Boolean = scoreDevice(device) > 0
 
@@ -62,6 +81,8 @@ class DongleDetector @Inject constructor(
     }
 
     private fun scoreDevice(device: UsbDevice): Int {
+        if (isMassStorage(device)) return 0
+
         var score = 0
         if (Ch340Initializer.isCh340Device(device)) score += 120
         if (isKnownSerialBridge(device)) score += 100
@@ -82,6 +103,11 @@ class DongleDetector @Inject constructor(
 
     fun isSerialDongle(device: UsbDevice): Boolean = isSerialCapable(device)
 
+    private fun isMassStorage(device: UsbDevice): Boolean =
+        (0 until device.interfaceCount).any { i ->
+            device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_MASS_STORAGE
+        }
+
     private fun isCdcAcmDevice(device: UsbDevice): Boolean =
         (0 until device.interfaceCount).any { i ->
             val iface = device.getInterface(i)
@@ -90,9 +116,11 @@ class DongleDetector @Inject constructor(
         }
 
     private fun isVendorBulkSerial(device: UsbDevice): Boolean =
-        (0 until device.interfaceCount).any { i ->
-            hasBulkInEndpoint(device.getInterface(i))
-        }
+        !isMassStorage(device) &&
+            (0 until device.interfaceCount).any { i ->
+                val iface = device.getInterface(i)
+                iface.interfaceClass == USB_CLASS_VENDOR && hasBulkInEndpoint(iface)
+            }
 
     private fun isKnownSerialBridge(device: UsbDevice): Boolean =
         device.vendorId in KNOWN_SERIAL_VENDOR_IDS ||
@@ -113,6 +141,7 @@ class DongleDetector @Inject constructor(
     companion object {
         private const val TAG = "DongleDetector"
         private const val USB_CLASS_CDC_DATA = 0x0A
+        private const val USB_CLASS_VENDOR = 0xFF
 
         private val KNOWN_SERIAL_VENDOR_IDS = setOf(
             0x1A86, // CH340
@@ -130,6 +159,11 @@ class DongleDetector @Inject constructor(
             0x7584,
             0x55D8,
             0x5512,
+        )
+
+        /** Teyes internal SD / mass-storage — not a TPMS dongle. */
+        private val IGNORED_VID_PID = setOf(
+            0x0011 to 0x7788,
         )
     }
 }

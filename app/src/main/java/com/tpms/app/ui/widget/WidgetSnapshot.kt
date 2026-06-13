@@ -41,7 +41,7 @@ data class WidgetSnapshot(
                     ?: sensors[WHEEL_FALLBACK_IDS[index]]
                     ?: sensors.values.elementAtOrNull(index)
 
-                if (sensor == null) {
+                if (sensor == null || !sensor.pressureKpa.isFinite()) {
                     WidgetTireSlot(label, "--", WidgetTireStatus.EMPTY)
                 } else {
                     WidgetTireSlot(

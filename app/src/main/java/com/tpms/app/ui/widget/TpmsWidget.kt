@@ -22,12 +22,16 @@ class TpmsWidget : AppWidgetProvider() {
 
     companion object {
         fun pushUpdate(context: Context, snapshot: WidgetSnapshot) {
-            val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(
-                android.content.ComponentName(context, TpmsWidget::class.java)
-            )
-            for (id in ids) {
-                pushUpdate(context, manager, id, snapshot)
+            try {
+                val manager = AppWidgetManager.getInstance(context)
+                val ids = manager.getAppWidgetIds(
+                    android.content.ComponentName(context, TpmsWidget::class.java)
+                )
+                for (id in ids) {
+                    pushUpdate(context, manager, id, snapshot)
+                }
+            } catch (_: Exception) {
+                // Widget update is best-effort
             }
         }
 

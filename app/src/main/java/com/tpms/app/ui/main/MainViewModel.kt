@@ -32,7 +32,7 @@ class MainViewModel @Inject constructor(
 
     fun checkNow() {
         viewModelScope.launch {
-            repository.readSensor()
+            runCatching { repository.readSensor() }
         }
     }
 }

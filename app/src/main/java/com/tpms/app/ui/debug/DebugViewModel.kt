@@ -42,7 +42,7 @@ class DebugViewModel @Inject constructor(
 
     fun probeRead() {
         viewModelScope.launch {
-            repository.readSensor()
+            runCatching { repository.readSensor() }
             refreshUsbScan()
         }
     }
