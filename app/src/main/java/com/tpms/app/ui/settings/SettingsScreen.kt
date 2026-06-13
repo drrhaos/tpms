@@ -49,6 +49,7 @@ import com.tpms.app.ui.widget.TpmsWidgetHelper
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToDebug: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -84,6 +85,21 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
         ) {
+            TpmsCard(title = "USB Debug Log") {
+                Text(
+                    text = "If your dongle (e.g. 100-a1-xl-v01) is not detected, open the debug log, tap Scan USB, then Copy/Share the output.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = onNavigateToDebug,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open USB debug log")
+                }
+            }
+
             TpmsCard(title = "Teyes Panel Widget") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -167,8 +183,14 @@ fun SettingsScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Auto: HID for HID dongles, Serial for CH340. Use Deelife for MU7J/MU9F modules.",
+                    Text(
+                        text = "For 100-a1-xl-v01 / CH340 dongles use Auto or Serial 0x55AA.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Auto: HID for HID dongles, Serial for CH340. Use Deelife for MU7J/MU9F modules.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -8,6 +8,7 @@ import android.hardware.usb.UsbManager
 import android.os.Build
 import android.util.Log
 import com.tpms.app.data.usb.DongleDetector
+import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbPermissionHelper
 
 class UsbAttachedReceiver : BroadcastReceiver() {
@@ -19,7 +20,7 @@ class UsbAttachedReceiver : BroadcastReceiver() {
         Log.d(TAG, "USB device attached: ${device.deviceName}")
 
         val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
-        val helper = UsbPermissionHelper(usbManager, DongleDetector())
+        val helper = UsbPermissionHelper(usbManager, DongleDetector(UsbDebugLog()), UsbDebugLog())
 
         if (helper.hasPermission(device)) {
             TpmsMonitorService.start(context)

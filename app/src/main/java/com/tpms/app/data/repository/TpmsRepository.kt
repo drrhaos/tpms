@@ -7,6 +7,8 @@ import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.DongleDetector
 import com.tpms.app.data.usb.TpmsProtocolRouter
 import com.tpms.app.data.usb.UsbConnection
+import com.tpms.app.data.usb.UsbDebugLog
+import com.tpms.app.data.usb.UsbDeviceInfo
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
@@ -26,7 +28,8 @@ class TpmsRepository @Inject constructor(
     private val dongleDetector: DongleDetector,
     private val protocolRouter: TpmsProtocolRouter,
     private val sensorDao: SensorDao,
-    private val settingsStore: SettingsStore
+    private val settingsStore: SettingsStore,
+    private val debugLog: UsbDebugLog
 ) {
     private val _state = MutableStateFlow<TpmsState>(TpmsState.Disconnected)
     val state = _state.asStateFlow()
@@ -47,6 +50,39 @@ class TpmsRepository @Inject constructor(
 
     fun findDongle(): UsbDevice? = usbConnection.findDongle(dongleDetector)
 
+    fun scanUsbDevices(): String = buildString {
+        val devices = usbConnection.listAllDevices()
+        appendLine("USB devices attached: ${devices.size}")
+        appendLine()
+        if (devices.isEmpty()) {
+            appendLine("No USB devices found.")
+            appendLine("Check cable, OTG/host port, and that the dongle LED is on.")
+        }
+        devices.forEach { device ->
+            appendLine("─── ${UsbDeviceInfo.shortLabel(device)} ───")
+            append(UsbDeviceInfo.describe(device))
+            appendLine("  Permission: ${if (hasUsbPermission(device)) "GRANTED" else "NOT GRANTED"}")
+            appendLine("  Supported: ${dongleDetector.isSupportedDongle(device)}")
+            appendLine("  Reason: ${dongleDetector.rejectionReason(device)}")
+            appendLine()
+        }
+        val selected = findDongle()
+        appendLine("Selected dongle: ${selected?.let { UsbDeviceInfo.shortLabel(it) } ?: "none"}")
+        appendLine("Active protocol: ${activeProtocol()?.displayName ?: "none"}")
+    }
+
+    fun debugLogEntries() = debugLog.entries
+
+    fun clearDebugLog() = debugLog.clear()
+
+    fun exportDebugLog(): String {
+        val header = buildString {
+            appendLine(scanUsbDevices())
+            appendLine("--- Event log ---")
+        }
+        return header + debugLog.exportText()
+    }
+
     fun hasUsbPermission(device: UsbDevice): Boolean = usbConnection.hasPermission(device)
 
     fun activeProtocol(): DongleProtocol? = activeProtocol
@@ -57,6 +93,9 @@ class TpmsRepository @Inject constructor(
         if (opened) {
             activeProtocol = protocol
             protocolRouter.onDongleOpened(protocol, usbConnection)
+            debugLog.info("Repository", "Dongle opened with ${protocol.displayName}")
+        } else {
+            debugLog.error("Repository", "Failed to open dongle ${UsbDeviceInfo.vidPid(device)}")
         }
         return opened
     }

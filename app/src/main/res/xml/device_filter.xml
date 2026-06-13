@@ -4,8 +4,16 @@
     <usb-device class="3" />
     <!-- USB_CLASS_COMM (CDC) -->
     <usb-device class="2" />
-    <!-- CH340 -->
-    <usb-device vendor-id="6790" product-id="29987" />
+    <!-- USB_CLASS_VENDOR (CH340-style) -->
+    <usb-device class="255" />
+    <!-- CH340 variants -->
+    <usb-device vendor-id="6790" product-id="29987" /> <!-- 1A86:7523 -->
+    <usb-device vendor-id="6790" product-id="21795" /> <!-- 1A86:5523 -->
+    <usb-device vendor-id="6790" product-id="22336" /> <!-- 1A86:5740 -->
+    <usb-device vendor-id="6790" product-id="30084" /> <!-- 1A86:7584 -->
+    <usb-device vendor-id="6790" product-id="21976" /> <!-- 1A86:55D8 -->
     <!-- CP2102 -->
     <usb-device vendor-id="4292" product-id="60000" />
+    <!-- CH9102 -->
+    <usb-device vendor-id="17224" />
 </resources>

@@ -1,6 +1,5 @@
 package com.tpms.app.data.usb
 
-import android.util.Log
 import com.tpms.app.data.usb.protocol.Aa55SerialProtocol
 import com.tpms.app.data.usb.protocol.DeelifeProtocol
 import com.tpms.app.data.usb.protocol.HidGenericProtocol
@@ -14,7 +13,8 @@ import javax.inject.Singleton
 class TpmsProtocolRouter @Inject constructor(
     private val hidProtocol: HidGenericProtocol,
     private val aa55Protocol: Aa55SerialProtocol,
-    private val deelifeProtocol: DeelifeProtocol
+    private val deelifeProtocol: DeelifeProtocol,
+    private val debugLog: UsbDebugLog
 ) {
     private var activeProtocol: DongleProtocol? = null
 
@@ -23,7 +23,7 @@ class TpmsProtocolRouter @Inject constructor(
             aa55Protocol.reset()
             deelifeProtocol.reset()
             activeProtocol = protocol
-            Log.d(TAG, "Active protocol: ${protocol.displayName}")
+            debugLog.usb(TAG, "Active protocol: ${protocol.displayName}")
         }
     }
 
@@ -31,9 +31,17 @@ class TpmsProtocolRouter @Inject constructor(
 
     suspend fun onDongleOpened(protocol: DongleProtocol, connection: UsbConnection) {
         setActiveProtocol(protocol)
-        if (protocol == DongleProtocol.DEELIFE) {
-            deelifeProtocol.sendHandshake(connection)
+        when (protocol) {
+            DongleProtocol.DEELIFE -> deelifeProtocol.sendHandshake(connection)
+            DongleProtocol.SERIAL_AA55 -> sendSerialKickstart(connection)
+            DongleProtocol.HID_GENERIC -> Unit
         }
+    }
+
+    private suspend fun sendSerialKickstart(connection: UsbConnection) {
+        val heartbeat = aa55Protocol.buildFrame(0x19, 0x00)
+        connection.write(heartbeat)
+        debugLog.usb(TAG, "Sent serial heartbeat kickstart")
     }
 
     fun onDongleClosed() {
@@ -60,7 +68,7 @@ class TpmsProtocolRouter @Inject constructor(
 
     private fun logFrame(protocol: DongleProtocol, raw: ByteArray) {
         val hex = raw.joinToString(" ") { "%02X".format(it) }
-        Log.d(TAG, "${protocol.displayName} RAW $hex")
+        debugLog.raw(TAG, "${protocol.displayName} $hex")
     }
 
     companion object {

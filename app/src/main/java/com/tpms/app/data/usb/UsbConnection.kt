@@ -15,7 +15,8 @@ import javax.inject.Singleton
 
 @Singleton
 class UsbConnection @Inject constructor(
-    private val usbManager: UsbManager
+    private val usbManager: UsbManager,
+    private val debugLog: UsbDebugLog
 ) {
     private var connection: UsbDeviceConnection? = null
     private val claimedInterfaces = mutableListOf<UsbInterface>()
@@ -30,25 +31,56 @@ class UsbConnection @Inject constructor(
 
     fun hasPermission(device: UsbDevice): Boolean = usbManager.hasPermission(device)
 
+    fun listAllDevices(): List<UsbDevice> = usbManager.deviceList.values.toList()
+
     fun open(device: UsbDevice, protocol: DongleProtocol): Boolean {
-        if (!hasPermission(device)) return false
+        if (!hasPermission(device)) {
+            debugLog.warn(TAG, "No USB permission for ${UsbDeviceInfo.shortLabel(device)}")
+            return false
+        }
         close()
+        debugLog.usb(TAG, "Opening ${UsbDeviceInfo.shortLabel(device)} as ${protocol.displayName}")
+        debugLog.usb(TAG, UsbDeviceInfo.describe(device))
+
+        val conn = usbManager.openDevice(device)
+        if (conn == null) {
+            debugLog.error(TAG, "usbManager.openDevice() returned null")
+            return false
+        }
+
         val transport = when (protocol) {
             DongleProtocol.HID_GENERIC -> UsbTransport.HID
-            DongleProtocol.SERIAL_AA55, DongleProtocol.DEELIFE -> UsbTransport.CDC_SERIAL
+            DongleProtocol.SERIAL_AA55, DongleProtocol.DEELIFE -> UsbTransport.SERIAL
         }
-        val conn = usbManager.openDevice(device) ?: return false
+
         val opened = when (transport) {
             UsbTransport.HID -> openHid(conn, device)
-            UsbTransport.CDC_SERIAL -> openCdcSerial(conn, device)
+            UsbTransport.SERIAL -> openSerial(conn, device)
         }
+
         if (!opened) {
+            debugLog.error(TAG, "Failed to claim endpoints for ${protocol.displayName}")
             conn.close()
             return false
         }
+
         connection = conn
         activeTransport = transport
+        debugLog.info(TAG, "Connected via $activeTransport, inEp=${inEndpoint?.address}, outEp=${outEndpoint?.address}")
         return true
+    }
+
+    private fun openSerial(conn: UsbDeviceConnection, device: UsbDevice): Boolean {
+        if (openCdcSerial(conn, device)) {
+            debugLog.usb(TAG, "Opened as CDC-ACM serial")
+            return true
+        }
+        if (openVendorSerial(conn, device)) {
+            debugLog.usb(TAG, "Opened as vendor bulk serial (CH340-style)")
+            return true
+        }
+        debugLog.error(TAG, "Serial open failed: no CDC or vendor bulk interface")
+        return false
     }
 
     suspend fun read(timeoutMs: Long = READ_TIMEOUT_MS): ByteArray? = withContext(Dispatchers.IO) {
@@ -58,9 +90,25 @@ class UsbConnection @Inject constructor(
         try {
             withTimeout(timeoutMs) {
                 val read = conn.bulkTransfer(ep, buf, buf.size, timeoutMs.toInt())
-                if (read > 0) buf.copyOf(read) else null
+                when {
+                    read > 0 -> {
+                        val data = buf.copyOf(read)
+                        val hex = data.joinToString(" ") { "%02X".format(it) }
+                        debugLog.raw(TAG, "RX ${data.size}b: $hex")
+                        data
+                    }
+                    read == 0 -> {
+                        debugLog.warn(TAG, "bulkTransfer returned 0 bytes")
+                        null
+                    }
+                    else -> {
+                        debugLog.warn(TAG, "bulkTransfer failed: $read")
+                        null
+                    }
+                }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            debugLog.error(TAG, "Read error: ${e.message}")
             null
         }
     }
@@ -72,14 +120,19 @@ class UsbConnection @Inject constructor(
             try {
                 withTimeout(timeoutMs) {
                     val written = conn.bulkTransfer(ep, data, data.size, timeoutMs.toInt())
-                    written == data.size
+                    val ok = written == data.size
+                    val hex = data.joinToString(" ") { "%02X".format(it) }
+                    debugLog.raw(TAG, "TX ${if (ok) "OK" else "FAIL"} ${data.size}b: $hex")
+                    ok
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                debugLog.error(TAG, "Write error: ${e.message}")
                 false
             }
         }
 
     fun close() {
+        if (connection != null) debugLog.info(TAG, "USB connection closed")
         try {
             claimedInterfaces.forEach { connection?.releaseInterface(it) }
             connection?.close()
@@ -93,11 +146,14 @@ class UsbConnection @Inject constructor(
 
     private fun openHid(conn: UsbDeviceConnection, device: UsbDevice): Boolean {
         val iface = findHidInterface(device) ?: return false
-        val endpoint = findBulkInEndpoint(iface) ?: return false
-        if (!conn.claimInterface(iface, true)) return false
+        val endpoint = findBulkInEndpoint(iface) ?: findInterruptInEndpoint(iface) ?: return false
+        if (!conn.claimInterface(iface, true)) {
+            debugLog.error(TAG, "HID claimInterface failed")
+            return false
+        }
         claimedInterfaces.add(iface)
         inEndpoint = endpoint
-        outEndpoint = findBulkOutEndpoint(iface)
+        outEndpoint = findBulkOutEndpoint(iface) ?: findInterruptOutEndpoint(iface)
         return true
     }
 
@@ -113,11 +169,9 @@ class UsbConnection @Inject constructor(
             }
         }
 
-        if (dataIface == null) {
-            dataIface = findBulkDataInterface(device)
-        }
-
+        if (dataIface == null) dataIface = findBulkDataInterface(device)
         val iface = dataIface ?: return false
+
         commIface?.let {
             if (!conn.claimInterface(it, true)) return false
             claimedInterfaces.add(it)
@@ -129,6 +183,27 @@ class UsbConnection @Inject constructor(
         inEndpoint = findBulkInEndpoint(iface) ?: return false
         outEndpoint = findBulkOutEndpoint(iface)
         return true
+    }
+
+    private fun openVendorSerial(conn: UsbDeviceConnection, device: UsbDevice): Boolean {
+        for (i in 0 until device.interfaceCount) {
+            val iface = device.getInterface(i)
+            val inEp = findBulkInEndpoint(iface) ?: continue
+            if (!conn.claimInterface(iface, true)) {
+                debugLog.warn(TAG, "claimInterface(${iface.id}) failed")
+                continue
+            }
+            claimedInterfaces.add(iface)
+            inEndpoint = inEp
+            outEndpoint = findBulkOutEndpoint(iface)
+
+            if (Ch340Initializer.isCh340Device(device)) {
+                val configured = Ch340Initializer.configure(conn, iface, SERIAL_BAUD_RATE)
+                debugLog.usb(TAG, "CH340 init ${if (configured) "OK" else "FAILED"}")
+            }
+            return true
+        }
+        return false
     }
 
     private fun findHidInterface(device: UsbDevice): UsbInterface? {
@@ -147,26 +222,22 @@ class UsbConnection @Inject constructor(
         return null
     }
 
-    private fun findBulkInEndpoint(iface: UsbInterface): UsbEndpoint? {
-        for (i in 0 until iface.endpointCount) {
-            val ep = iface.getEndpoint(i)
-            if (ep.type == UsbConstants.USB_ENDPOINT_XFER_BULK &&
-                ep.direction == UsbConstants.USB_DIR_IN
-            ) {
-                return ep
-            }
-        }
-        return null
-    }
+    private fun findBulkInEndpoint(iface: UsbInterface): UsbEndpoint? =
+        findEndpoint(iface, UsbConstants.USB_ENDPOINT_XFER_BULK, UsbConstants.USB_DIR_IN)
 
-    private fun findBulkOutEndpoint(iface: UsbInterface): UsbEndpoint? {
+    private fun findBulkOutEndpoint(iface: UsbInterface): UsbEndpoint? =
+        findEndpoint(iface, UsbConstants.USB_ENDPOINT_XFER_BULK, UsbConstants.USB_DIR_OUT)
+
+    private fun findInterruptInEndpoint(iface: UsbInterface): UsbEndpoint? =
+        findEndpoint(iface, UsbConstants.USB_ENDPOINT_XFER_INT, UsbConstants.USB_DIR_IN)
+
+    private fun findInterruptOutEndpoint(iface: UsbInterface): UsbEndpoint? =
+        findEndpoint(iface, UsbConstants.USB_ENDPOINT_XFER_INT, UsbConstants.USB_DIR_OUT)
+
+    private fun findEndpoint(iface: UsbInterface, type: Int, direction: Int): UsbEndpoint? {
         for (i in 0 until iface.endpointCount) {
             val ep = iface.getEndpoint(i)
-            if (ep.type == UsbConstants.USB_ENDPOINT_XFER_BULK &&
-                ep.direction == UsbConstants.USB_DIR_OUT
-            ) {
-                return ep
-            }
+            if (ep.type == type && ep.direction == direction) return ep
         }
         return null
     }
@@ -177,9 +248,9 @@ class UsbConnection @Inject constructor(
             (baudRate shr 8 and 0xFF).toByte(),
             (baudRate shr 16 and 0xFF).toByte(),
             (baudRate shr 24 and 0xFF).toByte(),
-            0, // 1 stop bit
-            0, // no parity
-            8  // 8 data bits
+            0,
+            0,
+            8
         )
         conn.controlTransfer(
             USB_RT_HOST_TO_DEVICE or USB_CLASS_COMM,
@@ -192,9 +263,10 @@ class UsbConnection @Inject constructor(
         )
     }
 
-    private enum class UsbTransport { HID, CDC_SERIAL }
+    private enum class UsbTransport { HID, SERIAL }
 
     companion object {
+        private const val TAG = "UsbConnection"
         const val READ_TIMEOUT_MS = 3000L
         private const val WRITE_TIMEOUT_MS = 1000L
         private const val SERIAL_BAUD_RATE = 19200

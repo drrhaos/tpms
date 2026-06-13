@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.tpms.app.data.usb.UsbDebugLog
+import com.tpms.app.data.usb.UsbDeviceInfo
 import com.tpms.app.data.usb.UsbPermissionHelper
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.ui.theme.TpmsTheme
@@ -25,6 +27,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var usbPermissionHelper: UsbPermissionHelper
+    @Inject lateinit var debugLog: UsbDebugLog
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -34,6 +37,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestNotificationPermissionIfNeeded()
+        debugLog.info("App", "TPMS Monitor started")
         requestUsbPermissionIfNeeded()
         TpmsMonitorService.start(this)
 
@@ -65,7 +69,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestUsbPermissionIfNeeded() {
-        val device = usbPermissionHelper.findDongle() ?: return
+        val device = usbPermissionHelper.findDongle()
+        if (device == null) {
+            debugLog.warn("App", "No TPMS dongle found at startup — open Debug log for USB scan")
+            return
+        }
+        debugLog.usb("App", "Requesting permission for ${UsbDeviceInfo.shortLabel(device)}")
         usbPermissionHelper.requestPermission(this, device)
     }
 

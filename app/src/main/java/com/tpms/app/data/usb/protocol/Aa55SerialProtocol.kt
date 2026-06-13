@@ -83,13 +83,16 @@ class Aa55SerialProtocol @Inject constructor() {
     ): TireSensor? {
         val ints = frame.map { it.toInt() and 0xFF }
         if (ints.size < 4) return null
-        if (ints[3] != CMD_TIRE_STATE) return null
-        if (ints.size < 7) return null
 
-        val tireCode = ints[4]
-        val pressureKpa = ints[5] * PRESSURE_SCALE_KPA
-        val temperatureCelsius = (ints[6] - TEMP_OFFSET).toFloat()
-        val status = ints.getOrElse(7) { 0 }
+        val hasCommand = ints[3] == CMD_TIRE_STATE
+        val minSize = if (hasCommand) 7 else 6
+        if (ints.size < minSize) return null
+
+        val offset = if (hasCommand) 1 else 0
+        val tireCode = ints[3 + offset]
+        val pressureKpa = ints[4 + offset] * PRESSURE_SCALE_KPA
+        val temperatureCelsius = (ints[5 + offset] - TEMP_OFFSET).toFloat()
+        val status = ints.getOrElse(6 + offset) { 0 }
 
         val hardwareAlert = hardwareAlert(status)
         val label = tireLabel(tireCode)

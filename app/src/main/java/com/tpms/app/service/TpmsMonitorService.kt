@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
+import com.tpms.app.data.usb.UsbDeviceInfo
 import androidx.core.app.NotificationCompat
 import com.tpms.app.R
 import com.tpms.app.TpmsApplication
@@ -120,7 +121,7 @@ class TpmsMonitorService : Service() {
                 }
 
                 repository.updateState(TpmsState.Connecting(attempt = 0))
-                Log.d(TAG, "USB dongle opened: ${dongle.deviceName}")
+                Log.d(TAG, "USB dongle opened: ${dongle.deviceName} (${UsbDeviceInfo.vidPid(dongle)})")
 
                 while (isActive && repository.findDongle() != null) {
                     pollOnce()
