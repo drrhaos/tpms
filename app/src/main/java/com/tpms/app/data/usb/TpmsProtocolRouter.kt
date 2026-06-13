@@ -78,9 +78,7 @@ class TpmsProtocolRouter @Inject constructor(
     }
 
     private fun logFrame(protocol: DongleProtocol, raw: ByteArray) {
-        val preview = raw.take(32).joinToString(" ") { "%02X".format(it) }
-        val suffix = if (raw.size > 32) " …(+${raw.size - 32}b)" else ""
-        debugLog.raw(TAG, "${protocol.displayName} $preview$suffix")
+        debugLog.raw(TAG, "${protocol.displayName} ${raw.toHexPreview()}")
     }
 
     companion object {

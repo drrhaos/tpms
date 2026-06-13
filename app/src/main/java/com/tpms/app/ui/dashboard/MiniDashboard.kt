@@ -24,7 +24,9 @@ import androidx.compose.ui.unit.sp
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.ui.components.TpmsCard
-import com.tpms.app.ui.theme.StatusColors
+import com.tpms.app.domain.WheelLayout
+import com.tpms.app.domain.toSeverity
+import com.tpms.app.ui.theme.statusColor
 import com.tpms.app.ui.theme.TpmsColors
 
 @Composable
@@ -38,11 +40,7 @@ fun MiniDashboard(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            val ordered = listOf("FL", "FR", "RL", "RR").mapNotNull { label ->
-                sensors[label] ?: sensors.values.firstOrNull { it.label == label }
-            }.ifEmpty { sensors.values.sortedBy { it.id }.take(4) }
-
-            ordered.forEach { sensor ->
+            WheelLayout.orderedValues(sensors).forEach { sensor ->
                 TireIndicator(sensor = sensor, pressureUnit = pressureUnit)
             }
         }
@@ -51,11 +49,7 @@ fun MiniDashboard(
 
 @Composable
 private fun TireIndicator(sensor: TireSensor, pressureUnit: PressureUnit) {
-    val color = when {
-        sensor.isAlert -> StatusColors.alert
-        sensor.alertType != null -> StatusColors.warning
-        else -> StatusColors.ok
-    }
+    val color = sensor.toSeverity().statusColor()
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(

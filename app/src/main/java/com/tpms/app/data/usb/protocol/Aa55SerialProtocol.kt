@@ -139,7 +139,11 @@ class Aa55SerialProtocol @Inject constructor() {
                 alertType = null,
                 timestamp = timestamp
             )
-            val thresholdAlert = runCatching { alertChecker(sensor) }.getOrNull()
+            val thresholdAlert = if (label == "SP") {
+                null
+            } else {
+                runCatching { alertChecker(sensor) }.getOrNull()
+            }
             sensor.copy(alertType = hardwareAlert ?: thresholdAlert)
         } catch (_: Exception) {
             null

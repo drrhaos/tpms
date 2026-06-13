@@ -7,10 +7,8 @@ import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import com.tpms.app.domain.model.DongleProtocol
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -138,27 +136,23 @@ class UsbConnection @Inject constructor(
             val ep = inEndpoint ?: return@withContext null
             val buf = ByteArray(ep.maxPacketSize.coerceAtLeast(64))
             try {
-                withTimeout(timeoutMs) {
-                    val read = conn.bulkTransfer(ep, buf, buf.size, timeoutMs.toInt())
-                    when {
-                        read > 0 -> {
-                            val data = buf.copyOf(read)
-                            val hex = data.joinToString(" ") { "%02X".format(it) }
-                            debugLog.raw(TAG, "RX ${data.size}b: $hex")
-                            data
-                        }
-                        read == 0 -> {
-                            debugLog.warn(TAG, "bulkTransfer returned 0 bytes")
-                            null
-                        }
-                        else -> {
-                            debugLog.warn(TAG, "bulkTransfer failed: $read")
-                            null
-                        }
+                val read = conn.bulkTransfer(ep, buf, buf.size, timeoutMs.toInt())
+                when {
+                    read > 0 -> {
+                        val data = buf.copyOf(read)
+                        val hex = data.toHexPreview()
+                        debugLog.raw(TAG, "RX ${data.size}b: $hex")
+                        data
+                    }
+                    read == 0 -> {
+                        debugLog.warn(TAG, "bulkTransfer returned 0 bytes")
+                        null
+                    }
+                    else -> {
+                        debugLog.warn(TAG, "bulkTransfer failed: $read")
+                        null
                     }
                 }
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
                 debugLog.error(TAG, "Read error: ${e.message}")
                 null
@@ -172,13 +166,11 @@ class UsbConnection @Inject constructor(
                 val conn = connection ?: return@withContext false
                 val ep = outEndpoint ?: return@withContext false
                 try {
-                    withTimeout(timeoutMs) {
-                        val written = conn.bulkTransfer(ep, data, data.size, timeoutMs.toInt())
-                        val ok = written == data.size
-                        val hex = data.joinToString(" ") { "%02X".format(it) }
-                        debugLog.raw(TAG, "TX ${if (ok) "OK" else "FAIL"} ${data.size}b: $hex")
-                        ok
-                    }
+                    val written = conn.bulkTransfer(ep, data, data.size, timeoutMs.toInt())
+                    val ok = written == data.size
+                    val hex = data.toHexPreview()
+                    debugLog.raw(TAG, "TX ${if (ok) "OK" else "FAIL"} ${data.size}b: $hex")
+                    ok
                 } catch (e: Exception) {
                     debugLog.error(TAG, "Write error: ${e.message}")
                     false

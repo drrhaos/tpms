@@ -9,6 +9,7 @@ import com.tpms.app.data.usb.TpmsProtocolRouter
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
+import com.tpms.app.domain.AlertEvaluator
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
@@ -16,9 +17,7 @@ import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,12 +37,8 @@ class TpmsRepository @Inject constructor(
     private val _sensors = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
     val sensors = _sensors.asStateFlow()
 
-    private val _alertTrigger = MutableSharedFlow<TireSensor>(extraBufferCapacity = 4)
-    val alertTrigger = _alertTrigger.asSharedFlow()
-
     private val lastSeen = mutableMapOf<String, Long>()
     private var onAlertCallback: ((TireSensor) -> Unit)? = null
-    private var activeProtocol: DongleProtocol? = null
 
     fun onAlert(callback: (TireSensor) -> Unit) {
         onAlertCallback = callback
@@ -99,7 +94,7 @@ class TpmsRepository @Inject constructor(
 
     fun hasUsbPermission(device: UsbDevice): Boolean = usbConnection.hasPermission(device)
 
-    fun activeProtocol(): DongleProtocol? = activeProtocol
+    fun activeProtocol(): DongleProtocol? = protocolRouter.activeProtocol()
 
     suspend fun openDongle(device: UsbDevice): Boolean {
         return try {
@@ -109,7 +104,6 @@ class TpmsRepository @Inject constructor(
             val protocol = dongleDetector.resolve(device, settingsStore.dongleProtocolMode.value)
             val opened = usbConnection.open(device, protocol)
             if (opened) {
-                activeProtocol = protocol
                 protocolRouter.onDongleOpened(protocol, usbConnection)
                 debugLog.info("Repository", "Dongle opened with ${protocol.displayName}")
             } else {
@@ -126,11 +120,16 @@ class TpmsRepository @Inject constructor(
         return try {
             val raw = usbConnection.read() ?: return null
             val timestamp = System.currentTimeMillis()
-            val parsed = protocolRouter.parse(raw, timestamp) { checkAlert(it) }
+            val thresholds = settingsStore.thresholds.value
+            val parsed = protocolRouter.parse(raw, timestamp) {
+                AlertEvaluator.evaluate(it, thresholds)
+            }
             if (parsed.isNotEmpty()) {
                 debugLog.info(
                     "Repository",
-                    parsed.joinToString { "${it.label} %.0f kPa %.0f°C".format(it.pressureKpa, it.temperatureCelsius) }
+                    parsed.distinctBy { it.id }.joinToString {
+                        "${it.label} %.0f kPa %.0f°C".format(it.pressureKpa, it.temperatureCelsius)
+                    }
                 )
             }
             var last: TireSensor? = null
@@ -180,13 +179,11 @@ class TpmsRepository @Inject constructor(
         try {
             usbConnection.close()
             protocolRouter.onDongleClosed()
-            activeProtocol = null
             lastSeen.clear()
             _sensors.value = emptyMap()
             _state.value = TpmsState.Disconnected
         } catch (e: Exception) {
             debugLog.warn("Repository", "closeUsb failed: ${e.message}")
-            activeProtocol = null
             _state.value = TpmsState.Disconnected
         }
     }
@@ -231,25 +228,9 @@ class TpmsRepository @Inject constructor(
         }
     }
 
-    private fun checkAlert(sensor: TireSensor): AlertType? {
-        return try {
-            val thresholds = settingsStore.thresholds.value
-            when {
-                sensor.pressureKpa < thresholds.lowPressureKpa -> AlertType.LOW_PRESSURE
-                sensor.pressureKpa > thresholds.highPressureKpa -> AlertType.HIGH_PRESSURE
-                sensor.temperatureCelsius > thresholds.highTempCelsius -> AlertType.HIGH_TEMP
-                sensor.batteryPercent < 10 -> AlertType.BATTERY_LOW
-                else -> null
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     private fun emitAlert(sensor: TireSensor) {
         try {
             onAlertCallback?.invoke(sensor)
-            _alertTrigger.tryEmit(sensor)
         } catch (e: Exception) {
             debugLog.warn("Repository", "emitAlert failed: ${e.message}")
         }

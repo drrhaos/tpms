@@ -37,12 +37,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.ui.components.TpmsCard
 import com.tpms.app.ui.dashboard.MiniDashboard
+import com.tpms.app.domain.toSeverity
 import com.tpms.app.ui.theme.StatusColors
+import com.tpms.app.ui.theme.statusColor
 import com.tpms.app.ui.theme.TpmsColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -107,12 +110,7 @@ fun MainScreen(
                 MiniDashboard(sensors = sensors, pressureUnit = unit)
             }
 
-            val sensorList = listOf(
-                sensors["FL"] ?: sensors["SENSOR_01"] ?: sensors.values.firstOrNull(),
-                sensors["FR"] ?: sensors["SENSOR_02"] ?: sensors.values.elementAtOrNull(1),
-                sensors["RL"] ?: sensors["SENSOR_03"] ?: sensors.values.elementAtOrNull(2),
-                sensors["RR"] ?: sensors["SENSOR_04"] ?: sensors.values.elementAtOrNull(3)
-            )
+            val sensorList = WheelLayout.orderedSlots(sensors)
 
             CarTopDown(
                 sensors = sensorList,
@@ -181,11 +179,7 @@ private fun StatusHeader(state: TpmsState) {
 
 @Composable
 private fun SensorDetailCard(sensor: TireSensor, unit: PressureUnit) {
-    val statusColor = when {
-        sensor.isAlert -> StatusColors.alert
-        sensor.alertType != null -> StatusColors.warning
-        else -> StatusColors.ok
-    }
+    val statusColor = sensor.toSeverity().statusColor()
 
     TpmsCard {
         Row(

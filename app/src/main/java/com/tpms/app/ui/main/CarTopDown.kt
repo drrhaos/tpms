@@ -29,10 +29,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tpms.app.R
-import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.toSeverity
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
-import com.tpms.app.ui.theme.StatusColors
+import com.tpms.app.domain.toSeverity
+import com.tpms.app.ui.theme.statusColor
 import com.tpms.app.ui.theme.TpmsColors
 
 private data class WheelPos(val xFrac: Float, val yFrac: Float, val label: String)
@@ -79,13 +80,7 @@ fun CarTopDown(
 
         WHEELS.forEachIndexed { index, pos ->
             val sensor = sensors.getOrNull(index)
-            val dotColor = when {
-                sensor == null -> StatusColors.disconnected
-                sensor.alertType == AlertType.LOW_PRESSURE || sensor.alertType == AlertType.HIGH_PRESSURE ->
-                    StatusColors.alert
-                sensor.alertType == AlertType.HIGH_TEMP -> StatusColors.warning
-                else -> StatusColors.ok
-            }
+            val dotColor = sensor.toSeverity().statusColor()
 
             val isLeft = index % 2 == 0
             val wheelCenterX = offsetX + imgSide * pos.xFrac

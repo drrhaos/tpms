@@ -1,6 +1,8 @@
 package com.tpms.app.ui.widget
 
-import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.AlertSeverity
+import com.tpms.app.domain.WheelLayout
+import com.tpms.app.domain.toSeverity
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -21,9 +23,6 @@ data class WidgetSnapshot(
     val tires: List<WidgetTireSlot>
 ) {
     companion object {
-        private val WHEEL_ORDER = listOf("FL", "FR", "RL", "RR")
-        private val WHEEL_FALLBACK_IDS = listOf("SENSOR_01", "SENSOR_02", "SENSOR_03", "SENSOR_04")
-
         fun from(
             state: TpmsState,
             sensors: Map<String, TireSensor>,
@@ -36,10 +35,8 @@ data class WidgetSnapshot(
                 is TpmsState.Alert -> "Alert"
             }
 
-            val tires = WHEEL_ORDER.mapIndexed { index, label ->
-                val sensor = sensors[label]
-                    ?: sensors[WHEEL_FALLBACK_IDS[index]]
-                    ?: sensors.values.elementAtOrNull(index)
+            val tires = WheelLayout.ORDER.mapIndexed { index, label ->
+                val sensor = WheelLayout.orderedSlots(sensors).getOrNull(index)
 
                 if (sensor == null || !sensor.pressureKpa.isFinite()) {
                     WidgetTireSlot(label, "--", WidgetTireStatus.EMPTY)
@@ -47,7 +44,7 @@ data class WidgetSnapshot(
                     WidgetTireSlot(
                         label = label,
                         pressureText = "%.0f".format(unit.fromKpa(sensor.pressureKpa)),
-                        status = tireStatus(sensor)
+                        status = sensor.toSeverity().toWidgetStatus()
                     )
                 }
             }
@@ -56,17 +53,15 @@ data class WidgetSnapshot(
         }
 
         fun empty(unit: PressureUnit = PressureUnit.PSI): WidgetSnapshot {
-            val tires = WHEEL_ORDER.map { WidgetTireSlot(it, "--", WidgetTireStatus.EMPTY) }
+            val tires = WheelLayout.ORDER.map { WidgetTireSlot(it, "--", WidgetTireStatus.EMPTY) }
             return WidgetSnapshot("Offline", unit.label, tires)
         }
 
-        private fun tireStatus(sensor: TireSensor): WidgetTireStatus = when {
-            sensor.alertType == AlertType.LOW_PRESSURE ||
-                sensor.alertType == AlertType.HIGH_PRESSURE ||
-                sensor.alertType == AlertType.SENSOR_LOST -> WidgetTireStatus.ALERT
-            sensor.alertType == AlertType.HIGH_TEMP ||
-                sensor.alertType == AlertType.BATTERY_LOW -> WidgetTireStatus.WARNING
-            else -> WidgetTireStatus.OK
+        private fun AlertSeverity.toWidgetStatus(): WidgetTireStatus = when (this) {
+            AlertSeverity.OK -> WidgetTireStatus.OK
+            AlertSeverity.WARNING -> WidgetTireStatus.WARNING
+            AlertSeverity.ALERT -> WidgetTireStatus.ALERT
+            AlertSeverity.DISCONNECTED -> WidgetTireStatus.EMPTY
         }
     }
 }

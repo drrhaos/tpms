@@ -48,4 +48,58 @@ class SensorValidatorTest {
         )
         assertNull(SensorValidator.sanitize(sensor))
     }
+
+    @Test
+    fun sanitize_rejectsEmptySpareSlot() {
+        val sensor = TireSensor(
+            id = "SP",
+            label = "SP",
+            pressureKpa = 55f,
+            temperatureCelsius = -34f,
+            batteryPercent = 50,
+            alertType = null,
+            timestamp = 1L
+        )
+        assertNull(SensorValidator.sanitize(sensor))
+    }
+
+    @Test
+    fun sanitize_acceptsSpareAtMinimumLivePressure() {
+        val sensor = TireSensor(
+            id = "SP",
+            label = "SP",
+            pressureKpa = 100f,
+            temperatureCelsius = 20f,
+            batteryPercent = 50,
+            alertType = null,
+            timestamp = 1L
+        )
+        assertEquals(sensor, SensorValidator.sanitize(sensor))
+    }
+
+    @Test
+    fun sanitize_rejectsBlankId() {
+        val sensor = TireSensor(
+            id = "  ",
+            pressureKpa = 240f,
+            temperatureCelsius = 20f,
+            batteryPercent = 80,
+            alertType = null,
+            timestamp = 1L
+        )
+        assertNull(SensorValidator.sanitize(sensor))
+    }
+
+    @Test
+    fun sanitize_coercesBatteryPercent() {
+        val sensor = TireSensor(
+            id = "FL",
+            pressureKpa = 240f,
+            temperatureCelsius = 20f,
+            batteryPercent = 150,
+            alertType = null,
+            timestamp = 1L
+        )
+        assertEquals(100, SensorValidator.sanitize(sensor)?.batteryPercent)
+    }
 }
