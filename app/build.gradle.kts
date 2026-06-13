@@ -72,6 +72,8 @@ dependencies {
     implementation(libs.lifecycle.service)
     implementation(libs.lifecycle.viewmodel.compose)
 
+    implementation(libs.datastore.preferences)
+
     testImplementation(libs.turbine)
     testImplementation(libs.mockk)
     testImplementation(libs.junit)

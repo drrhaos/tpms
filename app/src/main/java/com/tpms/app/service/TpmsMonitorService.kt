@@ -4,7 +4,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.hardware.usb.UsbManager
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
@@ -12,8 +11,11 @@ import androidx.core.app.NotificationCompat
 import com.tpms.app.R
 import com.tpms.app.TpmsApplication
 import com.tpms.app.data.repository.TpmsRepository
+import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.main.MainActivity
+import com.tpms.app.ui.widget.TpmsWidget
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +34,8 @@ import javax.inject.Inject
 class TpmsMonitorService : Service() {
 
     @Inject lateinit var repository: TpmsRepository
+    @Inject lateinit var alertNotifier: AlertNotifier
+    @Inject lateinit var settingsStore: SettingsStore
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: Job? = null
@@ -45,17 +49,26 @@ class TpmsMonitorService : Service() {
         super.onCreate()
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tpms:poll")
+
+        repository.onAlert { sensor ->
+            if (System.currentTimeMillis() < muteUntil) return@onAlert
+            alertNotifier.notify(sensor)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_MUTE -> {
-                muteUntil = System.currentTimeMillis() + 30 * 60 * 1000
+                muteUntil = System.currentTimeMillis() + MUTE_DURATION_MS
                 return START_STICKY
             }
             ACTION_STOP -> {
                 stopSelf()
                 return START_NOT_STICKY
+            }
+            ACTION_CHECK_NOW -> {
+                serviceScope.launch { pollOnce() }
+                return START_STICKY
             }
         }
 
@@ -93,6 +106,12 @@ class TpmsMonitorService : Service() {
                     continue
                 }
 
+                if (!repository.hasUsbPermission(dongle)) {
+                    repository.updateState(TpmsState.Disconnected)
+                    delay(USB_CHECK_INTERVAL_MS)
+                    continue
+                }
+
                 if (!repository.openDongle(dongle)) {
                     repository.updateState(TpmsState.Disconnected)
                     delay(USB_CHECK_INTERVAL_MS)
@@ -103,15 +122,7 @@ class TpmsMonitorService : Service() {
                 Log.d(TAG, "USB dongle opened: ${dongle.deviceName}")
 
                 while (isActive && repository.findDongle() != null) {
-                    val sensor = repository.readSensor()
-                    if (sensor != null) {
-                        repository.updateState(
-                            TpmsState.Connected(
-                                sensors = repository.sensors.value.values.toList(),
-                                timestamp = sensor.timestamp
-                            )
-                        )
-                    }
+                    pollOnce()
                     delay(POLL_INTERVAL_MS)
                 }
 
@@ -120,6 +131,41 @@ class TpmsMonitorService : Service() {
                 delay(RECONNECT_DEBOUNCE_MS)
             }
         }
+    }
+
+    private suspend fun pollOnce() {
+        acquireWakeLock()
+        try {
+            repository.readSensor()
+            repository.checkSensorTimeouts()
+        } finally {
+            releaseWakeLock()
+        }
+        updateWidget()
+    }
+
+    private fun acquireWakeLock() {
+        wakeLock?.acquire(UsbConnection.READ_TIMEOUT_MS + 500)
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) it.release()
+        }
+    }
+
+    private fun updateWidget() {
+        val unit = settingsStore.pressureUnit.value
+        val summary = repository.sensors.value.values
+            .sortedBy { it.id }
+            .joinToString("  ") { sensor ->
+                "${sensor.label.ifEmpty { sensor.id.take(4) }}: %.0f%s".format(
+                    unit.fromKpa(sensor.pressureKpa),
+                    unit.label
+                )
+            }
+            .ifEmpty { getString(R.string.widget_no_data) }
+        TpmsWidget.pushUpdate(this, summary)
     }
 
     private fun buildPersistentNotification() =
@@ -138,12 +184,20 @@ class TpmsMonitorService : Service() {
             .addAction(
                 android.R.drawable.ic_menu_search,
                 getString(R.string.notification_action_check),
-                PendingIntent.getService(this, 1, Intent(this, TpmsMonitorService::class.java), PendingIntent.FLAG_IMMUTABLE)
+                PendingIntent.getService(
+                    this, 1,
+                    Intent(this, TpmsMonitorService::class.java).apply { action = ACTION_CHECK_NOW },
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
             )
             .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 getString(R.string.notification_action_mute),
-                PendingIntent.getService(this, 2, Intent(this, TpmsMonitorService::class.java).apply { action = ACTION_MUTE }, PendingIntent.FLAG_IMMUTABLE)
+                PendingIntent.getService(
+                    this, 2,
+                    Intent(this, TpmsMonitorService::class.java).apply { action = ACTION_MUTE },
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
             )
             .build()
 
@@ -153,9 +207,11 @@ class TpmsMonitorService : Service() {
         private const val POLL_INTERVAL_MS = 2000L
         private const val USB_CHECK_INTERVAL_MS = 5000L
         private const val RECONNECT_DEBOUNCE_MS = 5000L
+        private const val MUTE_DURATION_MS = 30 * 60 * 1000L
 
         const val ACTION_MUTE = "com.tpms.app.action.MUTE"
         const val ACTION_STOP = "com.tpms.app.action.STOP"
+        const val ACTION_CHECK_NOW = "com.tpms.app.action.CHECK_NOW"
 
         fun start(context: Context) {
             val intent = Intent(context, TpmsMonitorService::class.java)

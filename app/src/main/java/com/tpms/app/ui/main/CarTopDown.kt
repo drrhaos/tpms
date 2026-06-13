@@ -48,8 +48,8 @@ fun CarTopDown(
     pressureUnit: PressureUnit = PressureUnit.PSI,
     modifier: Modifier = Modifier
 ) {
-    val cardW = 76.dp
-    val cardH = 58.dp
+    val cardW = 400.dp
+    val cardH = 200.dp
     val margin = 8.dp
 
     BoxWithConstraints(
@@ -102,7 +102,7 @@ fun CarTopDown(
                     .height(cardH)
                     .clip(RoundedCornerShape(8.dp))
                     .background(dotColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                    .padding(4.dp),
+                    .padding(6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -111,7 +111,7 @@ fun CarTopDown(
                 ) {
                     Text(
                         text = pos.label,
-                        fontSize = 9.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         color = dotColor.copy(alpha = 0.6f),
                         textAlign = TextAlign.Center
@@ -120,7 +120,7 @@ fun CarTopDown(
                         text = if (sensor != null)
                             "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa))
                         else "--",
-                        fontSize = 16.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = dotColor,
                         textAlign = TextAlign.Center
@@ -129,7 +129,7 @@ fun CarTopDown(
                         text = if (sensor != null)
                             "%.0f°C".format(sensor.temperatureCelsius)
                         else "--°C",
-                        fontSize = 11.sp,
+                        fontSize = 14.sp,
                         color = dotColor.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center
                     )

@@ -12,6 +12,7 @@
     <string name="notification_action_check">Check now</string>
     <string name="notification_action_open">Open</string>
     <string name="notification_action_mute">Mute 30m</string>
+    <string name="widget_no_data">No sensor data</string>
     <string name="label_pressure">Pressure</string>
     <string name="label_temperature">Temperature</string>
     <string name="label_battery">Battery</string>

@@ -16,20 +16,20 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.ui.theme.StatusColors
 
 @Composable
 fun MiniDashboard(
-    sensors: Map<String, TireSensor>
+    sensors: Map<String, TireSensor>,
+    pressureUnit: PressureUnit = PressureUnit.PSI
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -54,7 +54,7 @@ fun MiniDashboard(
                     .sortedBy { it.id }
                     .take(4)
                     .forEach { sensor ->
-                        TireIndicator(sensor)
+                        TireIndicator(sensor = sensor, pressureUnit = pressureUnit)
                     }
             }
         }
@@ -62,7 +62,7 @@ fun MiniDashboard(
 }
 
 @Composable
-private fun TireIndicator(sensor: TireSensor) {
+private fun TireIndicator(sensor: TireSensor, pressureUnit: PressureUnit) {
     val color = when {
         sensor.isAlert -> StatusColors.alert
         sensor.alertType != null -> StatusColors.warning
@@ -78,7 +78,7 @@ private fun TireIndicator(sensor: TireSensor) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "%.0f".format(sensor.pressureKpa / 6.89476f),
+                text = "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa)),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = color

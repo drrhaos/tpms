@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.domain.model.TpmsState
+import com.tpms.app.ui.dashboard.MiniDashboard
 import com.tpms.app.ui.theme.StatusColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +68,13 @@ fun MainScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 StatusHeader(state = state)
+
+                if (sensors.isNotEmpty()) {
+                    MiniDashboard(
+                        sensors = sensors,
+                        pressureUnit = unit
+                    )
+                }
 
                 val sensorList = listOf(
                     sensors["FL"] ?: sensors["SENSOR_01"] ?: sensors.values.firstOrNull(),

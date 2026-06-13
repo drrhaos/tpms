@@ -22,16 +22,13 @@ class UsbConnection @Inject constructor(
 
     val isConnected: Boolean get() = connection != null
 
-    fun findDongle(): UsbDevice? {
-        return usbManager.deviceList.values.firstOrNull { device ->
-            device.deviceClass == UsbConstants.USB_CLASS_HID ||
-                (0 until device.interfaceCount).any { i ->
-                    device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_HID
-                }
-        }
-    }
+    fun findDongle(): UsbDevice? =
+        usbManager.deviceList.values.firstOrNull { isHidDevice(it) }
+
+    fun hasPermission(device: UsbDevice): Boolean = usbManager.hasPermission(device)
 
     fun open(device: UsbDevice): Boolean {
+        if (!hasPermission(device)) return false
         close()
         val conn = usbManager.openDevice(device) ?: return false
         val iface = device.getInterface(0)
@@ -45,7 +42,7 @@ class UsbConnection @Inject constructor(
         return true
     }
 
-    suspend fun read(timeoutMs: Long = 3000): ByteArray? = withContext(Dispatchers.IO) {
+    suspend fun read(timeoutMs: Long = READ_TIMEOUT_MS): ByteArray? = withContext(Dispatchers.IO) {
         val conn = connection ?: return@withContext null
         val ep = inEndpoint ?: return@withContext null
         val buf = ByteArray(ep.maxPacketSize.coerceAtMost(64))
@@ -54,7 +51,7 @@ class UsbConnection @Inject constructor(
                 val read = conn.bulkTransfer(ep, buf, buf.size, timeoutMs.toInt())
                 if (read > 0) buf.copyOf(read) else null
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -67,5 +64,15 @@ class UsbConnection @Inject constructor(
         connection = null
         claimedIface = null
         inEndpoint = null
+    }
+
+    companion object {
+        const val READ_TIMEOUT_MS = 3000L
+
+        fun isHidDevice(device: UsbDevice): Boolean =
+            device.deviceClass == UsbConstants.USB_CLASS_HID ||
+                (0 until device.interfaceCount).any { i ->
+                    device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_HID
+                }
     }
 }
