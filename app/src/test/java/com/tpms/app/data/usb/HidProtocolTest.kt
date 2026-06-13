@@ -1,5 +1,6 @@
 package com.tpms.app.data.usb
 
+import com.tpms.app.data.usb.protocol.HidGenericProtocol
 import com.tpms.app.domain.model.AlertType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -13,7 +14,7 @@ class HidProtocolTest {
 
     @Before
     fun setUp() {
-        protocol = HidProtocol()
+        protocol = HidProtocol(HidGenericProtocol())
     }
 
     @Test

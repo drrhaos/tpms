@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <usb-device class="3" /> <!-- USB_CLASS_HID = 3 -->
+    <!-- USB_CLASS_HID -->
+    <usb-device class="3" />
+    <!-- USB_CLASS_COMM (CDC) -->
+    <usb-device class="2" />
+    <!-- CH340 -->
+    <usb-device vendor-id="6790" product-id="29987" />
+    <!-- CP2102 -->
+    <usb-device vendor-id="4292" product-id="60000" />
 </resources>

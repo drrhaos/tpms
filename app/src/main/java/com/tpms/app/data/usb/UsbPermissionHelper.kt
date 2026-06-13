@@ -11,13 +11,10 @@ import javax.inject.Singleton
 
 @Singleton
 class UsbPermissionHelper @Inject constructor(
-    private val usbManager: UsbManager
+    private val usbManager: UsbManager,
+    private val dongleDetector: DongleDetector
 ) {
-    fun findDongle(): UsbDevice? {
-        return usbManager.deviceList.values.firstOrNull { device ->
-            UsbConnection.isHidDevice(device)
-        }
-    }
+    fun findDongle(): UsbDevice? = dongleDetector.findDongle(usbManager.deviceList.values)
 
     fun hasPermission(device: UsbDevice): Boolean = usbManager.hasPermission(device)
 

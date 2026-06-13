@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tpms.app.domain.model.AlertThresholds
+import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -34,6 +35,9 @@ class SettingsStore @Inject constructor(
     private val _thresholds = MutableStateFlow(AlertThresholds())
     val thresholds = _thresholds.asStateFlow()
 
+    private val _dongleProtocolMode = MutableStateFlow(DongleProtocolMode.AUTO)
+    val dongleProtocolMode = _dongleProtocolMode.asStateFlow()
+
     init {
         scope.launch {
             context.settingsDataStore.data.collect { prefs ->
@@ -46,6 +50,10 @@ class SettingsStore @Inject constructor(
                     highPressureKpa = prefs[KEY_HIGH_PRESSURE] ?: AlertThresholds().highPressureKpa,
                     highTempCelsius = prefs[KEY_HIGH_TEMP] ?: AlertThresholds().highTempCelsius
                 )
+
+                _dongleProtocolMode.value = prefs[KEY_DONGLE_PROTOCOL]?.let { name ->
+                    DongleProtocolMode.entries.find { it.name == name }
+                } ?: DongleProtocolMode.AUTO
             }
         }
     }
@@ -66,10 +74,15 @@ class SettingsStore @Inject constructor(
         }
     }
 
+    suspend fun setDongleProtocolMode(mode: DongleProtocolMode) {
+        context.settingsDataStore.edit { it[KEY_DONGLE_PROTOCOL] = mode.name }
+    }
+
     companion object {
         private val KEY_PRESSURE_UNIT = stringPreferencesKey("pressure_unit")
         private val KEY_LOW_PRESSURE = floatPreferencesKey("low_pressure_kpa")
         private val KEY_HIGH_PRESSURE = floatPreferencesKey("high_pressure_kpa")
         private val KEY_HIGH_TEMP = floatPreferencesKey("high_temp_celsius")
+        private val KEY_DONGLE_PROTOCOL = stringPreferencesKey("dongle_protocol")
     }
 }

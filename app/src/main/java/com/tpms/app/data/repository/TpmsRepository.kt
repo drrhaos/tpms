@@ -4,10 +4,12 @@ import android.hardware.usb.UsbDevice
 import com.tpms.app.data.db.SensorDao
 import com.tpms.app.data.db.SensorReading
 import com.tpms.app.data.settings.SettingsStore
-import com.tpms.app.data.usb.HidProtocol
+import com.tpms.app.data.usb.DongleDetector
+import com.tpms.app.data.usb.TpmsProtocolRouter
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +23,8 @@ import javax.inject.Singleton
 @Singleton
 class TpmsRepository @Inject constructor(
     private val usbConnection: UsbConnection,
-    private val hidProtocol: HidProtocol,
+    private val dongleDetector: DongleDetector,
+    private val protocolRouter: TpmsProtocolRouter,
     private val sensorDao: SensorDao,
     private val settingsStore: SettingsStore
 ) {
@@ -36,35 +39,38 @@ class TpmsRepository @Inject constructor(
 
     private val lastSeen = mutableMapOf<String, Long>()
     private var onAlertCallback: ((TireSensor) -> Unit)? = null
+    private var activeProtocol: DongleProtocol? = null
 
     fun onAlert(callback: (TireSensor) -> Unit) {
         onAlertCallback = callback
     }
 
-    fun findDongle(): UsbDevice? = usbConnection.findDongle()
+    fun findDongle(): UsbDevice? = usbConnection.findDongle(dongleDetector)
 
     fun hasUsbPermission(device: UsbDevice): Boolean = usbConnection.hasPermission(device)
 
-    fun openDongle(device: UsbDevice): Boolean = usbConnection.open(device)
+    fun activeProtocol(): DongleProtocol? = activeProtocol
+
+    suspend fun openDongle(device: UsbDevice): Boolean {
+        val protocol = dongleDetector.resolve(device, settingsStore.dongleProtocolMode.value)
+        val opened = usbConnection.open(device, protocol)
+        if (opened) {
+            activeProtocol = protocol
+            protocolRouter.onDongleOpened(protocol, usbConnection)
+        }
+        return opened
+    }
 
     suspend fun readSensor(): TireSensor? {
-        val rawFrame = usbConnection.read() ?: return null
-        val frame = HidProtocol.RawFrame(rawFrame, System.currentTimeMillis())
-        hidProtocol.logFrame(frame)
-
-        val sensor = hidProtocol.parse(frame) { checkAlert(it) }
-        if (sensor != null) {
-            lastSeen[sensor.id] = sensor.timestamp
-            val updated = _sensors.value.toMutableMap()
-            updated[sensor.id] = sensor
-            _sensors.value = updated
-            sensorDao.insert(sensor.toReading())
-            if (sensor.isAlert) {
-                emitAlert(sensor)
-            }
-            refreshConnectionState(sensor.timestamp)
+        val raw = usbConnection.read() ?: return null
+        val timestamp = System.currentTimeMillis()
+        val parsed = protocolRouter.parse(raw, timestamp) { checkAlert(it) }
+        var last: TireSensor? = null
+        for (sensor in parsed) {
+            applySensorUpdate(sensor)
+            last = sensor
         }
-        return sensor
+        return last
     }
 
     fun checkSensorTimeouts(now: Long = System.currentTimeMillis()): List<TireSensor> {
@@ -98,6 +104,8 @@ class TpmsRepository @Inject constructor(
 
     fun closeUsb() {
         usbConnection.close()
+        protocolRouter.onDongleClosed()
+        activeProtocol = null
         lastSeen.clear()
         _sensors.value = emptyMap()
         _state.value = TpmsState.Disconnected
@@ -105,6 +113,18 @@ class TpmsRepository @Inject constructor(
 
     fun recentHistory(limit: Int = 20): Flow<List<SensorReading>> =
         sensorDao.recentReadings(limit)
+
+    private suspend fun applySensorUpdate(sensor: TireSensor) {
+        lastSeen[sensor.id] = sensor.timestamp
+        val updated = _sensors.value.toMutableMap()
+        updated[sensor.id] = sensor
+        _sensors.value = updated
+        sensorDao.insert(sensor.toReading())
+        if (sensor.isAlert) {
+            emitAlert(sensor)
+        }
+        refreshConnectionState(sensor.timestamp)
+    }
 
     private fun refreshConnectionState(timestamp: Long) {
         val sensorList = _sensors.value.values.toList()
