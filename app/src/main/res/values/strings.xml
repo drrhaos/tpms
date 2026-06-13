@@ -13,6 +13,9 @@
     <string name="notification_action_open">Open</string>
     <string name="notification_action_mute">Mute 30m</string>
     <string name="widget_no_data">No sensor data</string>
+    <string name="widget_description">TPMS tire pressure panel for Teyes home screen</string>
+    <string name="widget_pin_not_supported">Widget pinning is not supported on this device</string>
+    <string name="widget_pin_failed">Could not pin widget — add manually from Teyes home screen</string>
     <string name="label_pressure">Pressure</string>
     <string name="label_temperature">Temperature</string>
     <string name="label_battery">Battery</string>

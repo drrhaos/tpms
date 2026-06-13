@@ -1,6 +1,7 @@
 package com.tpms.app.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,8 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,38 +23,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
+import com.tpms.app.ui.components.TpmsCard
 import com.tpms.app.ui.theme.StatusColors
+import com.tpms.app.ui.theme.TpmsColors
 
 @Composable
 fun MiniDashboard(
     sensors: Map<String, TireSensor>,
     pressureUnit: PressureUnit = PressureUnit.PSI
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+    TpmsCard(title = "Quick Status") {
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            Text(
-                text = "Quick Status",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                sensors.values
-                    .sortedBy { it.id }
-                    .take(4)
-                    .forEach { sensor ->
-                        TireIndicator(sensor = sensor, pressureUnit = pressureUnit)
-                    }
+            val ordered = listOf("FL", "FR", "RL", "RR").mapNotNull { label ->
+                sensors[label] ?: sensors.values.firstOrNull { it.label == label }
+            }.ifEmpty { sensors.values.sortedBy { it.id }.take(4) }
+
+            ordered.forEach { sensor ->
+                TireIndicator(sensor = sensor, pressureUnit = pressureUnit)
             }
         }
     }
@@ -72,23 +60,25 @@ private fun TireIndicator(sensor: TireSensor, pressureUnit: PressureUnit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(52.dp)
                 .clip(CircleShape)
-                .background(color.copy(alpha = 0.2f)),
+                .background(color.copy(alpha = 0.15f))
+                .border(1.5.dp, color.copy(alpha = 0.5f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa)),
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = color
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = sensor.label.ifEmpty { sensor.id.take(8) },
+            text = sensor.label.ifEmpty { sensor.id.take(4) },
             fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            fontWeight = FontWeight.Medium,
+            color = TpmsColors.onSurfaceMuted,
             maxLines = 1
         )
     }

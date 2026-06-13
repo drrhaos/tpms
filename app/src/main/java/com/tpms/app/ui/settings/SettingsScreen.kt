@@ -12,29 +12,38 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.ui.components.TpmsCard
+import com.tpms.app.ui.theme.TpmsColors
+import com.tpms.app.ui.widget.TpmsWidgetHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,21 +51,28 @@ fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val pressureUnit by viewModel.pressureUnit.collectAsState()
     val lowPressure by viewModel.lowPressure.collectAsState()
     val highPressure by viewModel.highPressure.collectAsState()
     val highTemp by viewModel.highTemp.collectAsState()
     val dongleProtocolMode by viewModel.dongleProtocolMode.collectAsState()
+    val pinSupported = TpmsWidgetHelper.isPinSupported(context)
+    val hasWidget = TpmsWidgetHelper.hasActiveWidgets(context)
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text("Settings", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { padding ->
@@ -65,135 +81,160 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Pressure Unit", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        PressureUnit.entries.forEachIndexed { index, unit ->
-                            SegmentedButton(
-                                selected = pressureUnit == unit,
-                                onClick = { viewModel.setPressureUnit(unit) },
-                                shape = SegmentedButtonDefaults.itemShape(index, PressureUnit.entries.size)
-                            ) {
-                                Text(unit.label)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Dongle Protocol", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DongleProtocolMode.entries.forEach { mode ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.setDongleProtocolMode(mode) }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = dongleProtocolMode == mode,
-                                onClick = { viewModel.setDongleProtocolMode(mode) }
-                            )
-                            Text(
-                                text = mode.label,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
+            TpmsCard(title = "Teyes Panel Widget") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.Widgets,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                     Text(
-                        text = "Auto: HID for HID dongles, Serial for CH340. Use Deelife for MU7J/MU9F modules.",
+                        text = if (hasWidget) "Widget active on home screen" else "Add widget to main panel",
+                        modifier = Modifier.padding(start = 10.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "On Teyes CC3/CC2: long-press the home screen → Widgets → TPMS Monitor. " +
+                        "Or use the button below to pin the widget directly.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                if (pinSupported) {
+                    OutlinedButton(
+                        onClick = { TpmsWidgetHelper.requestPinToTeyesPanel(context) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Pin widget to Teyes panel")
+                    }
+                } else {
+                    Text(
+                        text = "Widget pinning is not supported on this device. Add manually from the launcher widget list.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Alert Thresholds", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = lowPressure.toString(),
-                        onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setLowPressure(v) } },
-                        label = { Text("Low Pressure (kPa)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = highPressure.toString(),
-                        onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighPressure(v) } },
-                        label = { Text("High Pressure (kPa)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = highTemp.toString(),
-                        onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighTemp(v) } },
-                        label = { Text("High Temp (°C)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+            TpmsCard(title = "Pressure Unit") {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    PressureUnit.entries.forEachIndexed { index, unit ->
+                        SegmentedButton(
+                            selected = pressureUnit == unit,
+                            onClick = { viewModel.setPressureUnit(unit) },
+                            shape = SegmentedButtonDefaults.itemShape(index, PressureUnit.entries.size),
+                            colors = SegmentedButtonDefaults.colors(
+                                activeContainerColor = TpmsColors.primaryDim,
+                                activeContentColor = TpmsColors.accent
+                            )
+                        ) {
+                            Text(unit.label)
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Tyes Permissions", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = buildString {
-                            appendLine("For reliable background monitoring on Tyes:")
-                            appendLine("1. Settings → Apps → TPMS → Auto start → ON")
-                            appendLine("2. Settings → Battery → App battery → No restrictions")
-                            appendLine("3. In recent apps, swipe down to lock TPMS")
-                            appendLine("4. Enable Boot completed if asked")
-                        },
-                        style = MaterialTheme.typography.bodySmall
-                    )
+            TpmsCard(title = "Dongle Protocol") {
+                DongleProtocolMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.setDongleProtocolMode(mode) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = dongleProtocolMode == mode,
+                            onClick = { viewModel.setDongleProtocolMode(mode) },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        Text(
+                            text = mode.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Auto: HID for HID dongles, Serial for CH340. Use Deelife for MU7J/MU9F modules.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            TpmsCard(title = "Alert Thresholds") {
+                val fieldColors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = TpmsColors.outline,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground
+                )
+                OutlinedTextField(
+                    value = lowPressure.toString(),
+                    onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setLowPressure(v) } },
+                    label = { Text("Low Pressure (kPa)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = highPressure.toString(),
+                    onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighPressure(v) } },
+                    label = { Text("High Pressure (kPa)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = highTemp.toString(),
+                    onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighTemp(v) } },
+                    label = { Text("High Temp (°C)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors
+                )
+            }
+
+            TpmsCard(title = "Teyes Permissions") {
+                Text(
+                    text = buildString {
+                        appendLine("For reliable background monitoring on Teyes:")
+                        appendLine("1. Settings → Apps → TPMS → Auto start → ON")
+                        appendLine("2. Settings → Battery → App battery → No restrictions")
+                        appendLine("3. In recent apps, swipe down to lock TPMS")
+                        appendLine("4. Enable Boot completed if asked")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             Button(
                 onClick = {
                     viewModel.saveThresholds()
                     onBack()
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 Text("Save")
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
-
-

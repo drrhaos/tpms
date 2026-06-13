@@ -4,6 +4,6 @@
     <color name="warning">#FFC107</color>
     <color name="alert">#F44336</color>
     <color name="disconnected">#9E9E9E</color>
-    <color name="background_dark">#121212</color>
-    <color name="surface_dark">#1E1E1E</color>
+    <color name="background_dark">#0A0E14</color>
+    <color name="surface_dark">#141B24</color>
 </resources>

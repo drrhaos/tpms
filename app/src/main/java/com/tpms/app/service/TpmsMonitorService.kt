@@ -16,6 +16,7 @@ import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.main.MainActivity
 import com.tpms.app.ui.widget.TpmsWidget
+import com.tpms.app.ui.widget.WidgetSnapshot
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -155,17 +156,12 @@ class TpmsMonitorService : Service() {
     }
 
     private fun updateWidget() {
-        val unit = settingsStore.pressureUnit.value
-        val summary = repository.sensors.value.values
-            .sortedBy { it.id }
-            .joinToString("  ") { sensor ->
-                "${sensor.label.ifEmpty { sensor.id.take(4) }}: %.0f%s".format(
-                    unit.fromKpa(sensor.pressureKpa),
-                    unit.label
-                )
-            }
-            .ifEmpty { getString(R.string.widget_no_data) }
-        TpmsWidget.pushUpdate(this, summary)
+        val snapshot = WidgetSnapshot.from(
+            state = repository.state.value,
+            sensors = repository.sensors.value,
+            unit = settingsStore.pressureUnit.value
+        )
+        TpmsWidget.pushUpdate(this, snapshot)
     }
 
     private fun buildPersistentNotification() =
