@@ -1,5 +1,6 @@
 package com.tpms.app.service
 
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -92,6 +93,7 @@ class TpmsMonitorService : Service() {
         if (pollingJob?.isActive != true) {
             startPolling()
         }
+        refreshPersistentNotification()
         return START_STICKY
     }
 
@@ -180,16 +182,25 @@ class TpmsMonitorService : Service() {
             runCatching { repository.readSensor() }
             runCatching { repository.checkSensorTimeouts() }
             runCatching { updateWidget() }
+            withContext(Dispatchers.Main) {
+                refreshPersistentNotification()
+            }
         } finally {
             releaseWakeLock()
         }
+    }
+
+    private fun refreshPersistentNotification() {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIF_ID, buildPersistentNotification())
     }
 
     private suspend fun updateWidget() {
         val snapshot = WidgetSnapshot.from(
             state = repository.state.value,
             sensors = repository.sensors.value,
-            unit = settingsStore.pressureUnit.value
+            unit = settingsStore.pressureUnit.value,
+            wheelMapping = settingsStore.wheelMapping.value
         )
         withContext(Dispatchers.Main) {
             runCatching { TpmsWidget.pushUpdate(this@TpmsMonitorService, snapshot) }
@@ -209,6 +220,8 @@ class TpmsMonitorService : Service() {
     private fun buildPersistentNotification() =
         NotificationCompat.Builder(this, TpmsApplication.CHANNEL_STATUS)
             .setContentTitle(getString(R.string.notification_service_running))
+            .setContentText(repository.serviceStatusLine())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(repository.serviceStatusLine()))
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .setSilent(true)

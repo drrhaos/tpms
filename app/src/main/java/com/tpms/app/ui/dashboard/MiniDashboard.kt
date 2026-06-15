@@ -31,7 +31,7 @@ import com.tpms.app.ui.theme.TpmsColors
 
 @Composable
 fun MiniDashboard(
-    sensors: Map<String, TireSensor>,
+    sensors: List<TireSensor>,
     pressureUnit: PressureUnit = PressureUnit.PSI
 ) {
     TpmsCard(title = "Quick Status") {
@@ -40,15 +40,23 @@ fun MiniDashboard(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            WheelLayout.orderedValues(sensors).forEach { sensor ->
-                TireIndicator(sensor = sensor, pressureUnit = pressureUnit)
+            sensors.forEachIndexed { index, sensor ->
+                TireIndicator(
+                    sensor = sensor,
+                    displayLabel = WheelLayout.ORDER.getOrElse(index) { sensor.label },
+                    pressureUnit = pressureUnit
+                )
             }
         }
     }
 }
 
 @Composable
-private fun TireIndicator(sensor: TireSensor, pressureUnit: PressureUnit) {
+private fun TireIndicator(
+    sensor: TireSensor,
+    displayLabel: String,
+    pressureUnit: PressureUnit
+) {
     val color = sensor.toSeverity().statusColor()
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -71,7 +79,7 @@ private fun TireIndicator(sensor: TireSensor, pressureUnit: PressureUnit) {
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = sensor.label.ifEmpty { sensor.id.take(4) },
+            text = displayLabel.ifEmpty { sensor.id.take(4) },
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             color = TpmsColors.onSurfaceMuted,

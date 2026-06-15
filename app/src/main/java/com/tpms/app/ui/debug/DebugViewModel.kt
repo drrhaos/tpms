@@ -2,6 +2,7 @@ package com.tpms.app.ui.debug
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tpms.app.data.diagnostics.CrashLogStore
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.usb.UsbDebugLog
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,7 +16,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DebugViewModel @Inject constructor(
-    private val repository: TpmsRepository
+    private val repository: TpmsRepository,
+    private val crashLogStore: CrashLogStore
 ) : ViewModel() {
 
     val logEntries: StateFlow<List<UsbDebugLog.Entry>> = repository.debugLogEntries()
@@ -23,6 +25,9 @@ class DebugViewModel @Inject constructor(
 
     private val _usbScan = MutableStateFlow("")
     val usbScan: StateFlow<String> = _usbScan.asStateFlow()
+
+    val hasPersistedCrash: Boolean
+        get() = !crashLogStore.read().isNullOrBlank()
 
     init {
         refreshUsbScan()
@@ -39,6 +44,8 @@ class DebugViewModel @Inject constructor(
     }
 
     fun exportLog(): String = repository.exportDebugLog()
+
+    fun exportFullReport(): String = repository.exportFullReport()
 
     fun probeRead() {
         viewModelScope.launch {

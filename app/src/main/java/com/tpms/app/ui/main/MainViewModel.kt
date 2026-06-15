@@ -40,9 +40,10 @@ class MainViewModel @Inject constructor(
     val uiState: StateFlow<MainUiState> = combine(
         repository.state,
         repository.sensors,
-        settingsStore.pressureUnit
-    ) { tpmsState, sensors, unit ->
-        buildUiState(tpmsState, sensors, unit)
+        settingsStore.pressureUnit,
+        settingsStore.wheelMapping
+    ) { tpmsState, sensors, unit, mapping ->
+        buildUiState(tpmsState, sensors, unit, mapping)
     }.catch { error ->
         debugLog.error("MainScreen", uiBreadcrumbs.describe())
         debugLog.exception("MainScreen", error, "ui state flow")
@@ -52,14 +53,15 @@ class MainViewModel @Inject constructor(
     private fun buildUiState(
         tpmsState: TpmsState,
         sensors: Map<String, TireSensor>,
-        unit: PressureUnit
+        unit: PressureUnit,
+        wheelMapping: Map<String, String>
     ): MainUiState {
         return try {
             MainUiState(
                 tpmsState = tpmsState,
                 sensors = sensors,
-                wheelSlots = WheelLayout.orderedSlots(sensors),
-                dashboardSensors = WheelLayout.orderedValues(sensors),
+                wheelSlots = WheelLayout.orderedSlots(sensors, wheelMapping),
+                dashboardSensors = WheelLayout.orderedValues(sensors, wheelMapping),
                 pressureUnit = unit
             )
         } catch (error: Exception) {

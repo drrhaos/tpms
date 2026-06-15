@@ -3,10 +3,13 @@ package com.tpms.app.data.settings
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
@@ -23,6 +26,13 @@ import javax.inject.Singleton
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "tpms_settings")
 
+data class TeyesChecklist(
+    val autoStart: Boolean = false,
+    val batteryUnrestricted: Boolean = false,
+    val lockInRecents: Boolean = false,
+    val bootCompleted: Boolean = false
+)
+
 @Singleton
 class SettingsStore @Inject constructor(
     @ApplicationContext private val context: Context
@@ -37,6 +47,15 @@ class SettingsStore @Inject constructor(
 
     private val _dongleProtocolMode = MutableStateFlow(DongleProtocolMode.AUTO)
     val dongleProtocolMode = _dongleProtocolMode.asStateFlow()
+
+    private val _sensorTimeoutMs = MutableStateFlow(DEFAULT_SENSOR_TIMEOUT_MS)
+    val sensorTimeoutMs = _sensorTimeoutMs.asStateFlow()
+
+    private val _wheelMapping = MutableStateFlow<Map<String, String>>(emptyMap())
+    val wheelMapping = _wheelMapping.asStateFlow()
+
+    private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
+    val teyesChecklist = _teyesChecklist.asStateFlow()
 
     init {
         scope.launch {
@@ -54,6 +73,19 @@ class SettingsStore @Inject constructor(
                 _dongleProtocolMode.value = prefs[KEY_DONGLE_PROTOCOL]?.let { name ->
                     DongleProtocolMode.entries.find { it.name == name }
                 } ?: DongleProtocolMode.AUTO
+
+                _sensorTimeoutMs.value = prefs[KEY_SENSOR_TIMEOUT_MS] ?: DEFAULT_SENSOR_TIMEOUT_MS
+
+                _wheelMapping.value = WheelLayout.ORDER.associateWith { slot ->
+                    prefs[wheelMappingKey(slot)] ?: ""
+                }
+
+                _teyesChecklist.value = TeyesChecklist(
+                    autoStart = prefs[KEY_TEYES_AUTO_START] ?: false,
+                    batteryUnrestricted = prefs[KEY_TEYES_BATTERY] ?: false,
+                    lockInRecents = prefs[KEY_TEYES_LOCK] ?: false,
+                    bootCompleted = prefs[KEY_TEYES_BOOT] ?: false
+                )
             }
         }
     }
@@ -78,11 +110,41 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_DONGLE_PROTOCOL] = mode.name }
     }
 
+    suspend fun setSensorTimeoutMs(timeoutMs: Long) {
+        context.settingsDataStore.edit { it[KEY_SENSOR_TIMEOUT_MS] = timeoutMs }
+    }
+
+    suspend fun setWheelMapping(slot: String, sensorId: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[wheelMappingKey(slot)] = sensorId
+        }
+    }
+
+    suspend fun setTeyesChecklistItem(key: String, checked: Boolean) {
+        val prefKey = when (key) {
+            "auto_start" -> KEY_TEYES_AUTO_START
+            "battery" -> KEY_TEYES_BATTERY
+            "lock" -> KEY_TEYES_LOCK
+            "boot" -> KEY_TEYES_BOOT
+            else -> return
+        }
+        context.settingsDataStore.edit { it[prefKey] = checked }
+    }
+
     companion object {
+        const val DEFAULT_SENSOR_TIMEOUT_MS = 60_000L
+
         private val KEY_PRESSURE_UNIT = stringPreferencesKey("pressure_unit")
         private val KEY_LOW_PRESSURE = floatPreferencesKey("low_pressure_kpa")
         private val KEY_HIGH_PRESSURE = floatPreferencesKey("high_pressure_kpa")
         private val KEY_HIGH_TEMP = floatPreferencesKey("high_temp_celsius")
         private val KEY_DONGLE_PROTOCOL = stringPreferencesKey("dongle_protocol")
+        private val KEY_SENSOR_TIMEOUT_MS = longPreferencesKey("sensor_timeout_ms")
+        private val KEY_TEYES_AUTO_START = booleanPreferencesKey("teyes_auto_start")
+        private val KEY_TEYES_BATTERY = booleanPreferencesKey("teyes_battery")
+        private val KEY_TEYES_LOCK = booleanPreferencesKey("teyes_lock")
+        private val KEY_TEYES_BOOT = booleanPreferencesKey("teyes_boot")
+
+        private fun wheelMappingKey(slot: String) = stringPreferencesKey("wheel_map_$slot")
     }
 }

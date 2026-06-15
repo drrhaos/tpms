@@ -31,6 +31,11 @@ class UsbConnection @Inject constructor(
     val isConnected: Boolean
         get() = synchronized(usbLock) { connection != null }
 
+    fun connectedVidPid(): String? = synchronized(usbLock) {
+        if (connectedVendorId < 0) null
+        else "%04X:%04X".format(connectedVendorId, connectedProductId)
+    }
+
     fun isSameDevice(device: UsbDevice): Boolean = synchronized(usbLock) {
         connection != null &&
             connectedVendorId == device.vendorId &&

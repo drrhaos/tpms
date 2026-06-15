@@ -26,7 +26,8 @@ data class WidgetSnapshot(
         fun from(
             state: TpmsState,
             sensors: Map<String, TireSensor>,
-            unit: PressureUnit
+            unit: PressureUnit,
+            wheelMapping: Map<String, String> = emptyMap()
         ): WidgetSnapshot {
             val statusText = when (state) {
                 is TpmsState.Disconnected -> "Offline"
@@ -36,7 +37,7 @@ data class WidgetSnapshot(
             }
 
             val tires = WheelLayout.ORDER.mapIndexed { index, label ->
-                val sensor = WheelLayout.orderedSlots(sensors).getOrNull(index)
+                val sensor = WheelLayout.orderedSlots(sensors, wheelMapping).getOrNull(index)
 
                 if (sensor == null || !sensor.pressureKpa.isFinite()) {
                     WidgetTireSlot(label, "--", WidgetTireStatus.EMPTY)

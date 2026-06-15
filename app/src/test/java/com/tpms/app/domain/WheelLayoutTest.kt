@@ -47,14 +47,28 @@ class WheelLayoutTest {
     }
 
     @Test
-    fun orderedValues_prefersLabelMatch() {
+    fun orderedSlots_usesCustomMapping() {
         val sensors = mapOf(
-            "SENSOR_01" to sensor("SENSOR_01", "FL"),
-            "SENSOR_02" to sensor("SENSOR_02", "FR")
+            "ABC123" to sensor("ABC123"),
+            "XYZ789" to sensor("XYZ789")
+        )
+        val mapping = mapOf(
+            "FL" to "ABC123",
+            "FR" to "XYZ789"
         )
 
-        val values = WheelLayout.orderedValues(sensors)
+        val slots = WheelLayout.orderedSlots(sensors, mapping)
 
-        assertEquals(listOf("SENSOR_01", "SENSOR_02"), values.map { it.id })
+        assertEquals("ABC123", slots[0]?.id)
+        assertEquals("XYZ789", slots[1]?.id)
+        assertNull(slots[2])
+        assertNull(slots[3])
+    }
+
+    @Test
+    fun resolveWheelLabel_prefersMapping() {
+        val sensor = sensor("ABC123", "ignored")
+        val label = WheelLayout.resolveWheelLabel(sensor, mapOf("FL" to "ABC123"))
+        assertEquals("FL", label)
     }
 }

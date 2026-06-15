@@ -17,7 +17,8 @@ import javax.inject.Singleton
 @Singleton
 class SystemDiagnostics @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val uiBreadcrumbs: UiBreadcrumbs
+    private val uiBreadcrumbs: UiBreadcrumbs,
+    private val crashLogStore: CrashLogStore
 ) {
 
     fun logStartup(debugLog: UsbDebugLog) {
@@ -26,6 +27,13 @@ class SystemDiagnostics @Inject constructor(
     }
 
     fun logCrash(debugLog: UsbDebugLog, thread: Thread, throwable: Throwable) {
+        val report = crashLogStore.buildCrashReport(
+            thread = thread,
+            throwable = throwable,
+            systemLines = systemInfoLines(),
+            screenBreadcrumb = uiBreadcrumbs.describe()
+        )
+        crashLogStore.save(report)
         debugLog.error("Crash", "=== UNCAUGHT EXCEPTION ${timestamp()} ===")
         debugLog.error("Crash", uiBreadcrumbs.describe())
         debugLog.error("Crash", CrashReportFormatter.formatThread(thread))
@@ -35,6 +43,7 @@ class SystemDiagnostics @Inject constructor(
         ).forEach { debugLog.error("Crash", it) }
         debugLog.error("Crash", "--- System snapshot at crash ---")
         systemInfoLines().forEach { debugLog.error("System", it) }
+        debugLog.error("Crash", "Crash report persisted to crash_last.txt")
     }
 
     fun systemInfoBlock(): String = buildString {

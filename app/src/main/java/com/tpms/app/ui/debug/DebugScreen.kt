@@ -57,6 +57,7 @@ fun DebugScreen(
     val context = LocalContext.current
     val usbScan by viewModel.usbScan.collectAsState()
     val entries by viewModel.logEntries.collectAsState()
+    val hasPersistedCrash = viewModel.hasPersistedCrash
     val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
     Scaffold(
@@ -88,6 +89,15 @@ fun DebugScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
+            if (hasPersistedCrash) {
+                Text(
+                    text = "A crash report was saved from the last session — include it via Full report.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = StatusColors.warning
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -107,6 +117,14 @@ fun DebugScreen(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = { shareLog(context, viewModel.exportFullReport(), "TPMS Full Diagnostic Report") },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
+                Text("Export full report")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -121,11 +139,11 @@ fun DebugScreen(
                     Text("Copy")
                 }
                 OutlinedButton(
-                    onClick = { shareLog(context, viewModel.exportLog()) },
+                    onClick = { shareLog(context, viewModel.exportFullReport(), "TPMS Full Diagnostic Report") },
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                    Text("Share")
+                    Text("Share full")
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -203,10 +221,10 @@ private fun copyToClipboard(context: Context, text: String) {
     clipboard.setPrimaryClip(ClipData.newPlainText("TPMS debug log", text))
 }
 
-private fun shareLog(context: Context, text: String) {
+private fun shareLog(context: Context, text: String, subject: String = "TPMS USB Debug Log") {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "TPMS USB Debug Log")
+        putExtra(Intent.EXTRA_SUBJECT, subject)
         putExtra(Intent.EXTRA_TEXT, text)
     }
     context.startActivity(Intent.createChooser(intent, "Share debug log"))

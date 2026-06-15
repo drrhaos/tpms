@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tpms.app.R
+import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.toSeverity
@@ -113,9 +114,12 @@ fun CarTopDown(
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = if (sensor != null && sensor.pressureKpa.isFinite())
-                            "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa))
-                        else "--",
+                        text = when {
+                            sensor?.alertType == AlertType.SENSOR_LOST -> "LOST"
+                            sensor != null && sensor.pressureKpa.isFinite() ->
+                                "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa))
+                            else -> "--"
+                        },
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = dotColor,

@@ -59,6 +59,10 @@ class UsbDebugLog @Inject constructor(
         append(systemDiagnostics.systemInfoBlock())
         appendLine("Exported: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
         appendLine()
+        append(eventsText())
+    }
+
+    fun eventsText(): String = buildString {
         for (entry in _entries.value) {
             appendLine("${timeFmt.format(Date(entry.timestamp))} [${entry.level}] ${entry.tag}: ${entry.message}")
         }

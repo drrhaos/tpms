@@ -1,6 +1,7 @@
 package com.tpms.app.ui.settings
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +60,10 @@ fun SettingsScreen(
     val highPressure by viewModel.highPressure.collectAsState()
     val highTemp by viewModel.highTemp.collectAsState()
     val dongleProtocolMode by viewModel.dongleProtocolMode.collectAsState()
+    val sensorTimeoutSec by viewModel.sensorTimeoutSec.collectAsState()
+    val wheelMapping by viewModel.wheelMapping.collectAsState()
+    val knownSensorIds by viewModel.knownSensorIds.collectAsState()
+    val teyesChecklist by viewModel.teyesChecklist.collectAsState()
     val pinSupported = TpmsWidgetHelper.isPinSupported(context)
     val hasWidget = TpmsWidgetHelper.hasActiveWidgets(context)
 
@@ -196,6 +202,39 @@ fun SettingsScreen(
                 )
             }
 
+            TpmsCard(title = "Wheel Mapping") {
+                Text(
+                    text = "Assign sensor IDs to wheel positions. Tap to cycle: Auto → sensor IDs.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (knownSensorIds.isEmpty()) {
+                    Text(
+                        text = "No sensors detected yet — connect dongle and wait for data.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                viewModel.wheelSlots.forEach { slot ->
+                    val selected = wheelMapping[slot].orEmpty()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(slot, style = MaterialTheme.typography.titleMedium)
+                        OutlinedButton(
+                            onClick = { viewModel.cycleWheelMapping(slot, knownSensorIds) }
+                        ) {
+                            Text(selected.ifBlank { "Auto" })
+                        }
+                    }
+                }
+            }
+
             TpmsCard(title = "Alert Thresholds") {
                 val fieldColors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -226,19 +265,36 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = sensorTimeoutSec.toString(),
+                    onValueChange = { it.toIntOrNull()?.let { v -> viewModel.setSensorTimeoutSec(v) } },
+                    label = { Text("Sensor lost timeout (sec)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors
+                )
             }
 
             TpmsCard(title = "Teyes Permissions") {
-                Text(
-                    text = buildString {
-                        appendLine("For reliable background monitoring on Teyes:")
-                        appendLine("1. Settings → Apps → TPMS → Auto start → ON")
-                        appendLine("2. Settings → Battery → App battery → No restrictions")
-                        appendLine("3. In recent apps, swipe down to lock TPMS")
-                        appendLine("4. Enable Boot completed if asked")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                TeyesChecklistItem(
+                    label = "Auto start enabled (Settings → Apps → TPMS)",
+                    checked = teyesChecklist.autoStart,
+                    onCheckedChange = { viewModel.setTeyesChecklistItem("auto_start", it) }
+                )
+                TeyesChecklistItem(
+                    label = "Battery → No restrictions",
+                    checked = teyesChecklist.batteryUnrestricted,
+                    onCheckedChange = { viewModel.setTeyesChecklistItem("battery", it) }
+                )
+                TeyesChecklistItem(
+                    label = "Locked in recent apps",
+                    checked = teyesChecklist.lockInRecents,
+                    onCheckedChange = { viewModel.setTeyesChecklistItem("lock", it) }
+                )
+                TeyesChecklistItem(
+                    label = "Boot completed allowed",
+                    checked = teyesChecklist.bootCompleted,
+                    onCheckedChange = { viewModel.setTeyesChecklistItem("boot", it) }
                 )
             }
 
@@ -258,5 +314,30 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+}
+
+@Composable
+private fun TeyesChecklistItem(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 4.dp)
+        )
     }
 }

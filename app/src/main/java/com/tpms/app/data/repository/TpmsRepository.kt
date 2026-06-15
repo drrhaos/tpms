@@ -3,12 +3,14 @@ package com.tpms.app.data.repository
 import android.hardware.usb.UsbDevice
 import com.tpms.app.data.db.SensorDao
 import com.tpms.app.data.db.SensorReading
-import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.data.diagnostics.DiagnosticsExporter
+import com.tpms.app.data.diagnostics.UiBreadcrumbs
 import com.tpms.app.data.usb.DongleDetector
 import com.tpms.app.data.usb.TpmsProtocolRouter
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
+import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.AlertEvaluator
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.AlertType
@@ -29,7 +31,9 @@ class TpmsRepository @Inject constructor(
     private val protocolRouter: TpmsProtocolRouter,
     private val sensorDao: SensorDao,
     private val settingsStore: SettingsStore,
-    private val debugLog: UsbDebugLog
+    private val debugLog: UsbDebugLog,
+    private val diagnosticsExporter: DiagnosticsExporter,
+    private val uiBreadcrumbs: UiBreadcrumbs
 ) {
     private val _state = MutableStateFlow<TpmsState>(TpmsState.Disconnected)
     val state = _state.asStateFlow()
@@ -39,6 +43,9 @@ class TpmsRepository @Inject constructor(
 
     private val lastSeen = mutableMapOf<String, Long>()
     private var onAlertCallback: ((TireSensor) -> Unit)? = null
+
+    @Volatile
+    private var lastFrameAtMs: Long = 0L
 
     fun onAlert(callback: (TireSensor) -> Unit) {
         onAlertCallback = callback
@@ -84,13 +91,42 @@ class TpmsRepository @Inject constructor(
 
     fun clearDebugLog() = debugLog.clear()
 
-    fun exportDebugLog(): String {
-        val header = buildString {
-            appendLine(scanUsbDevices())
-            appendLine("--- Event log ---")
-        }
-        return header + debugLog.exportText()
+    fun exportDebugLog(): String = buildString {
+        appendLine(scanUsbDevices())
+        appendLine("--- Event log ---")
+        append(debugLog.eventsText())
     }
+
+    fun exportFullReport(): String = diagnosticsExporter.exportFullReport(
+        tpmsState = _state.value,
+        sensors = _sensors.value,
+        wheelMapping = settingsStore.wheelMapping.value,
+        pressureUnit = settingsStore.pressureUnit.value,
+        usbScan = scanUsbDevices(),
+        serviceStatusLine = serviceStatusLine()
+    )
+
+    fun serviceStatusLine(): String {
+        val protocol = activeProtocol()?.displayName ?: "no protocol"
+        val dongle = usbConnection.connectedVidPid() ?: "no dongle"
+        val frameAge = lastFrameAgeSeconds()?.let { "${it}s ago" } ?: "never"
+        val stateLabel = when (val s = _state.value) {
+            is TpmsState.Disconnected -> "disconnected"
+            is TpmsState.Connecting -> "connecting"
+            is TpmsState.Connected -> "connected"
+            is TpmsState.Alert -> "alert"
+        }
+        return "$stateLabel · $protocol · $dongle · last frame $frameAge · screen ${uiBreadcrumbs.lastScreen}"
+    }
+
+    fun lastFrameAtMs(): Long = lastFrameAtMs
+
+    fun lastFrameAgeSeconds(): Long? {
+        if (lastFrameAtMs <= 0L) return null
+        return (System.currentTimeMillis() - lastFrameAtMs) / 1000
+    }
+
+    fun knownSensorIds(): List<String> = _sensors.value.keys.sorted()
 
     fun hasUsbPermission(device: UsbDevice): Boolean = usbConnection.hasPermission(device)
 
@@ -151,7 +187,7 @@ class TpmsRepository @Inject constructor(
 
         for ((id, sensor) in _sensors.value) {
             val seen = lastSeen[id] ?: continue
-            if (now - seen > SENSOR_TIMEOUT_MS && sensor.alertType != AlertType.SENSOR_LOST) {
+            if (now - seen > settingsStore.sensorTimeoutMs.value && sensor.alertType != AlertType.SENSOR_LOST) {
                 val lost = sensor.copy(alertType = AlertType.SENSOR_LOST)
                 updated[id] = lost
                 lostSensors.add(lost)
@@ -178,6 +214,7 @@ class TpmsRepository @Inject constructor(
             usbConnection.close()
             protocolRouter.onDongleClosed()
             lastSeen.clear()
+            lastFrameAtMs = 0L
             _sensors.value = emptyMap()
             _state.value = TpmsState.Disconnected
         } catch (e: Exception) {
@@ -191,6 +228,7 @@ class TpmsRepository @Inject constructor(
 
     private suspend fun applySensorUpdate(sensor: TireSensor) {
         try {
+            lastFrameAtMs = System.currentTimeMillis()
             lastSeen[sensor.id] = sensor.timestamp
             val updated = _sensors.value.toMutableMap()
             updated[sensor.id] = sensor
@@ -251,8 +289,4 @@ class TpmsRepository @Inject constructor(
         alertType = alertType?.name,
         timestamp = timestamp
     )
-
-    companion object {
-        private const val SENSOR_TIMEOUT_MS = 60_000L
-    }
 }

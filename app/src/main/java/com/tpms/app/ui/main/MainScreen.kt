@@ -93,8 +93,8 @@ fun MainScreen(
         ) {
             StatusHeader(state = uiState.tpmsState)
 
-            if (uiState.sensors.isNotEmpty()) {
-                MiniDashboard(sensors = uiState.sensors, pressureUnit = uiState.pressureUnit)
+            if (uiState.dashboardSensors.isNotEmpty()) {
+                MiniDashboard(sensors = uiState.dashboardSensors, pressureUnit = uiState.pressureUnit)
             }
 
             CarTopDown(
