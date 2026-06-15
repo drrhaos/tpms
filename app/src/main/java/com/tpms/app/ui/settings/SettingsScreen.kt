@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
 import com.tpms.app.domain.model.DongleProtocolMode
-import com.tpms.app.ui.localizedLabel
+import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.ui.components.TpmsCard
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.theme.TpmsColors
