@@ -1,8 +1,6 @@
 package com.tpms.app.startup
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.os.Build
 
 object TeyesDeviceDetector {
@@ -20,7 +18,6 @@ object TeyesDeviceDetector {
     private val TEYES_MODEL_HINTS = listOf("cc3", "cc2", "spro", "uis7862", "ums512")
 
     fun isLikelyTeyesHeadUnit(context: Context): Boolean {
-        if (isDebugBuild(context)) return true
         if (hasTeyesSystemPackage(context)) return true
         val manufacturer = Build.MANUFACTURER.orEmpty().lowercase()
         val brand = Build.BRAND.orEmpty().lowercase()
@@ -30,9 +27,6 @@ object TeyesDeviceDetector {
         return TEYES_MANUFACTURER_HINTS.any { combined.contains(it) } ||
             TEYES_MODEL_HINTS.any { combined.contains(it) }
     }
-
-    private fun isDebugBuild(context: Context): Boolean =
-        (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
     private fun hasTeyesSystemPackage(context: Context): Boolean {
         val pm = context.packageManager
