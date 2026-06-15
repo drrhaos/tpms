@@ -3,6 +3,7 @@ package com.tpms.app.ui.widget
 import com.tpms.app.domain.AlertSeverity
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.toSeverity
+import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -14,6 +15,8 @@ enum class WidgetTireStatus {
 data class WidgetTireSlot(
     val label: String,
     val pressureText: String,
+    val temperatureText: String = "--°C",
+    val batteryText: String = "--%",
     val status: WidgetTireStatus
 )
 
@@ -32,30 +35,55 @@ data class WidgetSnapshot(
             val statusText = when (state) {
                 is TpmsState.Disconnected -> "Offline"
                 is TpmsState.Connecting -> "Connecting"
-                is TpmsState.Connected -> "Live"
+                is TpmsState.Connected -> "Monitoring"
                 is TpmsState.Alert -> "Alert"
             }
 
             val tires = WheelLayout.ORDER.mapIndexed { index, label ->
                 val sensor = WheelLayout.orderedSlots(sensors, wheelMapping).getOrNull(index)
-
-                if (sensor == null || !sensor.pressureKpa.isFinite()) {
-                    WidgetTireSlot(label, "--", WidgetTireStatus.EMPTY)
-                } else {
-                    WidgetTireSlot(
-                        label = label,
-                        pressureText = unit.formatFromKpa(sensor.pressureKpa),
-                        status = sensor.toSeverity().toWidgetStatus()
-                    )
-                }
+                formatTireSlot(sensor, label, unit)
             }
 
             return WidgetSnapshot(statusText, unit.label, tires)
         }
 
         fun empty(unit: PressureUnit = PressureUnit.PSI): WidgetSnapshot {
-            val tires = WheelLayout.ORDER.map { WidgetTireSlot(it, "--", WidgetTireStatus.EMPTY) }
+            val tires = WheelLayout.ORDER.map { formatTireSlot(null, it, unit) }
             return WidgetSnapshot("Offline", unit.label, tires)
+        }
+
+        private fun formatTireSlot(sensor: TireSensor?, label: String, unit: PressureUnit): WidgetTireSlot {
+            if (sensor == null) {
+                return WidgetTireSlot(
+                    label = label,
+                    pressureText = "-- ${unit.label}",
+                    status = WidgetTireStatus.EMPTY
+                )
+            }
+            if (sensor.alertType == AlertType.SENSOR_LOST) {
+                return WidgetTireSlot(
+                    label = label,
+                    pressureText = "LOST",
+                    status = WidgetTireStatus.ALERT
+                )
+            }
+            val pressureText = if (sensor.pressureKpa.isFinite()) {
+                unit.formatPressure(sensor.pressureKpa)
+            } else {
+                "-- ${unit.label}"
+            }
+            val temperatureText = if (sensor.temperatureCelsius.isFinite()) {
+                "%.0f°C".format(sensor.temperatureCelsius)
+            } else {
+                "--°C"
+            }
+            return WidgetTireSlot(
+                label = label,
+                pressureText = pressureText,
+                temperatureText = temperatureText,
+                batteryText = "${sensor.batteryPercent}%",
+                status = sensor.toSeverity().toWidgetStatus()
+            )
         }
 
         private fun AlertSeverity.toWidgetStatus(): WidgetTireStatus = when (this) {

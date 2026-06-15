@@ -39,8 +39,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.tpms.app.R
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.ui.components.TpmsCard
@@ -108,7 +110,7 @@ fun SettingsScreen(
                 }
             }
 
-            TpmsCard(title = "Teyes Panel Widget") {
+            TpmsCard(title = "Teyes Home Screen") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Outlined.Widgets,
@@ -116,7 +118,7 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = if (hasWidget) "Widget active on home screen" else "Add widget to main panel",
+                        text = if (hasWidget) "Dashboard active on home screen" else "Show TPMS on map / car panel",
                         modifier = Modifier.padding(start = 10.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -124,8 +126,7 @@ fun SettingsScreen(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "On Teyes CC3/CC2: long-press the home screen → Widgets → TPMS Monitor. " +
-                        "Or use the button below to pin the widget directly.",
+                    text = stringResource(R.string.widget_teyes_panel_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -138,7 +139,7 @@ fun SettingsScreen(
                             contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text("Pin widget to Teyes panel")
+                        Text(stringResource(R.string.widget_pin_to_panel))
                     }
                 } else {
                     Text(
