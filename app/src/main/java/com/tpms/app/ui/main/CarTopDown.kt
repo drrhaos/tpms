@@ -8,11 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tpms.app.R
-import com.tpms.app.domain.toSeverity
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.toSeverity
@@ -61,6 +60,8 @@ fun CarTopDown(
     ) {
         val boxW = maxWidth
         val boxH = maxHeight
+        if (boxW <= 0.dp || boxH <= 0.dp) return@BoxWithConstraints
+
         val cardW = minOf(110.dp, boxW * 0.26f)
         val cardH = minOf(76.dp, boxH * 0.22f)
         val imgSide = minOf(boxW, boxH) * 0.85f
@@ -86,8 +87,8 @@ fun CarTopDown(
             val wheelCenterX = offsetX + imgSide * pos.xFrac
             val wheelCenterY = offsetY + imgSide * pos.yFrac
 
-            val cardX: Dp = if (isLeft) margin else boxW - cardW - margin
-            val cardY = (wheelCenterY - cardH / 2f).coerceIn(margin, boxH - cardH - margin)
+            val cardX: Dp = if (isLeft) margin else maxOf(margin, boxW - cardW - margin)
+            val cardY = clampOffset(wheelCenterY - cardH / 2f, margin, maxOf(margin, boxH - cardH - margin))
 
             Box(
                 modifier = Modifier
@@ -141,3 +142,9 @@ fun CarTopDown(
         }
     }
 }
+
+internal fun clampOffset(value: Dp, min: Dp, max: Dp): Dp =
+    clampOffset(value.value, min.value, max.value).dp
+
+internal fun clampOffset(value: Float, min: Float, max: Float): Float =
+    if (max < min) min else value.coerceIn(min, max)

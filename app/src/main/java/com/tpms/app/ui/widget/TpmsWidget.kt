@@ -41,8 +41,12 @@ class TpmsWidget : AppWidgetProvider() {
             appWidgetId: Int,
             snapshot: WidgetSnapshot
         ) {
-            val views = buildRemoteViews(context, snapshot)
-            manager.updateAppWidget(appWidgetId, views)
+            try {
+                val views = buildRemoteViews(context, snapshot)
+                manager.updateAppWidget(appWidgetId, views)
+            } catch (_: Exception) {
+                // Widget update is best-effort
+            }
         }
 
         private fun buildRemoteViews(context: Context, snapshot: WidgetSnapshot): RemoteViews {

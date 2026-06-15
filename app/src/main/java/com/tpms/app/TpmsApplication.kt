@@ -3,14 +3,32 @@ package com.tpms.app
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import com.tpms.app.data.diagnostics.SystemDiagnostics
+import com.tpms.app.data.usb.UsbDebugLog
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
 @HiltAndroidApp
 class TpmsApplication : Application() {
 
+    @Inject lateinit var debugLog: UsbDebugLog
+    @Inject lateinit var systemDiagnostics: SystemDiagnostics
+
     override fun onCreate() {
         super.onCreate()
+        installGlobalExceptionHandler()
+        systemDiagnostics.logStartup(debugLog)
         createNotificationChannels()
+    }
+
+    private fun installGlobalExceptionHandler() {
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            if (::debugLog.isInitialized && ::systemDiagnostics.isInitialized) {
+                systemDiagnostics.logCrash(debugLog, thread, throwable)
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
     }
 
     private fun createNotificationChannels() {

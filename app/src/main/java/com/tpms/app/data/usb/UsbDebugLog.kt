@@ -1,5 +1,7 @@
 package com.tpms.app.data.usb
 
+import com.tpms.app.data.diagnostics.CrashReportFormatter
+import com.tpms.app.data.diagnostics.SystemDiagnostics
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,7 +12,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class UsbDebugLog @Inject constructor() {
+class UsbDebugLog @Inject constructor(
+    private val systemDiagnostics: SystemDiagnostics
+) {
 
     enum class Level { INFO, WARN, ERROR, USB, RAW }
 
@@ -32,6 +36,15 @@ class UsbDebugLog @Inject constructor() {
     fun usb(tag: String, message: String) = append(Level.USB, tag, message)
     fun raw(tag: String, message: String) = append(Level.RAW, tag, message)
 
+    fun exception(tag: String, throwable: Throwable, context: String? = null) {
+        if (!context.isNullOrBlank()) {
+            error(tag, context)
+        }
+        CrashReportFormatter.format(throwable).forEach { line ->
+            append(Level.ERROR, tag, line)
+        }
+    }
+
     fun append(level: Level, tag: String, message: String) {
         val entry = Entry(System.currentTimeMillis(), level, tag, message)
         _entries.value = (_entries.value + entry).takeLast(MAX_ENTRIES)
@@ -42,7 +55,8 @@ class UsbDebugLog @Inject constructor() {
     }
 
     fun exportText(): String = buildString {
-        appendLine("=== TPMS USB Debug Log ===")
+        appendLine("=== TPMS Debug Log ===")
+        append(systemDiagnostics.systemInfoBlock())
         appendLine("Exported: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
         appendLine()
         for (entry in _entries.value) {

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.tpms.app.data.diagnostics.UiBreadcrumbs
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
 import com.tpms.app.data.usb.UsbPermissionHelper
@@ -28,6 +29,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var usbPermissionHelper: UsbPermissionHelper
     @Inject lateinit var debugLog: UsbDebugLog
+    @Inject lateinit var uiBreadcrumbs: UiBreadcrumbs
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -36,10 +38,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        requestNotificationPermissionIfNeeded()
-        debugLog.info("App", "TPMS Monitor started")
-        requestUsbPermissionIfNeeded()
-        TpmsMonitorService.start(this)
+
+        runCatching {
+            requestNotificationPermissionIfNeeded()
+            debugLog.info("App", "TPMS Monitor started")
+            requestUsbPermissionIfNeeded()
+            TpmsMonitorService.start(this)
+        }.onFailure { error ->
+            debugLog.error("App", uiBreadcrumbs.describe())
+            debugLog.exception("App", error, "onCreate startup")
+        }
 
         setContent {
             TpmsTheme {
@@ -69,13 +77,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestUsbPermissionIfNeeded() {
-        val device = usbPermissionHelper.findDongle()
-        if (device == null) {
-            debugLog.warn("App", "No TPMS dongle found at startup — open Debug log for USB scan")
-            return
+        runCatching {
+            val device = usbPermissionHelper.findDongle()
+            if (device == null) {
+                debugLog.warn("App", "No TPMS dongle found at startup — open Debug log for USB scan")
+                return
+            }
+            debugLog.usb("App", "Requesting permission for ${UsbDeviceInfo.shortLabel(device)}")
+            usbPermissionHelper.requestPermission(this, device)
+        }.onFailure { error ->
+            debugLog.exception("App", error, "requestUsbPermissionIfNeeded")
         }
-        debugLog.usb("App", "Requesting permission for ${UsbDeviceInfo.shortLabel(device)}")
-        usbPermissionHelper.requestPermission(this, device)
     }
 
     companion object {

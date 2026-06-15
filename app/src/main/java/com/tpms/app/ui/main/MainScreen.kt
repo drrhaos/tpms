@@ -6,15 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Settings
@@ -35,17 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.tpms.app.domain.WheelLayout
-import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
-import com.tpms.app.domain.model.PressureUnit
-import com.tpms.app.ui.components.TpmsCard
 import com.tpms.app.ui.dashboard.MiniDashboard
-import com.tpms.app.domain.toSeverity
 import com.tpms.app.ui.theme.StatusColors
-import com.tpms.app.ui.theme.statusColor
 import com.tpms.app.ui.theme.TpmsColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,9 +44,7 @@ fun MainScreen(
     onNavigateToDebug: () -> Unit,
     viewModel: MainViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
-    val sensors by viewModel.sensors.collectAsState()
-    val unit by viewModel.pressureUnit.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -104,40 +91,22 @@ fun MainScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatusHeader(state = state)
+            StatusHeader(state = uiState.tpmsState)
 
-            if (sensors.isNotEmpty()) {
-                MiniDashboard(sensors = sensors, pressureUnit = unit)
+            if (uiState.sensors.isNotEmpty()) {
+                MiniDashboard(sensors = uiState.sensors, pressureUnit = uiState.pressureUnit)
             }
 
-            val sensorList = WheelLayout.orderedSlots(sensors)
-
             CarTopDown(
-                sensors = sensorList,
-                pressureUnit = unit,
+                sensors = uiState.wheelSlots,
+                pressureUnit = uiState.pressureUnit,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             )
 
-            if (sensors.isNotEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Sensor Details",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    sensors.values.sortedBy { it.id }.forEach { sensor ->
-                        SensorDetailCard(sensor = sensor, unit = unit)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+            uiState.lastError?.let { message ->
+                UiErrorBanner(message = message)
             }
         }
     }
@@ -178,46 +147,20 @@ private fun StatusHeader(state: TpmsState) {
 }
 
 @Composable
-private fun SensorDetailCard(sensor: TireSensor, unit: PressureUnit) {
-    val statusColor = sensor.toSeverity().statusColor()
-
-    TpmsCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = sensor.label.ifEmpty { sensor.id },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = if (sensor.temperatureCelsius.isFinite())
-                        "%.0f°C · ${sensor.batteryPercent}% batt".format(sensor.temperatureCelsius)
-                    else "--°C · ${sensor.batteryPercent}% batt",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Text(
-                text = if (sensor.pressureKpa.isFinite())
-                    "%.1f %s".format(unit.fromKpa(sensor.pressureKpa), unit.label)
-                else "-- ${unit.label}",
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                color = statusColor
-            )
-        }
-        if (sensor.isAlert) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = sensor.alertType?.name?.replace("_", " ") ?: "",
-                color = StatusColors.alert,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Bold
-            )
-        }
+private fun UiErrorBanner(message: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(StatusColors.alert.copy(alpha = 0.12f))
+            .border(1.dp, StatusColors.alert.copy(alpha = 0.35f), MaterialTheme.shapes.medium)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "UI error logged: $message",
+            style = MaterialTheme.typography.bodySmall,
+            color = StatusColors.alert
+        )
     }
 }

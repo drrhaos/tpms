@@ -127,9 +127,7 @@ class TpmsRepository @Inject constructor(
             if (parsed.isNotEmpty()) {
                 debugLog.info(
                     "Repository",
-                    parsed.distinctBy { it.id }.joinToString {
-                        "${it.label} %.0f kPa %.0f°C".format(it.pressureKpa, it.temperatureCelsius)
-                    }
+                    parsed.distinctBy { it.id }.joinToString { sensorSummary(it) }
                 )
             }
             var last: TireSensor? = null
@@ -213,11 +211,11 @@ class TpmsRepository @Inject constructor(
             val sensorList = _sensors.value.values.toList()
             if (sensorList.isEmpty()) return
 
-            val alerting = sensorList.firstOrNull { it.isAlert && it.alertType != null }
-            _state.value = if (alerting != null) {
+            val alerting = sensorList.firstOrNull { it.isAlert }
+            _state.value = if (alerting != null && alerting.alertType != null) {
                 TpmsState.Alert(
                     sensor = alerting,
-                    type = alerting.alertType!!,
+                    type = alerting.alertType,
                     previousState = TpmsState.Connected(sensorList, timestamp)
                 )
             } else {
@@ -234,6 +232,15 @@ class TpmsRepository @Inject constructor(
         } catch (e: Exception) {
             debugLog.warn("Repository", "emitAlert failed: ${e.message}")
         }
+    }
+
+    private fun sensorSummary(sensor: TireSensor): String = runCatching {
+        val pressure = if (sensor.pressureKpa.isFinite()) "%.0f".format(sensor.pressureKpa) else "?"
+        val temp = if (sensor.temperatureCelsius.isFinite()) "%.0f".format(sensor.temperatureCelsius) else "?"
+        "${sensor.label} $pressure kPa ${temp}°C"
+    }.getOrElse {
+        debugLog.warn("Repository", "sensorSummary failed for ${sensor.id}: ${it.message}")
+        "${sensor.label} (unreadable)"
     }
 
     private fun TireSensor.toReading() = SensorReading(
