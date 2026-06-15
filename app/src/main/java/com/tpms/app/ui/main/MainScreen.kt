@@ -14,9 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -121,15 +124,15 @@ fun MainScreen(
             ) {
                 StatusHeader(
                     state = uiState.tpmsState,
-                    wheelMapping = uiState.wheelMapping
+                    wheelMapping = uiState.wheelMapping,
+                    onNavigateToSettings = onNavigateToSettings,
+                    onNavigateToDebug = onNavigateToDebug
                 )
 
                 CarTopDown(
                     sensors = uiState.wheelSlots,
                     wheelLabels = uiState.wheelSlotLabels,
                     pressureUnit = uiState.pressureUnit,
-                    onNavigateToSettings = onNavigateToSettings,
-                    onNavigateToDebug = onNavigateToDebug,
                     onWheelClick = { label, sensor -> selectedWheel = label to sensor },
                     modifier = Modifier
                         .weight(1f)
@@ -147,7 +150,9 @@ fun MainScreen(
 @Composable
 private fun StatusHeader(
     state: TpmsState,
-    wheelMapping: Map<String, String>
+    wheelMapping: Map<String, String>,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDebug: () -> Unit
 ) {
     val (text, color) = when (state) {
         is TpmsState.Disconnected -> state.statusLabel() to StatusColors.disconnected
@@ -166,9 +171,8 @@ private fun StatusHeader(
             .clip(MaterialTheme.shapes.medium)
             .background(TpmsColors.surfaceElevated)
             .border(1.dp, TpmsColors.outline.copy(alpha = 0.4f), MaterialTheme.shapes.medium)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
@@ -180,8 +184,25 @@ private fun StatusHeader(
             text = text,
             color = color,
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp)
         )
+        IconButton(onClick = onNavigateToDebug, modifier = Modifier.size(40.dp)) {
+            Icon(
+                Icons.Default.BugReport,
+                contentDescription = stringResource(R.string.cd_debug_log),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(40.dp)) {
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = stringResource(R.string.cd_settings),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

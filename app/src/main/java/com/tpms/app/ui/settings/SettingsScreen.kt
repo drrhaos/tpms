@@ -3,18 +3,22 @@ package com.tpms.app.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +34,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -39,15 +44,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
+import kotlinx.coroutines.launch
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
@@ -78,6 +86,7 @@ fun SettingsScreen(
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     var importJson by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(importExportMessage) {
         importExportMessage?.let {
@@ -97,7 +106,9 @@ fun SettingsScreen(
         focusedTextColor = MaterialTheme.colorScheme.onBackground,
         unfocusedTextColor = MaterialTheme.colorScheme.onBackground
     )
-    val saveBarBottomPadding = settingsSaveBarBottomPadding()
+    val density = LocalDensity.current
+    val navBottomPx = WindowInsets.navigationBars.getBottom(density)
+    val savedMessage = stringResource(R.string.settings_saved)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -122,23 +133,54 @@ fun SettingsScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
+        },
+        bottomBar = {
+            val extraBottom = if (navBottomPx == 0) 16.dp else 0.dp
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = extraBottom),
+                color = TpmsColors.surfaceElevated,
+                tonalElevation = 4.dp,
+                shadowElevation = 8.dp
+            ) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            viewModel.saveSettings()
+                            snackbarHostState.showSnackbar(savedMessage)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_save_settings),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
     ) { padding ->
-        Box(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 8.dp,
+                bottom = 8.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 8.dp,
-                    bottom = saveBarBottomPadding + 8.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
             item {
                 SettingsGroup {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -472,16 +514,6 @@ fun SettingsScreen(
             }
 
             item { Spacer(modifier = Modifier.height(4.dp)) }
-            }
-
-            SettingsSaveBar(
-                onSave = {
-                    viewModel.saveThresholds()
-                    onBack()
-                },
-                label = stringResource(R.string.action_save),
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
     }
 }

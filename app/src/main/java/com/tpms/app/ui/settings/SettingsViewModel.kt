@@ -231,27 +231,29 @@ class SettingsViewModel @Inject constructor(
         _importExportMessage.value = null
     }
 
+    suspend fun saveSettings() {
+        val unit = _pressureUnit.value
+        settingsStore.setPressureUnit(unit)
+        settingsStore.setDongleProtocolMode(_dongleProtocolMode.value)
+        settingsStore.setSensorTimeoutMs(_sensorTimeoutSec.value * 1000L)
+        settingsStore.setStaleFrameTimeoutMs(_staleFrameTimeoutSec.value * 1000L)
+        settingsStore.setMinLiveWheelPressureKpa(_minLiveWheelPressure.value)
+        settingsStore.setThresholds(
+            AlertThresholds(
+                lowPressureKpa = unit.toKpa(_lowPressure.value),
+                highPressureKpa = unit.toKpa(_highPressure.value),
+                highTempCelsius = _highTemp.value
+            )
+        )
+        settingsStore.setAlertNotificationPrefs(
+            AlertNotificationPrefs(
+                soundEnabled = _alertSoundEnabled.value,
+                vibrationEnabled = _alertVibrationEnabled.value
+            )
+        )
+    }
+
     fun saveThresholds() {
-        viewModelScope.launch {
-            val unit = _pressureUnit.value
-            settingsStore.setPressureUnit(unit)
-            settingsStore.setDongleProtocolMode(_dongleProtocolMode.value)
-            settingsStore.setSensorTimeoutMs(_sensorTimeoutSec.value * 1000L)
-            settingsStore.setStaleFrameTimeoutMs(_staleFrameTimeoutSec.value * 1000L)
-            settingsStore.setMinLiveWheelPressureKpa(_minLiveWheelPressure.value)
-            settingsStore.setThresholds(
-                AlertThresholds(
-                    lowPressureKpa = unit.toKpa(_lowPressure.value),
-                    highPressureKpa = unit.toKpa(_highPressure.value),
-                    highTempCelsius = _highTemp.value
-                )
-            )
-            settingsStore.setAlertNotificationPrefs(
-                AlertNotificationPrefs(
-                    soundEnabled = _alertSoundEnabled.value,
-                    vibrationEnabled = _alertVibrationEnabled.value
-                )
-            )
-        }
+        viewModelScope.launch { saveSettings() }
     }
 }

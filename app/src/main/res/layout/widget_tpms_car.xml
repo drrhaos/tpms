@@ -20,8 +20,7 @@
         android:layout_width="140dp"
         android:layout_height="200dp"
         android:layout_gravity="center"
-        android:background="@drawable/widget_car_canvas"
-        android:padding="8dp">
+        android:padding="4dp">
 
         <ImageView
             android:id="@+id/widget_car"

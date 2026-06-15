@@ -33,6 +33,8 @@
     <string name="value_no_data_pressure">-- %1$s</string>
     <string name="value_no_data_temp">--°C</string>
     <string name="value_no_data_battery">--%</string>
+    <string name="wheel_status_ok">Колесо в норме</string>
+    <string name="wheel_status_problem">Проблема с колесом</string>
 
     <!-- Alert short labels -->
     <string name="alert_short_low">НИЗКОЕ</string>
@@ -128,6 +130,8 @@
     <string name="settings_low_pressure_short">Низк. (%1$s)</string>
     <string name="settings_high_pressure_short">Выс. (%1$s)</string>
     <string name="action_save">Сохранить</string>
+    <string name="action_save_settings">Сохранить настройки</string>
+    <string name="settings_saved">Настройки сохранены</string>
 
     <!-- Protocol modes -->
     <string name="protocol_auto">Авто</string>

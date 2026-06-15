@@ -7,17 +7,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,64 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tpms.app.ui.theme.TpmsColors
-
-private val SettingsSaveBarHeight = 72.dp
-private val SettingsSaveBarOverscanFallback = 24.dp
-
-@Composable
-fun settingsSaveBarBottomPadding(): Dp {
-    val density = LocalDensity.current
-    val navBottomPx = WindowInsets.navigationBars.getBottom(density)
-    val navBottom = with(density) { navBottomPx.toDp() }
-    val overscan = if (navBottomPx == 0) SettingsSaveBarOverscanFallback else 0.dp
-    return SettingsSaveBarHeight + navBottom + overscan
-}
-
-@Composable
-fun SettingsSaveBar(
-    onSave: () -> Unit,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    val density = LocalDensity.current
-    val extraBottom = if (WindowInsets.navigationBars.getBottom(density) == 0) {
-        SettingsSaveBarOverscanFallback
-    } else {
-        0.dp
-    }
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(bottom = extraBottom),
-        color = TpmsColors.surfaceElevated,
-        tonalElevation = 4.dp,
-        shadowElevation = 8.dp
-    ) {
-        Button(
-            onClick = onSave,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
 
 @Composable
 fun SettingsSectionHeader(
