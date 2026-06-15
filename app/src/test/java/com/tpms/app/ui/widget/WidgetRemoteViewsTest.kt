@@ -11,10 +11,10 @@ class WidgetRemoteViewsTest {
             connectionStatus = "Live",
             unitLabel = "Bar",
             tires = listOf(
-                WidgetTireSlot("FL", "2.2", WidgetTireStatus.OK),
-                WidgetTireSlot("FR", "2.2", WidgetTireStatus.OK),
-                WidgetTireSlot("RL", "2.1", WidgetTireStatus.WARNING),
-                WidgetTireSlot("RR", "--", WidgetTireStatus.EMPTY)
+                WidgetTireSlot("FL", "2.2", status = WidgetTireStatus.OK),
+                WidgetTireSlot("FR", "2.2", status = WidgetTireStatus.OK),
+                WidgetTireSlot("RL", "2.1", status = WidgetTireStatus.WARNING),
+                WidgetTireSlot("RR", "--", status = WidgetTireStatus.EMPTY)
             )
         )
 

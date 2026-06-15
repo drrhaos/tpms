@@ -124,7 +124,7 @@ internal object WidgetRemoteViews {
             }
             if (showIndicators) {
                 ids.indicator?.let {
-                    views.setInt(it, "setBackgroundResource", indicatorDrawable(tire.status))
+                    views.setImageViewResource(it, indicatorDrawable(tire.status))
                 }
             }
         }

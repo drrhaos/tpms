@@ -5,7 +5,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.PowerManager
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.ContextCompat
@@ -13,7 +12,6 @@ import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
 import com.tpms.app.data.usb.UsbPermissionHelper
 import com.tpms.app.service.UsbPermissionNotifier
-import com.tpms.app.ui.settings.TeyesPermissionHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,15 +22,24 @@ class StartupPermissionCoordinator @Inject constructor(
     private val usbPermissionHelper: UsbPermissionHelper,
     private val debugLog: UsbDebugLog
 ) {
-    private var batteryPromptedThisSession = false
+    private var usbPermissionRequestedThisSession = false
 
-    fun ensureRuntimePermissions(
+    /**
+     * Run once when the main activity is created. Does not open system settings screens
+     * automatically — battery / app-details are opened only from Settings UI.
+     */
+    fun ensureOnLaunch(
         activity: ComponentActivity,
         notificationPermissionLauncher: ActivityResultLauncher<String>
     ) {
         requestNotificationPermissionIfNeeded(activity, notificationPermissionLauncher)
-        requestUsbPermissionIfNeeded(activity)
-        requestBatteryOptimizationIfNeeded(activity)
+        requestUsbPermissionIfNeeded(activity, force = true)
+    }
+
+    /** Re-request USB permission after a new dongle attach intent. */
+    fun ensureAfterUsbAttach(activity: ComponentActivity) {
+        usbPermissionRequestedThisSession = false
+        requestUsbPermissionIfNeeded(activity, force = true)
     }
 
     private fun requestNotificationPermissionIfNeeded(
@@ -48,26 +55,19 @@ class StartupPermissionCoordinator @Inject constructor(
         launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
-    private fun requestUsbPermissionIfNeeded(activity: Activity) {
+    private fun requestUsbPermissionIfNeeded(activity: Activity, force: Boolean) {
+        if (!force && usbPermissionRequestedThisSession) return
         runCatching {
             val device = usbPermissionHelper.findDongle() ?: return
             if (usbPermissionHelper.hasPermission(device)) {
                 UsbPermissionNotifier.dismiss(activity)
                 return
             }
+            usbPermissionRequestedThisSession = true
             debugLog.usb("App", "Requesting USB permission for ${UsbDeviceInfo.shortLabel(device)}")
             usbPermissionHelper.requestPermission(activity, device)
         }.onFailure { error ->
             debugLog.exception("App", error, "requestUsbPermissionIfNeeded")
         }
-    }
-
-    private fun requestBatteryOptimizationIfNeeded(activity: Activity) {
-        if (batteryPromptedThisSession) return
-        val pm = activity.getSystemService(PowerManager::class.java) ?: return
-        if (pm.isIgnoringBatteryOptimizations(activity.packageName)) return
-        batteryPromptedThisSession = true
-        debugLog.info("App", "Requesting battery optimization exemption")
-        TeyesPermissionHelper.openBatteryOptimization(activity)
     }
 }

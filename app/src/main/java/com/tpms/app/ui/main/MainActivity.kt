@@ -33,7 +33,6 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         runCatching {
-            startupPermissions.ensureRuntimePermissions(this, notificationPermissionLauncher)
             TpmsMonitorService.start(this)
         }.onFailure { error ->
             debugLog.exception("App", error, "ensure service on resume")
@@ -46,7 +45,7 @@ class MainActivity : ComponentActivity() {
 
         runCatching {
             debugLog.info("App", "TPMS Monitor started")
-            startupPermissions.ensureRuntimePermissions(this, notificationPermissionLauncher)
+            startupPermissions.ensureOnLaunch(this, notificationPermissionLauncher)
             TpmsMonitorService.start(this)
         }.onFailure { error ->
             debugLog.error("App", uiBreadcrumbs.describe())
@@ -65,7 +64,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
-            startupPermissions.ensureRuntimePermissions(this, notificationPermissionLauncher)
+            startupPermissions.ensureAfterUsbAttach(this)
             TpmsMonitorService.wake(this)
         }
     }

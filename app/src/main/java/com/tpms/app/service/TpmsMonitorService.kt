@@ -25,6 +25,7 @@ import com.tpms.app.ui.main.MainActivity
 import com.tpms.app.ui.widget.TpmsWidget
 import com.tpms.app.ui.widget.WidgetRemoteViews
 import com.tpms.app.ui.widget.WidgetSnapshot
+import com.tpms.app.ui.widget.WidgetSnapshotBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +50,7 @@ class TpmsMonitorService : Service() {
     @Inject lateinit var monitoringHealthNotifier: MonitoringHealthNotifier
     @Inject lateinit var heartbeatStore: ServiceHeartbeatStore
     @Inject lateinit var settingsStore: SettingsStore
+    @Inject lateinit var widgetSnapshotBuilder: WidgetSnapshotBuilder
     @Inject lateinit var serviceHealth: ServiceHealth
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -268,7 +270,7 @@ class TpmsMonitorService : Service() {
     }
 
     private suspend fun updateWidget() {
-        val snapshot = buildWidgetSnapshot()
+        val snapshot = widgetSnapshotBuilder.build(this)
         withContext(Dispatchers.Main) {
             runCatching { TpmsWidget.pushUpdate(this@TpmsMonitorService, snapshot) }
         }
@@ -284,22 +286,10 @@ class TpmsMonitorService : Service() {
         }
     }
 
-    private fun buildWidgetSnapshot(): WidgetSnapshot =
-        WidgetSnapshot.from(
-            this,
-            state = repository.state.value,
-            sensors = repository.sensors.value,
-            unit = settingsStore.pressureUnit.value,
-            wheelMapping = settingsStore.wheelMapping.value,
-            showSpareWheel = settingsStore.showSpareWheel.value,
-            dataAgeSec = repository.newestSensorAgeSec(),
-            dataStale = repository.isDataStale()
-        )
-
     private fun buildPersistentNotification(): android.app.Notification {
         val statusLine = repository.serviceStatusLine()
         val protocolUnhealthy = repository.isProtocolUnhealthy()
-        val snapshot = buildWidgetSnapshot()
+        val snapshot = widgetSnapshotBuilder.buildNow(this)
         val collapsed = WidgetRemoteViews.forNotificationCollapsed(this, snapshot)
         val expanded = WidgetRemoteViews.forNotificationExpanded(this, snapshot, statusLine)
         val summary = buildString {

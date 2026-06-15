@@ -78,12 +78,13 @@
             android:textColor="#8FA3BC"
             android:textSize="10sp" />
 
-        <View
+        <ImageView
             android:id="@+id/widget_fl_indicator"
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:layout_marginTop="3dp"
-            android:background="@drawable/widget_indicator_empty" />
+            android:contentDescription="@null"
+            android:src="@drawable/widget_indicator_empty" />
     </LinearLayout>
 
     <!-- FR -->
@@ -133,12 +134,13 @@
             android:textColor="#8FA3BC"
             android:textSize="10sp" />
 
-        <View
+        <ImageView
             android:id="@+id/widget_fr_indicator"
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:layout_marginTop="3dp"
-            android:background="@drawable/widget_indicator_empty" />
+            android:contentDescription="@null"
+            android:src="@drawable/widget_indicator_empty" />
     </LinearLayout>
 
     <!-- RL -->
@@ -188,12 +190,13 @@
             android:textColor="#8FA3BC"
             android:textSize="10sp" />
 
-        <View
+        <ImageView
             android:id="@+id/widget_rl_indicator"
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:layout_marginTop="3dp"
-            android:background="@drawable/widget_indicator_empty" />
+            android:contentDescription="@null"
+            android:src="@drawable/widget_indicator_empty" />
     </LinearLayout>
 
     <!-- RR -->
@@ -243,12 +246,13 @@
             android:textColor="#8FA3BC"
             android:textSize="10sp" />
 
-        <View
+        <ImageView
             android:id="@+id/widget_rr_indicator"
             android:layout_width="8dp"
             android:layout_height="8dp"
             android:layout_marginTop="3dp"
-            android:background="@drawable/widget_indicator_empty" />
+            android:contentDescription="@null"
+            android:src="@drawable/widget_indicator_empty" />
     </LinearLayout>
 
     <TextView

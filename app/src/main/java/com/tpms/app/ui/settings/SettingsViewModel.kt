@@ -164,6 +164,7 @@ class SettingsViewModel @Inject constructor(
         _pressureUnit.value = unit
         _lowPressure.value = unit.fromKpa(lowKpa)
         _highPressure.value = unit.fromKpa(highKpa)
+        viewModelScope.launch { settingsStore.setPressureUnit(unit) }
     }
 
     fun setLowPressure(v: Float) { _lowPressure.value = v }
@@ -172,14 +173,19 @@ class SettingsViewModel @Inject constructor(
 
     fun setDongleProtocolMode(mode: DongleProtocolMode) {
         _dongleProtocolMode.value = mode
+        viewModelScope.launch { settingsStore.setDongleProtocolMode(mode) }
     }
 
     fun setSensorTimeoutSec(seconds: Int) {
-        _sensorTimeoutSec.value = seconds.coerceIn(15, 300)
+        val value = seconds.coerceIn(15, 300)
+        _sensorTimeoutSec.value = value
+        viewModelScope.launch { settingsStore.setSensorTimeoutMs(value * 1000L) }
     }
 
     fun setStaleFrameTimeoutSec(seconds: Int) {
-        _staleFrameTimeoutSec.value = seconds.coerceIn(30, 300)
+        val value = seconds.coerceIn(30, 300)
+        _staleFrameTimeoutSec.value = value
+        viewModelScope.launch { settingsStore.setStaleFrameTimeoutMs(value * 1000L) }
     }
 
     fun setShowSpareWheel(enabled: Boolean) {
@@ -188,7 +194,9 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setMinLiveWheelPressure(v: Float) {
-        _minLiveWheelPressure.value = v.coerceIn(0f, 500f)
+        val value = v.coerceIn(0f, 500f)
+        _minLiveWheelPressure.value = value
+        viewModelScope.launch { settingsStore.setMinLiveWheelPressureKpa(value) }
     }
 
     fun setSettingsUiMode(mode: SettingsUiMode) {
@@ -198,10 +206,23 @@ class SettingsViewModel @Inject constructor(
 
     fun setAlertSoundEnabled(enabled: Boolean) {
         _alertSoundEnabled.value = enabled
+        persistAlertNotificationPrefs()
     }
 
     fun setAlertVibrationEnabled(enabled: Boolean) {
         _alertVibrationEnabled.value = enabled
+        persistAlertNotificationPrefs()
+    }
+
+    private fun persistAlertNotificationPrefs() {
+        viewModelScope.launch {
+            settingsStore.setAlertNotificationPrefs(
+                AlertNotificationPrefs(
+                    soundEnabled = _alertSoundEnabled.value,
+                    vibrationEnabled = _alertVibrationEnabled.value
+                )
+            )
+        }
     }
 
     fun cycleWheelMapping(slot: String, availableIds: List<String>) {
@@ -291,6 +312,20 @@ class SettingsViewModel @Inject constructor(
                 vibrationEnabled = _alertVibrationEnabled.value
             )
         )
+    }
+
+    /** Persist threshold text fields when leaving the settings screen. */
+    fun savePendingThresholds() {
+        viewModelScope.launch {
+            val unit = _pressureUnit.value
+            settingsStore.setThresholds(
+                AlertThresholds(
+                    lowPressureKpa = unit.toKpa(_lowPressure.value),
+                    highPressureKpa = unit.toKpa(_highPressure.value),
+                    highTempCelsius = _highTemp.value
+                )
+            )
+        }
     }
 
     fun saveThresholds() {
