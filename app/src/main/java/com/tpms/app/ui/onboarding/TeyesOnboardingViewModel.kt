@@ -3,11 +3,10 @@ package com.tpms.app.ui.onboarding
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tpms.app.R
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.ui.settings.TeyesPermissionHelper
-import com.tpms.app.ui.widget.TpmsWidgetHelper
-import com.tpms.app.ui.widget.WidgetPinResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,20 +35,24 @@ class TeyesOnboardingViewModel @Inject constructor(
 
     fun openNotifications() {
         TeyesPermissionHelper.openNotificationSettings(context)
-        nextStep()
+    }
+
+    fun openTeyesSettings() {
+        TeyesPermissionHelper.openTeyesSettings(context)
+    }
+
+    fun openFrontApp() {
+        TeyesPermissionHelper.openFrontApp(context)
+    }
+
+    fun markFrontAppHome() {
+        viewModelScope.launch {
+            settingsStore.setTeyesChecklistItem("frontapp_home", true)
+        }
     }
 
     fun openBattery() {
         TeyesPermissionHelper.openBatteryOptimization(context)
-        nextStep()
-    }
-
-    fun pinWidget() {
-        val result = TpmsWidgetHelper.requestPinPanel(context)
-        TpmsWidgetHelper.showPinResultToast(context, result)
-        if (result != WidgetPinResult.DECLINED) {
-            nextStep()
-        }
     }
 
     fun complete(onDone: () -> Unit) {

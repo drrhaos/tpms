@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import android.widget.Toast
 import com.tpms.app.R
+import com.tpms.app.startup.TeyesDeviceDetector
 
 enum class WidgetPinResult {
     PINNED,
@@ -40,10 +41,20 @@ object TpmsWidgetHelper {
     fun showPinResultToast(context: Context, result: WidgetPinResult) {
         val message = when (result) {
             WidgetPinResult.PINNED -> R.string.widget_pin_success
-            WidgetPinResult.NOT_SUPPORTED -> R.string.widget_pin_manual_hint
+            WidgetPinResult.NOT_SUPPORTED -> {
+                if (TeyesDeviceDetector.isLikelyTeyesHeadUnit(context)) {
+                    R.string.settings_teyes_frontapp_hint
+                } else {
+                    R.string.widget_pin_manual_hint
+                }
+            }
             WidgetPinResult.DECLINED -> R.string.widget_pin_failed
         }
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+
+    fun showTeyesFrontAppHint(context: Context) {
+        Toast.makeText(context, R.string.settings_teyes_frontapp_hint, Toast.LENGTH_LONG).show()
     }
 
     fun hasActiveWidgets(context: Context): Boolean =

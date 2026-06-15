@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,13 +28,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.tpms.app.ui.dashboard.MiniDashboard
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,18 +38,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
-import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
-import com.tpms.app.domain.model.TpmsState
+import com.tpms.app.ui.embedded.EmbeddedMainScreenFrame
+import com.tpms.app.ui.embedded.LocalEmbeddedWindow
 import com.tpms.app.ui.shortLabel
-import com.tpms.app.ui.statusLabel
 import com.tpms.app.ui.theme.StatusColors
-import com.tpms.app.ui.theme.TpmsColors
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -67,22 +60,11 @@ fun MainScreen(
     onNavigateToDebug: () -> Unit,
     viewModel: MainViewModel = hiltViewModel()
 ) {
+    val embedded = LocalEmbeddedWindow.current
     val uiState by viewModel.uiState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val teyesSetup by viewModel.teyesSetupStatus.collectAsState()
     var selectedWheel by remember { mutableStateOf<Pair<String, TireSensor?>?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshSetupStatus()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     selectedWheel?.let { (label, sensor) ->
         ModalBottomSheet(
@@ -100,22 +82,70 @@ fun MainScreen(
         }
     }
 
+    val (statusText, statusColor) = mainStatusPresentation(
+        state = uiState.tpmsState,
+        wheelMapping = uiState.wheelMapping
+    )
+
+    val screenContent: @Composable () -> Unit = {
+        MainScreenScaffold(
+            statusText = statusText,
+            statusColor = statusColor,
+            uiState = uiState,
+            isRefreshing = isRefreshing,
+            compactToolbar = embedded.isEmbedded,
+            onRefresh = { viewModel.checkNow() },
+            onNavigateToSettings = onNavigateToSettings,
+            onNavigateToDebug = onNavigateToDebug,
+            onWheelClick = { label, sensor -> selectedWheel = label to sensor }
+        )
+    }
+
+    if (embedded.isEmbedded) {
+        EmbeddedMainScreenFrame(content = screenContent)
+    } else {
+        screenContent()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainScreenScaffold(
+    statusText: String,
+    statusColor: androidx.compose.ui.graphics.Color,
+    uiState: MainUiState,
+    isRefreshing: Boolean,
+    compactToolbar: Boolean,
+    onRefresh: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDebug: () -> Unit,
+    onWheelClick: (String, TireSensor?) -> Unit
+) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusHeaderRow(
+                        statusText = statusText,
+                        statusColor = statusColor,
+                        compact = compactToolbar
+                    )
+                },
+                actions = {
+                    val iconSize = if (compactToolbar) 36.dp else 40.dp
+                    IconButton(onClick = onNavigateToDebug, modifier = Modifier.size(iconSize)) {
                         Icon(
-                            Icons.Outlined.Speed,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                            Icons.Default.BugReport,
+                            contentDescription = stringResource(R.string.cd_debug_log),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Text(
-                            text = stringResource(R.string.title_main),
-                            modifier = Modifier.padding(start = 10.dp),
-                            fontWeight = FontWeight.Bold
+                    }
+                    IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(iconSize)) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.cd_settings),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
@@ -128,117 +158,78 @@ fun MainScreen(
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = { viewModel.checkNow() },
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Column(
+            MainDashboardBody(
+                uiState = uiState,
+                onWheelClick = onWheelClick,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                StatusHeader(
-                    state = uiState.tpmsState,
-                    wheelMapping = uiState.wheelMapping,
-                    onNavigateToSettings = onNavigateToSettings,
-                    onNavigateToDebug = onNavigateToDebug
-                )
-
-                if (teyesSetup.isTeyesDevice) {
-                    TeyesSetupBanner(
-                        status = teyesSetup,
-                        onOpenSettings = onNavigateToSettings
-                    )
-                }
-
-                if (uiState.showMiniDashboard) {
-                    MiniDashboard(
-                        sensors = uiState.wheelSlots.filterNotNull(),
-                        pressureUnit = uiState.pressureUnit
-                    )
-                }
-
-                CarTopDown(
-                    sensors = uiState.wheelSlots,
-                    wheelLabels = uiState.wheelSlotLabels,
-                    pressureUnit = uiState.pressureUnit,
-                    onWheelClick = { label, sensor -> selectedWheel = label to sensor },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                )
-
-                uiState.lastError?.let { message ->
-                    UiErrorBanner(message = message)
-                }
-
-                if (uiState.dataStale) {
-                    val minutes = uiState.dataAgeMinutes ?: 1
-                    DataStaleBanner(minutes = minutes)
-                }
-            }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun StatusHeader(
-    state: TpmsState,
-    wheelMapping: Map<String, String>,
-    onNavigateToSettings: () -> Unit,
-    onNavigateToDebug: () -> Unit
+private fun MainDashboardBody(
+    uiState: MainUiState,
+    onWheelClick: (String, TireSensor?) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val (text, color) = when (state) {
-        is TpmsState.Disconnected -> state.statusLabel() to StatusColors.disconnected
-        is TpmsState.Connecting -> state.statusLabel() to StatusColors.warning
-        is TpmsState.Connected -> state.statusLabel() to StatusColors.ok
-        is TpmsState.Alert -> {
-            val wheel = WheelLayout.resolveWheelLabel(state.sensor, wheelMapping)
-            val alertLabel = state.type.shortLabel()
-            stringResource(R.string.status_alert_format, wheel, alertLabel) to StatusColors.alert
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        CarTopDown(
+            sensors = uiState.wheelSlots,
+            wheelLabels = uiState.wheelSlotLabels,
+            pressureUnit = uiState.pressureUnit,
+            onWheelClick = onWheelClick,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        )
+
+        uiState.lastError?.let { message ->
+            UiErrorBanner(message = message)
+        }
+        if (uiState.dataStale) {
+            val minutes = uiState.dataAgeMinutes ?: 1
+            DataStaleBanner(minutes = minutes)
         }
     }
+}
 
+@Composable
+private fun StatusHeaderRow(
+    statusText: String,
+    statusColor: androidx.compose.ui.graphics.Color,
+    compact: Boolean,
+    modifier: Modifier = Modifier
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(TpmsColors.surfaceElevated)
-            .border(1.dp, TpmsColors.outline.copy(alpha = 0.4f), MaterialTheme.shapes.medium)
-            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(10.dp)
+                .size(if (compact) 8.dp else 10.dp)
                 .clip(CircleShape)
-                .background(color)
+                .background(statusColor)
         )
         Text(
-            text = text,
-            color = color,
-            style = MaterialTheme.typography.titleMedium,
+            text = statusText,
+            color = statusColor,
+            style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 10.dp)
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = if (compact) 6.dp else 10.dp)
         )
-        IconButton(onClick = onNavigateToDebug, modifier = Modifier.size(40.dp)) {
-            Icon(
-                Icons.Default.BugReport,
-                contentDescription = stringResource(R.string.cd_debug_log),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(40.dp)) {
-            Icon(
-                Icons.Default.Settings,
-                contentDescription = stringResource(R.string.cd_settings),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 

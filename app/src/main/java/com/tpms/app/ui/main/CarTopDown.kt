@@ -51,10 +51,11 @@ fun CarTopDown(
     wheelLabels: List<String> = listOf("FL", "FR", "RL", "RR"),
     pressureUnit: PressureUnit = PressureUnit.PSI,
     onWheelClick: (label: String, sensor: TireSensor?) -> Unit = { _, _ -> },
+    dense: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val margin = 6.dp
-    val columnGap = 4.dp
+    val margin = if (dense) 2.dp else 6.dp
+    val columnGap = if (dense) 2.dp else 4.dp
 
     BoxWithConstraints(
         modifier = modifier
@@ -65,7 +66,11 @@ fun CarTopDown(
         if (maxWidth <= 0.dp || maxHeight <= 0.dp) return@BoxWithConstraints
 
         val panelHeight = maxHeight
-        val spareBlockHeight = (panelHeight * 0.14f).coerceIn(52.dp, 88.dp)
+        val spareBlockHeight = if (dense) {
+            (panelHeight * 0.12f).coerceIn(28.dp, 56.dp)
+        } else {
+            (panelHeight * 0.14f).coerceIn(52.dp, 88.dp)
+        }
 
         val indices = wheelLabels.indices.toList()
         val leftIndices = indices.filter { it % 2 == 0 && wheelLabels[it] != "SP" }
@@ -84,6 +89,7 @@ fun CarTopDown(
                 sensors = sensors,
                 pressureUnit = pressureUnit,
                 batteryOnStart = false,
+                dense = dense,
                 onWheelClick = onWheelClick,
                 modifier = Modifier
                     .weight(SIDE_COLUMN_WEIGHT)
@@ -119,6 +125,7 @@ fun CarTopDown(
                         pressureUnit = pressureUnit,
                         accentColor = sensor.wheelStatusColor(),
                         batteryOnStart = true,
+                        dense = dense,
                         onClick = { onWheelClick(label, sensor) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -134,6 +141,7 @@ fun CarTopDown(
                 sensors = sensors,
                 pressureUnit = pressureUnit,
                 batteryOnStart = true,
+                dense = dense,
                 onWheelClick = onWheelClick,
                 modifier = Modifier
                     .weight(SIDE_COLUMN_WEIGHT)
@@ -150,6 +158,7 @@ private fun WheelSideColumn(
     sensors: List<TireSensor?>,
     pressureUnit: PressureUnit,
     batteryOnStart: Boolean,
+    dense: Boolean,
     onWheelClick: (label: String, sensor: TireSensor?) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -160,7 +169,7 @@ private fun WheelSideColumn(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(if (dense) 3.dp else 6.dp)
     ) {
         indices.forEach { index ->
             val label = wheelLabels[index]
@@ -171,6 +180,7 @@ private fun WheelSideColumn(
                 pressureUnit = pressureUnit,
                 accentColor = sensor.wheelStatusColor(),
                 batteryOnStart = batteryOnStart,
+                dense = dense,
                 onClick = { onWheelClick(label, sensor) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -187,10 +197,11 @@ private fun WheelInfoBlock(
     pressureUnit: PressureUnit,
     accentColor: Color,
     batteryOnStart: Boolean,
+    dense: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val batteryGap = 10.dp
+    val batteryGap = if (dense) 4.dp else 10.dp
 
     Row(
         modifier = modifier,
@@ -209,6 +220,7 @@ private fun WheelInfoBlock(
             label = label,
             pressureUnit = pressureUnit,
             accentColor = accentColor,
+            dense = dense,
             onClick = onClick,
             modifier = Modifier
                 .weight(1f)
@@ -261,6 +273,7 @@ private fun WheelParameterCard(
     label: String,
     pressureUnit: PressureUnit,
     accentColor: Color,
+    dense: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -270,12 +283,17 @@ private fun WheelParameterCard(
             .background(accentColor.copy(alpha = 0.12f))
             .border(1.dp, accentColor.copy(alpha = 0.35f), MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(
+                horizontal = if (dense) 4.dp else 8.dp,
+                vertical = if (dense) 2.dp else 4.dp
+            ),
         contentAlignment = Alignment.Center
     ) {
-        val labelSize = (maxHeight.value * 0.14f).coerceIn(10f, 15f).sp
-        val pressureSize = (maxHeight.value * 0.32f).coerceIn(16f, 34f).sp
-        val tempSize = (maxHeight.value * 0.14f).coerceIn(10f, 15f).sp
+        val labelCap = if (dense) 13f else 15f
+        val pressureCap = if (dense) 28f else 34f
+        val labelSize = (maxHeight.value * 0.14f).coerceIn(8f, labelCap).sp
+        val pressureSize = (maxHeight.value * 0.32f).coerceIn(12f, pressureCap).sp
+        val tempSize = (maxHeight.value * 0.14f).coerceIn(8f, labelCap).sp
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

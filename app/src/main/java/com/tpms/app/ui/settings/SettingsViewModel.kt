@@ -21,6 +21,7 @@ import com.tpms.app.domain.model.WidgetThemeMode
 import com.tpms.app.service.FloatingOverlayController
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.startup.TeyesDeviceDetector
+import com.tpms.app.startup.TeyesSetupStatus
 import com.tpms.app.startup.TeyesSetupStatusProvider
 import com.tpms.app.ui.widget.TpmsWidgetHelper
 import com.tpms.app.ui.widget.WidgetPinResult
@@ -119,6 +120,11 @@ class SettingsViewModel @Inject constructor(
     private val _serviceRunning = MutableStateFlow(false)
     val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
 
+    private val _teyesSetupStatus = MutableStateFlow(
+        teyesSetupStatusProvider.current(context)
+    )
+    val teyesSetupStatus: StateFlow<TeyesSetupStatus> = _teyesSetupStatus.asStateFlow()
+
     val knownSensorIds: StateFlow<List<String>> = repository.sensors
         .combine(_wheelMapping) { sensors, _ ->
             sensors.keys.sorted()
@@ -171,10 +177,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun refreshRuntimeSetupStatus() {
-        _batteryUnrestricted.value = teyesSetupStatusProvider.isBatteryUnrestricted(context)
-        _notificationsEnabled.value = teyesSetupStatusProvider.areNotificationsEnabled(context)
-        _widgetActive.value = TpmsWidgetHelper.hasActiveWidgets(context)
-        _serviceRunning.value = teyesSetupStatusProvider.current(context).serviceRunning
+        val status = teyesSetupStatusProvider.current(context)
+        _teyesSetupStatus.value = status
+        _batteryUnrestricted.value = status.batteryUnrestricted
+        _notificationsEnabled.value = status.notificationsEnabled
+        _widgetActive.value = status.widgetActive
+        _serviceRunning.value = status.serviceRunning
         refreshUsbDongleOptions()
     }
 
@@ -193,10 +201,15 @@ class SettingsViewModel @Inject constructor(
     fun openAppDetails() = TeyesPermissionHelper.openAppDetails(context)
     fun openBatterySettings() = TeyesPermissionHelper.openBatteryOptimization(context)
     fun openNotificationSettings() = TeyesPermissionHelper.openNotificationSettings(context)
-    fun openFrontAppStore() = TeyesPermissionHelper.openFrontAppPlayStore(context)
+    fun openTeyesSettings() = TeyesPermissionHelper.openTeyesSettings(context)
+    fun openFrontAppStore() = TeyesPermissionHelper.openFrontApp(context)
     fun openOverlaySettings() = TeyesPermissionHelper.openOverlaySettings(context)
 
     fun pinWidgetToHome(): WidgetPinResult {
+        if (isTeyesDevice) {
+            TeyesPermissionHelper.openFrontApp(context)
+            return WidgetPinResult.NOT_SUPPORTED
+        }
         val result = TpmsWidgetHelper.requestPinPanel(context)
         TpmsWidgetHelper.showPinResultToast(context, result)
         refreshRuntimeSetupStatus()
@@ -204,6 +217,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun pinCompactWidget(): WidgetPinResult {
+        if (isTeyesDevice) {
+            TeyesPermissionHelper.openFrontApp(context)
+            return WidgetPinResult.NOT_SUPPORTED
+        }
         val result = TpmsWidgetHelper.requestPinCompact(context)
         TpmsWidgetHelper.showPinResultToast(context, result)
         refreshRuntimeSetupStatus()

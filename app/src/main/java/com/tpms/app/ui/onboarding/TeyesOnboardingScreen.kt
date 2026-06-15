@@ -63,22 +63,28 @@ fun TeyesOnboardingScreen(
                     onSecondary = { viewModel.nextStep() }
                 )
                 1 -> OnboardingActions(
-                    primary = stringResource(R.string.onboarding_open_notifications),
-                    onPrimary = { viewModel.openNotifications() },
-                    secondary = stringResource(R.string.onboarding_next),
-                    onSecondary = { viewModel.nextStep() }
+                    primary = stringResource(R.string.onboarding_open_teyes_settings),
+                    onPrimary = { viewModel.openTeyesSettings() },
+                    secondary = stringResource(R.string.onboarding_open_notifications),
+                    onSecondary = { viewModel.openNotifications() },
+                    tertiary = stringResource(R.string.onboarding_next),
+                    onTertiary = { viewModel.nextStep() }
                 )
                 2 -> OnboardingActions(
-                    primary = stringResource(R.string.onboarding_open_battery),
-                    onPrimary = { viewModel.openBattery() },
-                    secondary = stringResource(R.string.onboarding_next),
-                    onSecondary = { viewModel.nextStep() }
+                    primary = stringResource(R.string.onboarding_open_teyes_settings),
+                    onPrimary = { viewModel.openTeyesSettings() },
+                    secondary = stringResource(R.string.onboarding_open_frontapp),
+                    onSecondary = { viewModel.openFrontApp() },
+                    tertiary = stringResource(R.string.onboarding_next),
+                    onTertiary = { viewModel.nextStep() }
                 )
                 else -> OnboardingActions(
-                    primary = stringResource(R.string.widget_pin_to_panel),
-                    onPrimary = { viewModel.pinWidget() },
-                    secondary = stringResource(R.string.onboarding_finish),
-                    onSecondary = { viewModel.complete(onComplete) }
+                    primary = stringResource(R.string.onboarding_open_frontapp),
+                    onPrimary = { viewModel.openFrontApp() },
+                    secondary = stringResource(R.string.onboarding_frontapp_done),
+                    onSecondary = { viewModel.markFrontAppHome() },
+                    tertiary = stringResource(R.string.onboarding_finish),
+                    onTertiary = { viewModel.complete(onComplete) }
                 )
             }
             TextButton(
@@ -96,12 +102,19 @@ private fun OnboardingActions(
     primary: String,
     onPrimary: () -> Unit,
     secondary: String,
-    onSecondary: () -> Unit
+    onSecondary: () -> Unit,
+    tertiary: String? = null,
+    onTertiary: (() -> Unit)? = null
 ) {
     Button(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) {
         Text(primary)
     }
     Button(onClick = onSecondary, modifier = Modifier.fillMaxWidth()) {
         Text(secondary)
+    }
+    if (tertiary != null && onTertiary != null) {
+        Button(onClick = onTertiary, modifier = Modifier.fillMaxWidth()) {
+            Text(tertiary)
+        }
     }
 }

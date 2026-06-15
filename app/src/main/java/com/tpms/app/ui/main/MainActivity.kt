@@ -15,6 +15,8 @@ import com.tpms.app.data.diagnostics.UiBreadcrumbs
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.startup.StartupPermissionCoordinator
+import com.tpms.app.ui.embedded.EmbeddedWindowDetector
+import com.tpms.app.ui.embedded.EmbeddedWindowProvider
 import com.tpms.app.ui.theme.TpmsTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -41,7 +43,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        if (!EmbeddedWindowDetector.isLaunchedFromFrontApp(this)) {
+            enableEdgeToEdge()
+        }
 
         runCatching {
             debugLog.info("App", "TPMS Monitor started")
@@ -54,8 +58,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             TpmsTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    TpmsNavHost()
+                EmbeddedWindowProvider {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        TpmsNavHost()
+                    }
                 }
             }
         }
@@ -73,6 +79,12 @@ class MainActivity : ComponentActivity() {
         fun newIntent(context: Context): Intent =
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+
+        fun fullScreenIntent(context: Context): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(EmbeddedWindowDetector.EXTRA_FORCE_FULLSCREEN, true)
             }
     }
 }

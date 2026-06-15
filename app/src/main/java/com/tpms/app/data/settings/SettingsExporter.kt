@@ -46,6 +46,7 @@ object SettingsExporter {
         put("teyes_lock", teyesChecklist.lockInRecents)
         put("teyes_boot", teyesChecklist.bootCompleted)
         put("teyes_auto_run_awake", teyesChecklist.autoRunAwake)
+        put("teyes_frontapp_home", teyesChecklist.frontAppHome)
         put("onboarding_complete", onboardingComplete)
         put("silent_startup", silentStartup)
         put("floating_overlay", floatingOverlayEnabled)
@@ -98,7 +99,8 @@ object SettingsExporter {
                 batteryUnrestricted = root.optBoolean("teyes_battery", false),
                 lockInRecents = root.optBoolean("teyes_lock", false),
                 bootCompleted = root.optBoolean("teyes_boot", false),
-                autoRunAwake = root.optBoolean("teyes_auto_run_awake", false)
+                autoRunAwake = root.optBoolean("teyes_auto_run_awake", false),
+                frontAppHome = root.optBoolean("teyes_frontapp_home", false)
             ),
             onboardingComplete = root.optBoolean("onboarding_complete", false),
             silentStartup = root.optBoolean("silent_startup", false),

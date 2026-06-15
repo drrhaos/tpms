@@ -11,7 +11,14 @@ class TeyesSetupStatusTest {
     fun needsAttention_whenServiceStoppedOnTeyes() {
         val status = TeyesSetupStatus(
             isTeyesDevice = true,
-            checklist = TeyesChecklist(autoStart = true, batteryUnrestricted = true, lockInRecents = true, bootCompleted = true, autoRunAwake = true),
+            checklist = TeyesChecklist(
+                autoStart = true,
+                batteryUnrestricted = true,
+                lockInRecents = true,
+                bootCompleted = true,
+                autoRunAwake = true,
+                frontAppHome = true
+            ),
             checklistComplete = true,
             batteryUnrestricted = true,
             notificationsEnabled = true,
@@ -36,17 +43,24 @@ class TeyesSetupStatusTest {
     }
 
     @Test
-    fun showWidgetHint_whenNoWidgetOnTeyes() {
+    fun showFrontAppHint_whenNotAddedViaFrontAppOnTeyes() {
         val status = TeyesSetupStatus(
             isTeyesDevice = true,
-            checklist = TeyesChecklist(autoStart = true, batteryUnrestricted = true, lockInRecents = true, bootCompleted = true, autoRunAwake = true),
+            checklist = TeyesChecklist(
+                autoStart = true,
+                batteryUnrestricted = true,
+                lockInRecents = true,
+                bootCompleted = true,
+                autoRunAwake = true,
+                frontAppHome = false
+            ),
             checklistComplete = true,
             batteryUnrestricted = true,
             notificationsEnabled = true,
             serviceRunning = true,
             widgetActive = false
         )
-        assertTrue(status.showWidgetHint)
+        assertTrue(status.showFrontAppHint)
         assertFalse(status.needsAttention)
     }
 }

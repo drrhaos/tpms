@@ -12,9 +12,6 @@ import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.service.TpmsMonitorService
-import com.tpms.app.startup.TeyesSetupStatus
-import com.tpms.app.startup.TeyesSetupStatusProvider
-import com.tpms.app.ui.widget.TpmsWidgetHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,8 +33,7 @@ data class MainUiState(
     val pressureUnit: PressureUnit = PressureUnit.KPA,
     val lastError: String? = null,
     val dataStale: Boolean = false,
-    val dataAgeMinutes: Long? = null,
-    val showMiniDashboard: Boolean = false
+    val dataAgeMinutes: Long? = null
 )
 
 @HiltViewModel
@@ -46,17 +42,8 @@ class MainViewModel @Inject constructor(
     private val repository: TpmsRepository,
     settingsStore: SettingsStore,
     private val debugLog: UsbDebugLog,
-    private val uiBreadcrumbs: UiBreadcrumbs,
-    private val teyesSetupStatusProvider: TeyesSetupStatusProvider
+    private val uiBreadcrumbs: UiBreadcrumbs
 ) : AndroidViewModel(application) {
-
-    private val _teyesSetupStatus = MutableStateFlow(
-        teyesSetupStatusProvider.current(application)
-    )
-    val teyesSetupStatus: StateFlow<TeyesSetupStatus> = _teyesSetupStatus.asStateFlow()
-
-    private val _widgetActive = MutableStateFlow(false)
-    val widgetActive: StateFlow<Boolean> = _widgetActive.asStateFlow()
 
     val uiState: StateFlow<MainUiState> = combine(
         repository.state,
@@ -67,10 +54,9 @@ class MainViewModel @Inject constructor(
             settingsStore.showSpareWheel
         ) { unit, mapping, spare ->
             MainSettingsBundle(unit, mapping, spare)
-        },
-        _widgetActive
-    ) { tpmsState, sensors, settings, widgetActive ->
-        buildUiState(tpmsState, sensors, settings, widgetActive)
+        }
+    ) { tpmsState, sensors, settings ->
+        buildUiState(tpmsState, sensors, settings)
     }.catch { error ->
         debugLog.error("MainScreen", uiBreadcrumbs.describe())
         debugLog.exception("MainScreen", error, "ui state flow")
@@ -80,22 +66,11 @@ class MainViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    init {
-        refreshSetupStatus()
-    }
-
-    fun refreshSetupStatus() {
-        val context = getApplication<Application>()
-        _teyesSetupStatus.value = teyesSetupStatusProvider.current(context)
-        _widgetActive.value = TpmsWidgetHelper.hasActiveWidgets(context)
-    }
-
     fun checkNow() {
         viewModelScope.launch {
             _isRefreshing.value = true
             TpmsMonitorService.wake(getApplication())
             delay(CHECK_NOW_REFRESH_MS)
-            refreshSetupStatus()
             _isRefreshing.value = false
         }
     }
@@ -103,15 +78,13 @@ class MainViewModel @Inject constructor(
     private fun buildUiState(
         tpmsState: TpmsState,
         sensors: Map<String, TireSensor>,
-        settings: MainSettingsBundle,
-        widgetActive: Boolean
+        settings: MainSettingsBundle
     ): MainUiState {
         return try {
             val slots = WheelLayout.allSlots(settings.showSpareWheel)
             val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
             val ageSec = repository.newestSensorAgeSec()
             val stale = repository.isDataStale()
-            val miniSensors = wheelSlots.filterNotNull()
             MainUiState(
                 tpmsState = tpmsState,
                 sensors = sensors,
@@ -120,8 +93,7 @@ class MainViewModel @Inject constructor(
                 wheelMapping = settings.wheelMapping,
                 pressureUnit = settings.pressureUnit,
                 dataStale = stale,
-                dataAgeMinutes = ageSec?.let { (it / 60).coerceAtLeast(1) },
-                showMiniDashboard = !widgetActive && miniSensors.isNotEmpty()
+                dataAgeMinutes = ageSec?.let { (it / 60).coerceAtLeast(1) }
             )
         } catch (error: Exception) {
             debugLog.error("MainScreen", uiBreadcrumbs.describe())

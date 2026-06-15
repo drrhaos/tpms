@@ -95,6 +95,7 @@ fun SettingsScreen(
     val criticalAlertsFullscreen by viewModel.criticalAlertsFullscreen.collectAsState()
     val widgetThemeMode by viewModel.widgetThemeMode.collectAsState()
     val preferredUsbVidPid by viewModel.preferredUsbVidPid.collectAsState()
+    val teyesSetupStatus by viewModel.teyesSetupStatus.collectAsState()
     val isTeyesDevice = viewModel.isTeyesDevice
     val staleFrameTimeoutSec by viewModel.staleFrameTimeoutSec.collectAsState()
     val minLiveWheelPressure by viewModel.minLiveWheelPressure.collectAsState()
@@ -220,6 +221,12 @@ fun SettingsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            if (isTeyesDevice) {
+                item {
+                    TeyesSetupWarnings(status = teyesSetupStatus)
+                }
+            }
+
             item {
                 SettingsGroup {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -416,6 +423,11 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingsGroup {
+                        SettingsNavigationRow(
+                            label = stringResource(R.string.settings_open_teyes_settings),
+                            onClick = { viewModel.openTeyesSettings() }
+                        )
+                        SettingsGroupDivider()
                         SettingsSwitchRow(
                             label = stringResource(R.string.settings_teyes_auto_start),
                             checked = teyesChecklist.autoStart,
@@ -490,60 +502,54 @@ fun SettingsScreen(
                 item {
                     SettingsSectionHeader(
                         title = stringResource(R.string.settings_teyes_home_title),
-                        subtitle = stringResource(R.string.widget_teyes_panel_hint)
+                        subtitle = stringResource(R.string.settings_teyes_frontapp_hint)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingsGroup {
                         SettingsNavigationRow(
-                            label = if (widgetActive) {
-                                stringResource(R.string.widget_dashboard_active)
-                            } else {
-                                stringResource(R.string.widget_dashboard_inactive)
-                            },
-                            onClick = { viewModel.pinWidgetToHome() }
-                        )
-                        SettingsGroupDivider()
-                        SettingsNavigationRow(
-                            label = stringResource(R.string.widget_pin_compact),
-                            onClick = { viewModel.pinCompactWidget() }
-                        )
-                        SettingsGroupDivider()
-                        SettingsNavigationRow(
-                            label = stringResource(R.string.settings_frontapp_hint),
+                            label = stringResource(R.string.settings_open_frontapp),
                             onClick = { viewModel.openFrontAppStore() }
                         )
                         SettingsGroupDivider()
-                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                            Text(
-                                text = stringResource(R.string.settings_widget_theme),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                            WidgetThemeMode.entries.forEachIndexed { index, mode ->
-                                if (index > 0) SettingsGroupDivider()
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { viewModel.setWidgetThemeMode(mode) }
-                                        .padding(start = 8.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = widgetThemeMode == mode,
-                                        onClick = { viewModel.setWidgetThemeMode(mode) },
-                                        colors = RadioButtonDefaults.colors(
-                                            selectedColor = MaterialTheme.colorScheme.primary
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_teyes_frontapp_done),
+                            checked = teyesChecklist.frontAppHome,
+                            onCheckedChange = { viewModel.setTeyesChecklistItem("frontapp_home", it) }
+                        )
+                        if (widgetActive) {
+                            SettingsGroupDivider()
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    text = stringResource(R.string.settings_widget_theme),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                                WidgetThemeMode.entries.forEachIndexed { index, mode ->
+                                    if (index > 0) SettingsGroupDivider()
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { viewModel.setWidgetThemeMode(mode) }
+                                            .padding(start = 8.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = widgetThemeMode == mode,
+                                            onClick = { viewModel.setWidgetThemeMode(mode) },
+                                            colors = RadioButtonDefaults.colors(
+                                                selectedColor = MaterialTheme.colorScheme.primary
+                                            )
                                         )
-                                    )
-                                    Text(
-                                        text = when (mode) {
-                                            WidgetThemeMode.AUTO -> stringResource(R.string.settings_widget_theme_auto)
-                                            WidgetThemeMode.LIGHT -> stringResource(R.string.settings_widget_theme_light)
-                                            WidgetThemeMode.DARK -> stringResource(R.string.settings_widget_theme_dark)
-                                        },
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    )
+                                        Text(
+                                            text = when (mode) {
+                                                WidgetThemeMode.AUTO -> stringResource(R.string.settings_widget_theme_auto)
+                                                WidgetThemeMode.LIGHT -> stringResource(R.string.settings_widget_theme_light)
+                                                WidgetThemeMode.DARK -> stringResource(R.string.settings_widget_theme_dark)
+                                            },
+                                            modifier = Modifier.padding(start = 8.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

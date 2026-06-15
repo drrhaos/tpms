@@ -26,7 +26,7 @@ data class TeyesSetupStatus(
                 !serviceRunning
             )
 
-    val showWidgetHint: Boolean = isTeyesDevice && !widgetActive
+    val showFrontAppHint: Boolean = isTeyesDevice && !checklist.frontAppHome
 }
 
 @Singleton

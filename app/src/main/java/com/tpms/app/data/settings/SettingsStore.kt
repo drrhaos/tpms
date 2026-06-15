@@ -34,7 +34,8 @@ data class TeyesChecklist(
     val batteryUnrestricted: Boolean = false,
     val lockInRecents: Boolean = false,
     val bootCompleted: Boolean = false,
-    val autoRunAwake: Boolean = false
+    val autoRunAwake: Boolean = false,
+    val frontAppHome: Boolean = false
 )
 
 data class AlertNotificationPrefs(
@@ -134,7 +135,8 @@ class SettingsStore @Inject constructor(
                     batteryUnrestricted = prefs[KEY_TEYES_BATTERY] ?: false,
                     lockInRecents = prefs[KEY_TEYES_LOCK] ?: false,
                     bootCompleted = prefs[KEY_TEYES_BOOT] ?: false,
-                    autoRunAwake = prefs[KEY_TEYES_AUTO_RUN_AWAKE] ?: false
+                    autoRunAwake = prefs[KEY_TEYES_AUTO_RUN_AWAKE] ?: false,
+                    frontAppHome = prefs[KEY_TEYES_FRONTAPP_HOME] ?: false
                 )
 
                 _alertNotificationPrefs.value = AlertNotificationPrefs(
@@ -201,6 +203,7 @@ class SettingsStore @Inject constructor(
             "lock" -> KEY_TEYES_LOCK
             "boot" -> KEY_TEYES_BOOT
             "auto_run_awake" -> KEY_TEYES_AUTO_RUN_AWAKE
+            "frontapp_home" -> KEY_TEYES_FRONTAPP_HOME
             else -> return
         }
         context.settingsDataStore.edit { it[prefKey] = checked }
@@ -263,6 +266,7 @@ class SettingsStore @Inject constructor(
             prefs[KEY_TEYES_LOCK] = imported.teyesChecklist.lockInRecents
             prefs[KEY_TEYES_BOOT] = imported.teyesChecklist.bootCompleted
             prefs[KEY_TEYES_AUTO_RUN_AWAKE] = imported.teyesChecklist.autoRunAwake
+            prefs[KEY_TEYES_FRONTAPP_HOME] = imported.teyesChecklist.frontAppHome
             prefs[KEY_ONBOARDING_COMPLETE] = imported.onboardingComplete
             prefs[KEY_SILENT_STARTUP] = imported.silentStartup
             prefs[KEY_FLOATING_OVERLAY] = imported.floatingOverlayEnabled
@@ -304,6 +308,7 @@ class SettingsStore @Inject constructor(
         private val KEY_TEYES_LOCK = booleanPreferencesKey("teyes_lock")
         private val KEY_TEYES_BOOT = booleanPreferencesKey("teyes_boot")
         private val KEY_TEYES_AUTO_RUN_AWAKE = booleanPreferencesKey("teyes_auto_run_awake")
+        private val KEY_TEYES_FRONTAPP_HOME = booleanPreferencesKey("teyes_frontapp_home")
         private val KEY_ALERT_SOUND = booleanPreferencesKey("alert_sound")
         private val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         private val KEY_SILENT_STARTUP = booleanPreferencesKey("silent_startup")
