@@ -81,7 +81,7 @@ class DiagnosticsExporter @Inject constructor(
     private fun formatSensor(sensor: TireSensor?, unit: PressureUnit): String {
         if (sensor == null) return "—"
         val pressure = if (sensor.pressureKpa.isFinite()) {
-            "%.1f %s".format(unit.fromKpa(sensor.pressureKpa), unit.label)
+            unit.formatPressure(sensor.pressureKpa)
         } else {
             "—"
         }

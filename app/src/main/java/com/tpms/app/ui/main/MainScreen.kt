@@ -20,10 +20,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,9 +41,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.theme.StatusColors
 import com.tpms.app.ui.theme.TpmsColors
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +59,24 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    var selectedWheel by remember { mutableStateOf<Pair<String, TireSensor?>?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    selectedWheel?.let { (label, sensor) ->
+        ModalBottomSheet(
+            onDismissRequest = { selectedWheel = null },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            WheelDetailSheet(
+                label = label,
+                sensor = sensor,
+                pressureUnit = uiState.pressureUnit,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -97,6 +127,7 @@ fun MainScreen(
                     pressureUnit = uiState.pressureUnit,
                     onNavigateToSettings = onNavigateToSettings,
                     onNavigateToDebug = onNavigateToDebug,
+                    onWheelClick = { label, sensor -> selectedWheel = label to sensor },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
@@ -154,6 +185,85 @@ private fun AlertType.shortLabel(): String = when (this) {
     AlertType.SENSOR_LOST -> "LOST"
     AlertType.HIGH_TEMP -> "HIGH TEMP"
     AlertType.BATTERY_LOW -> "LOW BATT"
+}
+
+@Composable
+private fun WheelDetailSheet(
+    label: String,
+    sensor: TireSensor?,
+    pressureUnit: PressureUnit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (sensor == null) {
+            Text(
+                text = "No sensor data",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            return@Column
+        }
+
+        DetailRow("Sensor ID", sensor.id.ifBlank { "—" })
+        DetailRow("Pressure", wheelDetailPressure(sensor, pressureUnit))
+        DetailRow("Temperature", wheelDetailTemperature(sensor))
+        DetailRow("Battery", "${sensor.batteryPercent}%")
+        DetailRow("Last update", formatTimestamp(sensor.timestamp))
+        sensor.alertType?.let { alert ->
+            DetailRow("Alert", alert.shortLabel(), valueColor = StatusColors.alert)
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(
+    label: String,
+    value: String,
+    valueColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onBackground
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = valueColor
+        )
+    }
+}
+
+private fun wheelDetailPressure(sensor: TireSensor, unit: PressureUnit): String = when {
+    sensor.alertType == AlertType.SENSOR_LOST -> "LOST"
+    sensor.pressureKpa.isFinite() -> unit.formatPressure(sensor.pressureKpa)
+    else -> "—"
+}
+
+private fun wheelDetailTemperature(sensor: TireSensor): String =
+    if (sensor.temperatureCelsius.isFinite()) {
+        "%.0f°C".format(sensor.temperatureCelsius)
+    } else {
+        "—"
+    }
+
+private fun formatTimestamp(timestamp: Long): String {
+    if (timestamp <= 0L) return "—"
+    return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
 }
 
 @Composable

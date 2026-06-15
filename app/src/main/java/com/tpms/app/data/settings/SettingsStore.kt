@@ -33,6 +33,11 @@ data class TeyesChecklist(
     val bootCompleted: Boolean = false
 )
 
+data class AlertNotificationPrefs(
+    val soundEnabled: Boolean = true,
+    val vibrationEnabled: Boolean = true
+)
+
 @Singleton
 class SettingsStore @Inject constructor(
     @ApplicationContext private val context: Context
@@ -56,6 +61,9 @@ class SettingsStore @Inject constructor(
 
     private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
     val teyesChecklist = _teyesChecklist.asStateFlow()
+
+    private val _alertNotificationPrefs = MutableStateFlow(AlertNotificationPrefs())
+    val alertNotificationPrefs = _alertNotificationPrefs.asStateFlow()
 
     init {
         scope.launch {
@@ -85,6 +93,11 @@ class SettingsStore @Inject constructor(
                     batteryUnrestricted = prefs[KEY_TEYES_BATTERY] ?: false,
                     lockInRecents = prefs[KEY_TEYES_LOCK] ?: false,
                     bootCompleted = prefs[KEY_TEYES_BOOT] ?: false
+                )
+
+                _alertNotificationPrefs.value = AlertNotificationPrefs(
+                    soundEnabled = prefs[KEY_ALERT_SOUND] ?: true,
+                    vibrationEnabled = prefs[KEY_ALERT_VIBRATION] ?: true
                 )
             }
         }
@@ -131,6 +144,13 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[prefKey] = checked }
     }
 
+    suspend fun setAlertNotificationPrefs(prefs: AlertNotificationPrefs) {
+        context.settingsDataStore.edit {
+            it[KEY_ALERT_SOUND] = prefs.soundEnabled
+            it[KEY_ALERT_VIBRATION] = prefs.vibrationEnabled
+        }
+    }
+
     companion object {
         const val DEFAULT_SENSOR_TIMEOUT_MS = 60_000L
 
@@ -144,6 +164,8 @@ class SettingsStore @Inject constructor(
         private val KEY_TEYES_BATTERY = booleanPreferencesKey("teyes_battery")
         private val KEY_TEYES_LOCK = booleanPreferencesKey("teyes_lock")
         private val KEY_TEYES_BOOT = booleanPreferencesKey("teyes_boot")
+        private val KEY_ALERT_SOUND = booleanPreferencesKey("alert_sound")
+        private val KEY_ALERT_VIBRATION = booleanPreferencesKey("alert_vibration")
 
         private fun wheelMappingKey(slot: String) = stringPreferencesKey("wheel_map_$slot")
     }

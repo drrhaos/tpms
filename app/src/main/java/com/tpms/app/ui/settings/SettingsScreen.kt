@@ -64,6 +64,8 @@ fun SettingsScreen(
     val wheelMapping by viewModel.wheelMapping.collectAsState()
     val knownSensorIds by viewModel.knownSensorIds.collectAsState()
     val teyesChecklist by viewModel.teyesChecklist.collectAsState()
+    val alertSoundEnabled by viewModel.alertSoundEnabled.collectAsState()
+    val alertVibrationEnabled by viewModel.alertVibrationEnabled.collectAsState()
     val pinSupported = TpmsWidgetHelper.isPinSupported(context)
     val hasWidget = TpmsWidgetHelper.hasActiveWidgets(context)
 
@@ -243,17 +245,17 @@ fun SettingsScreen(
                     unfocusedTextColor = MaterialTheme.colorScheme.onBackground
                 )
                 OutlinedTextField(
-                    value = lowPressure.toString(),
+                    value = pressureUnit.formatThresholdValue(lowPressure),
                     onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setLowPressure(v) } },
-                    label = { Text("Low Pressure (kPa)") },
+                    label = { Text("Low Pressure (${pressureUnit.label})") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = highPressure.toString(),
+                    value = pressureUnit.formatThresholdValue(highPressure),
                     onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighPressure(v) } },
-                    label = { Text("High Pressure (kPa)") },
+                    label = { Text("High Pressure (${pressureUnit.label})") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors
                 )
@@ -272,6 +274,19 @@ fun SettingsScreen(
                     label = { Text("Sensor lost timeout (sec)") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors
+                )
+            }
+
+            TpmsCard(title = "Alert Notifications") {
+                TeyesChecklistItem(
+                    label = "Alert sound",
+                    checked = alertSoundEnabled,
+                    onCheckedChange = { viewModel.setAlertSoundEnabled(it) }
+                )
+                TeyesChecklistItem(
+                    label = "Alert vibration",
+                    checked = alertVibrationEnabled,
+                    onCheckedChange = { viewModel.setAlertVibrationEnabled(it) }
                 )
             }
 

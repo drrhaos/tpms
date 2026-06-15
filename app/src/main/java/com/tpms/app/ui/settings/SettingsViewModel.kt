@@ -3,6 +3,7 @@ package com.tpms.app.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tpms.app.data.repository.TpmsRepository
+import com.tpms.app.data.settings.AlertNotificationPrefs
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.domain.WheelLayout
@@ -49,6 +50,12 @@ class SettingsViewModel @Inject constructor(
     private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
     val teyesChecklist: StateFlow<TeyesChecklist> = _teyesChecklist.asStateFlow()
 
+    private val _alertSoundEnabled = MutableStateFlow(true)
+    val alertSoundEnabled: StateFlow<Boolean> = _alertSoundEnabled.asStateFlow()
+
+    private val _alertVibrationEnabled = MutableStateFlow(true)
+    val alertVibrationEnabled: StateFlow<Boolean> = _alertVibrationEnabled.asStateFlow()
+
     val knownSensorIds: StateFlow<List<String>> = repository.sensors
         .combine(_wheelMapping) { sensors, _ ->
             sensors.keys.sorted()
@@ -59,14 +66,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.awaitLoaded()
             _pressureUnit.value = settingsStore.pressureUnit.value
-            val thresholds = settingsStore.thresholds.value
-            _lowPressure.value = thresholds.lowPressureKpa
-            _highPressure.value = thresholds.highPressureKpa
-            _highTemp.value = thresholds.highTempCelsius
+            loadThresholdsFromStore()
             _dongleProtocolMode.value = settingsStore.dongleProtocolMode.value
             _sensorTimeoutSec.value = (settingsStore.sensorTimeoutMs.value / 1000).toInt()
             _wheelMapping.value = settingsStore.wheelMapping.value
             _teyesChecklist.value = settingsStore.teyesChecklist.value
+            val alertPrefs = settingsStore.alertNotificationPrefs.value
+            _alertSoundEnabled.value = alertPrefs.soundEnabled
+            _alertVibrationEnabled.value = alertPrefs.vibrationEnabled
         }
         viewModelScope.launch {
             settingsStore.wheelMapping.collect { _wheelMapping.value = it }
@@ -76,8 +83,21 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    private fun loadThresholdsFromStore() {
+        val thresholds = settingsStore.thresholds.value
+        val unit = _pressureUnit.value
+        _lowPressure.value = unit.fromKpa(thresholds.lowPressureKpa)
+        _highPressure.value = unit.fromKpa(thresholds.highPressureKpa)
+        _highTemp.value = thresholds.highTempCelsius
+    }
+
     fun setPressureUnit(unit: PressureUnit) {
+        if (_pressureUnit.value == unit) return
+        val lowKpa = _pressureUnit.value.toKpa(_lowPressure.value)
+        val highKpa = _pressureUnit.value.toKpa(_highPressure.value)
         _pressureUnit.value = unit
+        _lowPressure.value = unit.fromKpa(lowKpa)
+        _highPressure.value = unit.fromKpa(highKpa)
     }
 
     fun setLowPressure(v: Float) { _lowPressure.value = v }
@@ -90,6 +110,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setSensorTimeoutSec(seconds: Int) {
         _sensorTimeoutSec.value = seconds.coerceIn(15, 300)
+    }
+
+    fun setAlertSoundEnabled(enabled: Boolean) {
+        _alertSoundEnabled.value = enabled
+    }
+
+    fun setAlertVibrationEnabled(enabled: Boolean) {
+        _alertVibrationEnabled.value = enabled
     }
 
     fun cycleWheelMapping(slot: String, availableIds: List<String>) {
@@ -109,14 +137,21 @@ class SettingsViewModel @Inject constructor(
 
     fun saveThresholds() {
         viewModelScope.launch {
-            settingsStore.setPressureUnit(_pressureUnit.value)
+            val unit = _pressureUnit.value
+            settingsStore.setPressureUnit(unit)
             settingsStore.setDongleProtocolMode(_dongleProtocolMode.value)
             settingsStore.setSensorTimeoutMs(_sensorTimeoutSec.value * 1000L)
             settingsStore.setThresholds(
                 AlertThresholds(
-                    lowPressureKpa = _lowPressure.value,
-                    highPressureKpa = _highPressure.value,
+                    lowPressureKpa = unit.toKpa(_lowPressure.value),
+                    highPressureKpa = unit.toKpa(_highPressure.value),
                     highTempCelsius = _highTemp.value
+                )
+            )
+            settingsStore.setAlertNotificationPrefs(
+                AlertNotificationPrefs(
+                    soundEnabled = _alertSoundEnabled.value,
+                    vibrationEnabled = _alertVibrationEnabled.value
                 )
             )
         }

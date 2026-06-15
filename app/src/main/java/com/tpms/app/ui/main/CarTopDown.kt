@@ -1,5 +1,6 @@
 package com.tpms.app.ui.main
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,6 +59,7 @@ fun CarTopDown(
     pressureUnit: PressureUnit = PressureUnit.PSI,
     onNavigateToSettings: () -> Unit = {},
     onNavigateToDebug: () -> Unit = {},
+    onWheelClick: (label: String, sensor: TireSensor?) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val margin = 8.dp
@@ -132,6 +134,7 @@ fun CarTopDown(
                     .clip(MaterialTheme.shapes.small)
                     .background(dotColor.copy(alpha = 0.12f))
                     .border(1.dp, dotColor.copy(alpha = 0.35f), MaterialTheme.shapes.small)
+                    .clickable { onWheelClick(pos.label, sensor) }
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -195,8 +198,7 @@ private fun WheelCardContent(
 
 private fun formatPressure(sensor: TireSensor?, unit: PressureUnit): String = when {
     sensor?.alertType == AlertType.SENSOR_LOST -> "LOST"
-    sensor != null && sensor.pressureKpa.isFinite() ->
-        "${unit.formatFromKpa(sensor.pressureKpa)} ${unit.label}"
+    sensor != null && sensor.pressureKpa.isFinite() -> unit.formatPressure(sensor.pressureKpa)
     else -> "-- ${unit.label}"
 }
 

@@ -44,7 +44,7 @@ data class WidgetSnapshot(
                 } else {
                     WidgetTireSlot(
                         label = label,
-                        pressureText = "%.0f".format(unit.fromKpa(sensor.pressureKpa)),
+                        pressureText = unit.formatFromKpa(sensor.pressureKpa),
                         status = sensor.toSeverity().toWidgetStatus()
                     )
                 }

@@ -30,10 +30,11 @@ class AlertNotifier @Inject constructor(
             lastAlerted[sensor.id] = alertType
 
             val wheelLabel = WheelLayout.resolveWheelLabel(sensor, settingsStore.wheelMapping.value)
-            val pressureText = if (sensor.pressureKpa.isFinite()) {
-                "%.1f kPa".format(sensor.pressureKpa)
-            } else {
-                "—"
+            val unit = settingsStore.pressureUnit.value
+            val pressureText = when {
+                alertType == AlertType.SENSOR_LOST -> null
+                sensor.pressureKpa.isFinite() -> unit.formatPressure(sensor.pressureKpa)
+                else -> "—"
             }
 
             val (title, body) = when (alertType) {
@@ -53,10 +54,20 @@ class AlertNotifier @Inject constructor(
                 alertType == AlertType.HIGH_PRESSURE ||
                 alertType == AlertType.SENSOR_LOST
 
+            val alertPrefs = settingsStore.alertNotificationPrefs.value
+            val defaults = when {
+                alertPrefs.soundEnabled && alertPrefs.vibrationEnabled -> NotificationCompat.DEFAULT_ALL
+                alertPrefs.soundEnabled -> NotificationCompat.DEFAULT_SOUND
+                alertPrefs.vibrationEnabled -> NotificationCompat.DEFAULT_VIBRATE
+                else -> 0
+            }
+
             val notification = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_ALERT)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(title)
                 .setContentText(body)
+                .setDefaults(defaults)
+                .setSilent(!alertPrefs.soundEnabled && !alertPrefs.vibrationEnabled)
                 .setPriority(
                     if (isCritical) NotificationCompat.PRIORITY_HIGH
                     else NotificationCompat.PRIORITY_DEFAULT
