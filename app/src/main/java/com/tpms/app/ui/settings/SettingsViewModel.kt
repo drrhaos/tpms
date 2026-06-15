@@ -17,6 +17,7 @@ import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.startup.TeyesSetupStatusProvider
 import com.tpms.app.ui.widget.TpmsWidgetHelper
+import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted

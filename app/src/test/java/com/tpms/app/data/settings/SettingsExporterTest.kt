@@ -20,7 +20,7 @@ class SettingsExporterTest {
             showSpareWheel = true,
             minLiveWheelPressureKpa = 110f,
             alertNotificationPrefs = AlertNotificationPrefs(soundEnabled = false, vibrationEnabled = true),
-            teyesChecklist = TeyesChecklist(autoStart = true, batteryUnrestricted = true, lockInRecents = false, bootCompleted = true)
+            teyesChecklist = TeyesChecklist(autoStart = true, batteryUnrestricted = true, lockInRecents = false, bootCompleted = true, autoRunAwake = true)
         )
 
         val imported = SettingsExporter.import(exported)

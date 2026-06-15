@@ -8,6 +8,7 @@ class PressureUnitTest {
     @Test
     fun formatFromKpa_barUsesOneDecimal() {
         assertEquals("2.2", PressureUnit.BAR.formatFromKpa(220f))
+        assertEquals("2.0", PressureUnit.BAR.formatFromKpa(200f))
     }
 
     @Test

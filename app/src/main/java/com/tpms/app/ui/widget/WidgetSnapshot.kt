@@ -101,7 +101,7 @@ data class WidgetSnapshot(
                 )
             }
             val pressureText = if (sensor.pressureKpa.isFinite()) {
-                unit.formatPressure(sensor.pressureKpa)
+                unit.formatFromKpa(sensor.pressureKpa)
             } else {
                 context.getString(R.string.value_no_data_pressure, unit.localizedLabel(context))
             }

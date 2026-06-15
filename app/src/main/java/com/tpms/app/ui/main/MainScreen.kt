@@ -24,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -142,10 +141,6 @@ fun MainScreen(
 
                 uiState.lastError?.let { message ->
                     UiErrorBanner(message = message)
-                }
-
-                if (uiState.teyesSetupNeedsAttention) {
-                    TeyesSetupBanner(onNavigateToSettings = onNavigateToSettings)
                 }
 
                 if (uiState.dataStale) {
@@ -307,29 +302,6 @@ private fun wheelDetailTemperature(sensor: TireSensor): String {
 private fun formatTimestamp(timestamp: Long, emDash: String): String {
     if (timestamp <= 0L) return emDash
     return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
-}
-
-@Composable
-private fun TeyesSetupBanner(onNavigateToSettings: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(StatusColors.warning.copy(alpha = 0.12f))
-            .border(1.dp, StatusColors.warning.copy(alpha = 0.35f), MaterialTheme.shapes.medium)
-            .padding(start = 12.dp, end = 4.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(R.string.main_teyes_checklist_incomplete),
-            style = MaterialTheme.typography.bodySmall,
-            color = StatusColors.warning,
-            modifier = Modifier.weight(1f)
-        )
-        TextButton(onClick = onNavigateToSettings) {
-            Text(stringResource(R.string.main_open_settings))
-        }
-    }
 }
 
 @Composable
