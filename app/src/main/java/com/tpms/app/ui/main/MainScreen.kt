@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -16,15 +18,13 @@ import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,6 +44,8 @@ import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
+import com.tpms.app.ui.shortLabel
+import com.tpms.app.ui.statusLabel
 import com.tpms.app.ui.theme.StatusColors
 import com.tpms.app.ui.theme.TpmsColors
 import java.text.SimpleDateFormat
@@ -91,7 +93,7 @@ fun MainScreen(
                             modifier = Modifier.size(28.dp)
                         )
                         Text(
-                            text = "TPMS Monitor",
+                            text = stringResource(R.string.title_main),
                             modifier = Modifier.padding(start = 10.dp),
                             fontWeight = FontWeight.Bold
                         )
@@ -144,9 +146,9 @@ fun MainScreen(
 @Composable
 private fun StatusHeader(state: TpmsState, wheelMapping: Map<String, String>) {
     val (text, color) = when (state) {
-        is TpmsState.Disconnected -> "Disconnected" to StatusColors.disconnected
-        is TpmsState.Connecting -> "Connecting…" to StatusColors.warning
-        is TpmsState.Connected -> "Monitoring" to StatusColors.ok
+        is TpmsState.Disconnected -> state.statusLabel() to StatusColors.disconnected
+        is TpmsState.Connecting -> state.statusLabel() to StatusColors.warning
+        is TpmsState.Connected -> state.statusLabel() to StatusColors.ok
         is TpmsState.Alert -> {
             val wheel = WheelLayout.resolveWheelLabel(state.sensor, wheelMapping)
             val alertLabel = state.type.shortLabel()
@@ -179,14 +181,6 @@ private fun StatusHeader(state: TpmsState, wheelMapping: Map<String, String>) {
     }
 }
 
-private fun AlertType.shortLabel(): String = when (this) {
-    AlertType.LOW_PRESSURE -> "LOW"
-    AlertType.HIGH_PRESSURE -> "HIGH"
-    AlertType.SENSOR_LOST -> "LOST"
-    AlertType.HIGH_TEMP -> "HIGH TEMP"
-    AlertType.BATTERY_LOW -> "LOW BATT"
-}
-
 @Composable
 private fun WheelDetailSheet(
     label: String,
@@ -194,6 +188,8 @@ private fun WheelDetailSheet(
     pressureUnit: PressureUnit,
     modifier: Modifier = Modifier
 ) {
+    val emDash = stringResource(R.string.value_em_dash)
+
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = label,
@@ -204,20 +200,24 @@ private fun WheelDetailSheet(
 
         if (sensor == null) {
             Text(
-                text = "No sensor data",
+                text = stringResource(R.string.widget_no_data),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             return@Column
         }
 
-        DetailRow("Sensor ID", sensor.id.ifBlank { "—" })
-        DetailRow("Pressure", wheelDetailPressure(sensor, pressureUnit))
-        DetailRow("Temperature", wheelDetailTemperature(sensor))
-        DetailRow("Battery", "${sensor.batteryPercent}%")
-        DetailRow("Last update", formatTimestamp(sensor.timestamp))
+        DetailRow(stringResource(R.string.detail_sensor_id), sensor.id.ifBlank { emDash })
+        DetailRow(stringResource(R.string.detail_pressure), wheelDetailPressure(sensor, pressureUnit))
+        DetailRow(stringResource(R.string.detail_temperature), wheelDetailTemperature(sensor))
+        DetailRow(stringResource(R.string.detail_battery), "${sensor.batteryPercent}%")
+        DetailRow(stringResource(R.string.detail_last_update), formatTimestamp(sensor.timestamp, emDash))
         sensor.alertType?.let { alert ->
-            DetailRow("Alert", alert.shortLabel(), valueColor = StatusColors.alert)
+            DetailRow(
+                label = stringResource(R.string.detail_alert),
+                value = alert.shortLabel(),
+                valueColor = StatusColors.alert
+            )
         }
     }
 }
@@ -248,21 +248,29 @@ private fun DetailRow(
     }
 }
 
-private fun wheelDetailPressure(sensor: TireSensor, unit: PressureUnit): String = when {
-    sensor.alertType == AlertType.SENSOR_LOST -> "LOST"
-    sensor.pressureKpa.isFinite() -> unit.formatPressure(sensor.pressureKpa)
-    else -> "—"
+@Composable
+private fun wheelDetailPressure(sensor: TireSensor, unit: PressureUnit): String {
+    val lost = stringResource(R.string.label_lost)
+    val emDash = stringResource(R.string.value_em_dash)
+    return when {
+        sensor.alertType == AlertType.SENSOR_LOST -> lost
+        sensor.pressureKpa.isFinite() -> unit.formatPressure(sensor.pressureKpa)
+        else -> emDash
+    }
 }
 
-private fun wheelDetailTemperature(sensor: TireSensor): String =
-    if (sensor.temperatureCelsius.isFinite()) {
+@Composable
+private fun wheelDetailTemperature(sensor: TireSensor): String {
+    val emDash = stringResource(R.string.value_em_dash)
+    return if (sensor.temperatureCelsius.isFinite()) {
         "%.0f°C".format(sensor.temperatureCelsius)
     } else {
-        "—"
+        emDash
     }
+}
 
-private fun formatTimestamp(timestamp: Long): String {
-    if (timestamp <= 0L) return "—"
+private fun formatTimestamp(timestamp: Long, emDash: String): String {
+    if (timestamp <= 0L) return emDash
     return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
 }
 
@@ -278,7 +286,7 @@ private fun UiErrorBanner(message: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "UI error logged: $message",
+            text = stringResource(R.string.ui_error_logged, message),
             style = MaterialTheme.typography.bodySmall,
             color = StatusColors.alert
         )

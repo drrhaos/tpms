@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TPMS Монитор</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_status">Статус TPMS</string>
+    <string name="notification_channel_alert">Оповещения TPMS</string>
+    <string name="notification_service_running">Мониторинг TPMS активен</string>
+    <string name="notification_alert_low_pressure">Низкое давление в шине</string>
+    <string name="notification_alert_high_pressure">Высокое давление в шине</string>
+    <string name="notification_alert_high_temp">Высокая температура шины</string>
+    <string name="notification_alert_battery_low">Низкий заряд датчика TPMS</string>
+    <string name="notification_alert_sensor_lost">Сигнал датчика TPMS потерян</string>
+    <string name="notification_action_check">Проверить</string>
+    <string name="notification_action_open">Открыть</string>
+    <string name="notification_action_mute">Без звука 30 мин</string>
+    <string name="notification_action_restart">Перезапустить</string>
+    <string name="notification_service_stopped_title">Мониторинг TPMS остановлен</string>
+    <string name="notification_service_stopped_body">Мониторинг выключен — нажмите, чтобы перезапустить</string>
+
+    <!-- Status -->
+    <string name="status_alert_format">%1$s — %2$s</string>
+    <string name="label_disconnected">Нет связи</string>
+    <string name="label_connecting">Подключение…</string>
+    <string name="label_monitoring">Мониторинг</string>
+    <string name="label_connected">Подключено</string>
+    <string name="label_alert">Тревога</string>
+    <string name="label_ok">OK</string>
+    <string name="label_warning">Внимание</string>
+    <string name="label_lost">ПОТЕРЯН</string>
+    <string name="value_em_dash">—</string>
+    <string name="value_no_data_pressure">-- %1$s</string>
+    <string name="value_no_data_temp">--°C</string>
+    <string name="value_no_data_battery">--%</string>
+
+    <!-- Alert short labels -->
+    <string name="alert_short_low">НИЗКОЕ</string>
+    <string name="alert_short_high">ВЫСОКОЕ</string>
+    <string name="alert_short_lost">ПОТЕРЯН</string>
+    <string name="alert_short_high_temp">ВЫСОК. Т°</string>
+    <string name="alert_short_low_battery">РАЗРЯД</string>
+
+    <!-- Widget -->
+    <string name="widget_no_data">Нет данных датчиков</string>
+    <string name="widget_description">Панель TPMS для главного экрана Teyes (вид сверху)</string>
+    <string name="widget_car_content_description">Вид автомобиля сверху</string>
+    <string name="widget_teyes_panel_hint">На Teyes: долгий тап по области карты / машины на главном экране → Виджеты → TPMS Монитор. Растяните виджет на всю панель. Тап открывает приложение.</string>
+    <string name="widget_pin_to_panel">Добавить панель на главный экран</string>
+    <string name="widget_pin_not_supported">Закрепление виджета не поддерживается на этом устройстве</string>
+    <string name="widget_pin_failed">Не удалось закрепить виджет — добавьте вручную с главного экрана Teyes</string>
+    <string name="widget_status_offline">Офлайн</string>
+    <string name="widget_status_connecting">Подключение</string>
+    <string name="widget_status_monitoring">Мониторинг</string>
+    <string name="widget_status_alert">Тревога</string>
+    <string name="widget_dashboard_active">Панель активна на главном экране</string>
+    <string name="widget_dashboard_inactive">Показать TPMS на панели карты / авто</string>
+    <string name="widget_pin_manual_hint">Закрепление виджета не поддерживается. Добавьте вручную из списка виджетов лаунчера.</string>
+
+    <!-- Main screen -->
+    <string name="title_main">TPMS Монитор</string>
+    <string name="cd_debug_log">Журнал отладки</string>
+    <string name="cd_settings">Настройки</string>
+    <string name="cd_back">Назад</string>
+    <string name="detail_sensor_id">ID датчика</string>
+    <string name="detail_pressure">Давление</string>
+    <string name="detail_temperature">Температура</string>
+    <string name="detail_battery">Батарея</string>
+    <string name="detail_last_update">Обновлено</string>
+    <string name="detail_alert">Тревога</string>
+    <string name="ui_error_logged">Ошибка UI записана в журнал: %1$s</string>
+
+    <!-- Settings -->
+    <string name="title_settings">Настройки</string>
+    <string name="settings_usb_debug_title">Журнал USB</string>
+    <string name="settings_usb_debug_hint">Если донгл (напр. 100-a1-xl-v01) не определяется, откройте журнал, нажмите «Сканировать USB», затем «Копировать» или «Поделиться».</string>
+    <string name="settings_open_debug">Открыть журнал USB</string>
+    <string name="settings_teyes_home_title">Главный экран Teyes</string>
+    <string name="settings_pressure_unit">Единицы давления</string>
+    <string name="settings_dongle_protocol">Протокол донгла</string>
+    <string name="settings_protocol_hint_ch340">Для донглов 100-a1-xl-v01 / CH340 используйте Авто или Serial 0x55AA.</string>
+    <string name="settings_protocol_hint_modes">Авто: HID для HID-донглов, Serial для CH340. Deelife — для модулей MU7J/MU9F.</string>
+    <string name="settings_wheel_mapping">Привязка колёс</string>
+    <string name="settings_wheel_mapping_hint">Назначьте ID датчиков на позиции колёс. Тап: Авто → ID датчиков.</string>
+    <string name="settings_no_sensors">Датчики не обнаружены — подключите донгл и дождитесь данных.</string>
+    <string name="settings_auto">Авто</string>
+    <string name="settings_alert_thresholds">Пороги оповещений</string>
+    <string name="settings_low_pressure">Низкое давление (%1$s)</string>
+    <string name="settings_high_pressure">Высокое давление (%1$s)</string>
+    <string name="settings_high_temp">Высокая темп. (°C)</string>
+    <string name="settings_sensor_timeout">Таймаут потери датчика (сек)</string>
+    <string name="settings_alert_notifications">Оповещения</string>
+    <string name="settings_alert_sound">Звук оповещений</string>
+    <string name="settings_alert_vibration">Вибрация оповещений</string>
+    <string name="settings_teyes_permissions">Разрешения Teyes</string>
+    <string name="settings_teyes_auto_start">Автозапуск включён (Настройки → Приложения → TPMS)</string>
+    <string name="settings_teyes_battery">Батарея → Без ограничений</string>
+    <string name="settings_teyes_lock">Закреплено в недавних приложениях</string>
+    <string name="settings_teyes_boot">Разрешён запуск после загрузки</string>
+    <string name="action_save">Сохранить</string>
+
+    <!-- Protocol modes -->
+    <string name="protocol_auto">Авто</string>
+    <string name="protocol_hid">USB HID</string>
+    <string name="protocol_serial">Serial 0x55AA</string>
+    <string name="protocol_deelife">Deelife / MU7J</string>
+
+    <!-- Debug screen -->
+    <string name="title_debug">Журнал USB</string>
+    <string name="debug_hint">Отправьте этот журнал для диагностики донгла (напр. 100-a1-xl-v01 / CH340).</string>
+    <string name="debug_crash_hint">Отчёт о сбое сохранён с прошлой сессии — включите его через «Полный отчёт».</string>
+    <string name="debug_scan_usb">Сканировать USB</string>
+    <string name="debug_probe_read">Пробное чтение</string>
+    <string name="debug_export_full">Экспорт полного отчёта</string>
+    <string name="debug_copy">Копировать</string>
+    <string name="debug_share_full">Поделиться отчётом</string>
+    <string name="debug_clear_log">Очистить журнал</string>
+    <string name="debug_usb_scan">Сканирование USB</string>
+    <string name="debug_event_log">Журнал событий (%1$d)</string>
+    <string name="debug_no_events">Событий пока нет. Подключите донгл и нажмите «Сканировать USB».</string>
+    <string name="debug_clipboard_label">Журнал TPMS</string>
+    <string name="debug_share_subject">Журнал USB TPMS</string>
+    <string name="debug_share_full_subject">Полный отчёт TPMS</string>
+    <string name="debug_share_chooser">Поделиться журналом</string>
+
+    <!-- Legacy -->
+    <string name="label_pressure">Давление</string>
+    <string name="label_temperature">Температура</string>
+    <string name="label_battery">Батарея</string>
+    <string name="setting_units">Единицы давления</string>
+    <string name="setting_thresholds">Пороги оповещений</string>
+    <string name="setting_notifications">Оповещения</string>
+    <string name="setting_sensor_names">Имена датчиков</string>
+    <string name="setting_tyes_permissions">Разрешения Tyes</string>
+    <string name="unit_psi">PSI</string>
+    <string name="unit_kpa">кПа</string>
+    <string name="unit_bar">Bar</string>
+    <string name="sensor_fl">Переднее левое</string>
+    <string name="sensor_fr">Переднее правое</string>
+    <string name="sensor_rl">Заднее левое</string>
+    <string name="sensor_rr">Заднее правое</string>
+</resources>

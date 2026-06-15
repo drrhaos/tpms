@@ -207,6 +207,7 @@ class TpmsMonitorService : Service() {
 
     private suspend fun updateWidget() {
         val snapshot = WidgetSnapshot.from(
+            this,
             state = repository.state.value,
             sensors = repository.sensors.value,
             unit = settingsStore.pressureUnit.value,
@@ -230,6 +231,7 @@ class TpmsMonitorService : Service() {
     private fun buildPersistentNotification(): android.app.Notification {
         val statusLine = repository.serviceStatusLine()
         val snapshot = WidgetSnapshot.from(
+            this,
             state = repository.state.value,
             sensors = repository.sensors.value,
             unit = settingsStore.pressureUnit.value,

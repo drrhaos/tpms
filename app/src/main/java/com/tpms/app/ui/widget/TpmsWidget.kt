@@ -14,7 +14,7 @@ class TpmsWidget : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         for (appWidgetId in appWidgetIds) {
-            pushUpdate(context, appWidgetManager, appWidgetId, WidgetSnapshot.empty())
+            pushUpdate(context, appWidgetManager, appWidgetId, WidgetSnapshot.empty(context))
         }
     }
 

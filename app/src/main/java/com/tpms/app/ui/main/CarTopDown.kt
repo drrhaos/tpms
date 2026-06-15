@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -41,6 +42,7 @@ import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.toSeverity
+import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.theme.statusColor
 import com.tpms.app.ui.theme.TpmsColors
 
@@ -83,7 +85,7 @@ fun CarTopDown(
 
         Image(
             painter = painterResource(R.drawable.auto),
-            contentDescription = "Car top-down view",
+            contentDescription = stringResource(R.string.widget_car_content_description),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = toolbarHeight + 8.dp, start = 12.dp, end = 12.dp, bottom = 12.dp)
@@ -102,14 +104,14 @@ fun CarTopDown(
             IconButton(onClick = onNavigateToDebug, modifier = Modifier.size(36.dp)) {
                 Icon(
                     Icons.Default.BugReport,
-                    contentDescription = "Debug log",
+                    contentDescription = stringResource(R.string.cd_debug_log),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(36.dp)) {
                 Icon(
                     Icons.Default.Settings,
-                    contentDescription = "Settings",
+                    contentDescription = stringResource(R.string.cd_settings),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -196,10 +198,15 @@ private fun WheelCardContent(
     }
 }
 
-private fun formatPressure(sensor: TireSensor?, unit: PressureUnit): String = when {
-    sensor?.alertType == AlertType.SENSOR_LOST -> "LOST"
-    sensor != null && sensor.pressureKpa.isFinite() -> unit.formatPressure(sensor.pressureKpa)
-    else -> "-- ${unit.label}"
+@Composable
+private fun formatPressure(sensor: TireSensor?, unit: PressureUnit): String {
+    val lost = stringResource(R.string.label_lost)
+    val noData = stringResource(R.string.value_no_data_pressure, unit.localizedLabel())
+    return when {
+        sensor?.alertType == AlertType.SENSOR_LOST -> lost
+        sensor != null && sensor.pressureKpa.isFinite() -> unit.formatPressure(sensor.pressureKpa)
+        else -> noData
+    }
 }
 
 private fun formatTemperature(sensor: TireSensor?): String =

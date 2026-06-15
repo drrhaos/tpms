@@ -36,11 +36,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.tpms.app.R
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.ui.theme.StatusColors
 import com.tpms.app.ui.theme.TpmsColors
@@ -58,16 +60,16 @@ fun DebugScreen(
     val usbScan by viewModel.usbScan.collectAsState()
     val entries by viewModel.logEntries.collectAsState()
     val hasPersistedCrash = viewModel.hasPersistedCrash
-    val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+    val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("USB Debug Log", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_debug), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -83,7 +85,7 @@ fun DebugScreen(
                 .padding(16.dp)
         ) {
             Text(
-                text = "Share this log to diagnose dongle issues (e.g. 100-a1-xl-v01 / CH340).",
+                text = stringResource(R.string.debug_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -91,7 +93,7 @@ fun DebugScreen(
 
             if (hasPersistedCrash) {
                 Text(
-                    text = "A crash report was saved from the last session — include it via Full report.",
+                    text = stringResource(R.string.debug_crash_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = StatusColors.warning
                 )
@@ -107,22 +109,28 @@ fun DebugScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                    Text("Scan USB")
+                    Text(stringResource(R.string.debug_scan_usb))
                 }
                 OutlinedButton(
                     onClick = { viewModel.probeRead() },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Probe read")
+                    Text(stringResource(R.string.debug_probe_read))
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Button(
-                onClick = { shareLog(context, viewModel.exportFullReport(), "TPMS Full Diagnostic Report") },
+                onClick = {
+                    shareLog(
+                        context,
+                        viewModel.exportFullReport(),
+                        context.getString(R.string.debug_share_full_subject)
+                    )
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                Text("Export full report")
+                Text(stringResource(R.string.debug_export_full))
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -130,20 +138,24 @@ fun DebugScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = {
-                        copyToClipboard(context, viewModel.exportLog())
-                    },
+                    onClick = { copyToClipboard(context, viewModel.exportLog()) },
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                    Text("Copy")
+                    Text(stringResource(R.string.debug_copy))
                 }
                 OutlinedButton(
-                    onClick = { shareLog(context, viewModel.exportFullReport(), "TPMS Full Diagnostic Report") },
+                    onClick = {
+                        shareLog(
+                            context,
+                            viewModel.exportFullReport(),
+                            context.getString(R.string.debug_share_full_subject)
+                        )
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                    Text("Share full")
+                    Text(stringResource(R.string.debug_share_full))
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -151,11 +163,15 @@ fun DebugScreen(
                 onClick = { viewModel.clearLog() },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Clear log")
+                Text(stringResource(R.string.debug_clear_log))
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            Text("USB scan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.debug_usb_scan),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = usbScan,
@@ -171,7 +187,11 @@ fun DebugScreen(
             )
 
             Spacer(modifier = Modifier.height(12.dp))
-            Text("Event log (${entries.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.debug_event_log, entries.size),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
             Spacer(modifier = Modifier.height(4.dp))
             Column(
                 modifier = Modifier
@@ -183,7 +203,7 @@ fun DebugScreen(
             ) {
                 if (entries.isEmpty()) {
                     Text(
-                        text = "No events yet. Connect dongle and tap Scan USB.",
+                        text = stringResource(R.string.debug_no_events),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -218,14 +238,14 @@ private fun LogLine(entry: UsbDebugLog.Entry, timeFmt: SimpleDateFormat) {
 
 private fun copyToClipboard(context: Context, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("TPMS debug log", text))
+    clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.debug_clipboard_label), text))
 }
 
-private fun shareLog(context: Context, text: String, subject: String = "TPMS USB Debug Log") {
+private fun shareLog(context: Context, text: String, subject: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, subject)
         putExtra(Intent.EXTRA_TEXT, text)
     }
-    context.startActivity(Intent.createChooser(intent, "Share debug log"))
+    context.startActivity(Intent.createChooser(intent, context.getString(R.string.debug_share_chooser)))
 }

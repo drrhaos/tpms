@@ -44,8 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
 import com.tpms.app.domain.model.DongleProtocolMode
-import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.components.TpmsCard
+import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.theme.TpmsColors
 import com.tpms.app.ui.widget.TpmsWidgetHelper
 
@@ -75,10 +76,10 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+                title = { Text(stringResource(R.string.title_settings), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -95,9 +96,9 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
         ) {
-            TpmsCard(title = "USB Debug Log") {
+            TpmsCard(title = stringResource(R.string.settings_usb_debug_title)) {
                 Text(
-                    text = "If your dongle (e.g. 100-a1-xl-v01) is not detected, open the debug log, tap Scan USB, then Copy/Share the output.",
+                    text = stringResource(R.string.settings_usb_debug_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -106,11 +107,11 @@ fun SettingsScreen(
                     onClick = onNavigateToDebug,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Open USB debug log")
+                    Text(stringResource(R.string.settings_open_debug))
                 }
             }
 
-            TpmsCard(title = "Teyes Home Screen") {
+            TpmsCard(title = stringResource(R.string.settings_teyes_home_title)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Outlined.Widgets,
@@ -118,7 +119,11 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = if (hasWidget) "Dashboard active on home screen" else "Show TPMS on map / car panel",
+                        text = if (hasWidget) {
+                            stringResource(R.string.widget_dashboard_active)
+                        } else {
+                            stringResource(R.string.widget_dashboard_inactive)
+                        },
                         modifier = Modifier.padding(start = 10.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -143,14 +148,14 @@ fun SettingsScreen(
                     }
                 } else {
                     Text(
-                        text = "Widget pinning is not supported on this device. Add manually from the launcher widget list.",
+                        text = stringResource(R.string.widget_pin_manual_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            TpmsCard(title = "Pressure Unit") {
+            TpmsCard(title = stringResource(R.string.settings_pressure_unit)) {
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     PressureUnit.entries.forEachIndexed { index, unit ->
                         SegmentedButton(
@@ -162,13 +167,13 @@ fun SettingsScreen(
                                 activeContentColor = TpmsColors.accent
                             )
                         ) {
-                            Text(unit.label)
+                            Text(unit.localizedLabel())
                         }
                     }
                 }
             }
 
-            TpmsCard(title = "Dongle Protocol") {
+            TpmsCard(title = stringResource(R.string.settings_dongle_protocol)) {
                 DongleProtocolMode.entries.forEach { mode ->
                     Row(
                         modifier = Modifier
@@ -185,7 +190,7 @@ fun SettingsScreen(
                             )
                         )
                         Text(
-                            text = mode.label,
+                            text = mode.localizedLabel(),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(start = 8.dp)
                         )
@@ -193,28 +198,28 @@ fun SettingsScreen(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "For 100-a1-xl-v01 / CH340 dongles use Auto or Serial 0x55AA.",
+                        text = stringResource(R.string.settings_protocol_hint_ch340),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Auto: HID for HID dongles, Serial for CH340. Use Deelife for MU7J/MU9F modules.",
+                        text = stringResource(R.string.settings_protocol_hint_modes),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            TpmsCard(title = "Wheel Mapping") {
+            TpmsCard(title = stringResource(R.string.settings_wheel_mapping)) {
                 Text(
-                    text = "Assign sensor IDs to wheel positions. Tap to cycle: Auto → sensor IDs.",
+                    text = stringResource(R.string.settings_wheel_mapping_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 if (knownSensorIds.isEmpty()) {
                     Text(
-                        text = "No sensors detected yet — connect dongle and wait for data.",
+                        text = stringResource(R.string.settings_no_sensors),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -232,13 +237,13 @@ fun SettingsScreen(
                         OutlinedButton(
                             onClick = { viewModel.cycleWheelMapping(slot, knownSensorIds) }
                         ) {
-                            Text(selected.ifBlank { "Auto" })
+                            Text(selected.ifBlank { stringResource(R.string.settings_auto) })
                         }
                     }
                 }
             }
 
-            TpmsCard(title = "Alert Thresholds") {
+            TpmsCard(title = stringResource(R.string.settings_alert_thresholds)) {
                 val fieldColors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = TpmsColors.outline,
@@ -248,7 +253,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = pressureUnit.formatThresholdValue(lowPressure),
                     onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setLowPressure(v) } },
-                    label = { Text("Low Pressure (${pressureUnit.label})") },
+                    label = { Text(stringResource(R.string.settings_low_pressure, pressureUnit.localizedLabel())) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors
                 )
@@ -256,7 +261,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = pressureUnit.formatThresholdValue(highPressure),
                     onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighPressure(v) } },
-                    label = { Text("High Pressure (${pressureUnit.label})") },
+                    label = { Text(stringResource(R.string.settings_high_pressure, pressureUnit.localizedLabel())) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors
                 )
@@ -264,7 +269,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = highTemp.toString(),
                     onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighTemp(v) } },
-                    label = { Text("High Temp (°C)") },
+                    label = { Text(stringResource(R.string.settings_high_temp)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors
                 )
@@ -272,43 +277,43 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = sensorTimeoutSec.toString(),
                     onValueChange = { it.toIntOrNull()?.let { v -> viewModel.setSensorTimeoutSec(v) } },
-                    label = { Text("Sensor lost timeout (sec)") },
+                    label = { Text(stringResource(R.string.settings_sensor_timeout)) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = fieldColors
                 )
             }
 
-            TpmsCard(title = "Alert Notifications") {
+            TpmsCard(title = stringResource(R.string.settings_alert_notifications)) {
                 TeyesChecklistItem(
-                    label = "Alert sound",
+                    label = stringResource(R.string.settings_alert_sound),
                     checked = alertSoundEnabled,
                     onCheckedChange = { viewModel.setAlertSoundEnabled(it) }
                 )
                 TeyesChecklistItem(
-                    label = "Alert vibration",
+                    label = stringResource(R.string.settings_alert_vibration),
                     checked = alertVibrationEnabled,
                     onCheckedChange = { viewModel.setAlertVibrationEnabled(it) }
                 )
             }
 
-            TpmsCard(title = "Teyes Permissions") {
+            TpmsCard(title = stringResource(R.string.settings_teyes_permissions)) {
                 TeyesChecklistItem(
-                    label = "Auto start enabled (Settings → Apps → TPMS)",
+                    label = stringResource(R.string.settings_teyes_auto_start),
                     checked = teyesChecklist.autoStart,
                     onCheckedChange = { viewModel.setTeyesChecklistItem("auto_start", it) }
                 )
                 TeyesChecklistItem(
-                    label = "Battery → No restrictions",
+                    label = stringResource(R.string.settings_teyes_battery),
                     checked = teyesChecklist.batteryUnrestricted,
                     onCheckedChange = { viewModel.setTeyesChecklistItem("battery", it) }
                 )
                 TeyesChecklistItem(
-                    label = "Locked in recent apps",
+                    label = stringResource(R.string.settings_teyes_lock),
                     checked = teyesChecklist.lockInRecents,
                     onCheckedChange = { viewModel.setTeyesChecklistItem("lock", it) }
                 )
                 TeyesChecklistItem(
-                    label = "Boot completed allowed",
+                    label = stringResource(R.string.settings_teyes_boot),
                     checked = teyesChecklist.bootCompleted,
                     onCheckedChange = { viewModel.setTeyesChecklistItem("boot", it) }
                 )
@@ -325,7 +330,7 @@ fun SettingsScreen(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                Text("Save")
+                Text(stringResource(R.string.action_save))
             }
 
             Spacer(modifier = Modifier.height(16.dp))

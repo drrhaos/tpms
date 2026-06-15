@@ -1,5 +1,7 @@
 package com.tpms.app.ui.widget
 
+import android.content.Context
+import com.tpms.app.R
 import com.tpms.app.domain.AlertSeverity
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.toSeverity
@@ -7,6 +9,8 @@ import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
+import com.tpms.app.ui.localizedLabel
+import com.tpms.app.ui.widgetStatusLabel
 
 enum class WidgetTireStatus {
     OK, WARNING, ALERT, EMPTY
@@ -27,55 +31,62 @@ data class WidgetSnapshot(
 ) {
     companion object {
         fun from(
+            context: Context,
             state: TpmsState,
             sensors: Map<String, TireSensor>,
             unit: PressureUnit,
             wheelMapping: Map<String, String> = emptyMap()
         ): WidgetSnapshot {
-            val statusText = when (state) {
-                is TpmsState.Disconnected -> "Offline"
-                is TpmsState.Connecting -> "Connecting"
-                is TpmsState.Connected -> "Monitoring"
-                is TpmsState.Alert -> "Alert"
-            }
-
             val tires = WheelLayout.ORDER.mapIndexed { index, label ->
                 val sensor = WheelLayout.orderedSlots(sensors, wheelMapping).getOrNull(index)
-                formatTireSlot(sensor, label, unit)
+                formatTireSlot(context, sensor, label, unit)
             }
 
-            return WidgetSnapshot(statusText, unit.label, tires)
+            return WidgetSnapshot(state.widgetStatusLabel(context), unit.localizedLabel(context), tires)
         }
 
-        fun empty(unit: PressureUnit = PressureUnit.PSI): WidgetSnapshot {
-            val tires = WheelLayout.ORDER.map { formatTireSlot(null, it, unit) }
-            return WidgetSnapshot("Offline", unit.label, tires)
+        fun empty(context: Context, unit: PressureUnit = PressureUnit.PSI): WidgetSnapshot {
+            val tires = WheelLayout.ORDER.map { formatTireSlot(context, null, it, unit) }
+            return WidgetSnapshot(
+                context.getString(R.string.widget_status_offline),
+                unit.localizedLabel(context),
+                tires
+            )
         }
 
-        private fun formatTireSlot(sensor: TireSensor?, label: String, unit: PressureUnit): WidgetTireSlot {
+        private fun formatTireSlot(
+            context: Context,
+            sensor: TireSensor?,
+            label: String,
+            unit: PressureUnit
+        ): WidgetTireSlot {
             if (sensor == null) {
                 return WidgetTireSlot(
                     label = label,
-                    pressureText = "-- ${unit.label}",
+                    pressureText = context.getString(R.string.value_no_data_pressure, unit.localizedLabel(context)),
+                    temperatureText = context.getString(R.string.value_no_data_temp),
+                    batteryText = context.getString(R.string.value_no_data_battery),
                     status = WidgetTireStatus.EMPTY
                 )
             }
             if (sensor.alertType == AlertType.SENSOR_LOST) {
                 return WidgetTireSlot(
                     label = label,
-                    pressureText = "LOST",
+                    pressureText = context.getString(R.string.label_lost),
+                    temperatureText = context.getString(R.string.value_no_data_temp),
+                    batteryText = context.getString(R.string.value_no_data_battery),
                     status = WidgetTireStatus.ALERT
                 )
             }
             val pressureText = if (sensor.pressureKpa.isFinite()) {
                 unit.formatPressure(sensor.pressureKpa)
             } else {
-                "-- ${unit.label}"
+                context.getString(R.string.value_no_data_pressure, unit.localizedLabel(context))
             }
             val temperatureText = if (sensor.temperatureCelsius.isFinite()) {
                 "%.0f°C".format(sensor.temperatureCelsius)
             } else {
-                "--°C"
+                context.getString(R.string.value_no_data_temp)
             }
             return WidgetTireSlot(
                 label = label,
