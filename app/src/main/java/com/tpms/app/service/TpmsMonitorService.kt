@@ -20,6 +20,7 @@ import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.main.MainActivity
 import com.tpms.app.ui.widget.TpmsWidget
+import com.tpms.app.ui.widget.WidgetRemoteViews
 import com.tpms.app.ui.widget.WidgetSnapshot
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -226,11 +227,24 @@ class TpmsMonitorService : Service() {
         }
     }
 
-    private fun buildPersistentNotification() =
-        NotificationCompat.Builder(this, TpmsApplication.CHANNEL_STATUS)
+    private fun buildPersistentNotification(): android.app.Notification {
+        val statusLine = repository.serviceStatusLine()
+        val snapshot = WidgetSnapshot.from(
+            state = repository.state.value,
+            sensors = repository.sensors.value,
+            unit = settingsStore.pressureUnit.value,
+            wheelMapping = settingsStore.wheelMapping.value
+        )
+        val collapsed = WidgetRemoteViews.forNotificationCollapsed(this, snapshot)
+        val expanded = WidgetRemoteViews.forNotificationExpanded(this, snapshot, statusLine)
+        val summary = WidgetRemoteViews.summaryLine(snapshot)
+
+        return NotificationCompat.Builder(this, TpmsApplication.CHANNEL_STATUS)
             .setContentTitle(getString(R.string.notification_service_running))
-            .setContentText(repository.serviceStatusLine())
-            .setStyle(NotificationCompat.BigTextStyle().bigText(repository.serviceStatusLine()))
+            .setContentText(summary)
+            .setCustomContentView(collapsed)
+            .setCustomBigContentView(expanded)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .setSilent(true)
@@ -260,6 +274,7 @@ class TpmsMonitorService : Service() {
                 )
             )
             .build()
+    }
 
     companion object {
         private const val TAG = "TpmsMonitorService"
