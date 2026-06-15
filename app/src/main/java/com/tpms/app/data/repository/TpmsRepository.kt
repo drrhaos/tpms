@@ -43,12 +43,17 @@ class TpmsRepository @Inject constructor(
 
     private val lastSeen = mutableMapOf<String, Long>()
     private var onAlertCallback: ((TireSensor) -> Unit)? = null
+    private var onSensorNormalCallback: ((String) -> Unit)? = null
 
     @Volatile
     private var lastFrameAtMs: Long = 0L
 
     fun onAlert(callback: (TireSensor) -> Unit) {
         onAlertCallback = callback
+    }
+
+    fun onSensorNormal(callback: (String) -> Unit) {
+        onSensorNormalCallback = callback
     }
 
     fun findDongle(): UsbDevice? = usbConnection.findDongle(dongleDetector)
@@ -237,6 +242,8 @@ class TpmsRepository @Inject constructor(
                 .onFailure { debugLog.warn("Repository", "DB insert failed: ${it.message}") }
             if (sensor.isAlert) {
                 emitAlert(sensor)
+            } else {
+                onSensorNormalCallback?.invoke(sensor.id)
             }
             refreshConnectionState(sensor.timestamp)
         } catch (e: Exception) {

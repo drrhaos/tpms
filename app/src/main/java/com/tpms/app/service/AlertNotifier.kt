@@ -77,6 +77,10 @@ class AlertNotifier @Inject constructor(
         }
     }
 
+    fun clearSensor(sensorId: String) {
+        lastAlerted.remove(sensorId)
+    }
+
     fun clear() {
         lastAlerted.clear()
     }

@@ -48,6 +48,7 @@ class TpmsMonitorService : Service() {
     private var pollingJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var muteUntil: Long = 0
+    private var intentionalStop = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val _isRunning = MutableStateFlow(false)
@@ -64,6 +65,9 @@ class TpmsMonitorService : Service() {
                 alertNotifier.notify(sensor)
             }
         }
+        repository.onSensorNormal { sensorId ->
+            mainHandler.post { alertNotifier.clearSensor(sensorId) }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -73,6 +77,7 @@ class TpmsMonitorService : Service() {
                 return START_STICKY
             }
             ACTION_STOP -> {
+                intentionalStop = true
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -89,6 +94,7 @@ class TpmsMonitorService : Service() {
         }
 
         startForeground(NOTIF_ID, buildPersistentNotification())
+        ServiceStoppedNotifier.dismiss(this)
         _isRunning.value = true
         if (pollingJob?.isActive != true) {
             startPolling()
@@ -107,6 +113,9 @@ class TpmsMonitorService : Service() {
             if (it.isHeld) it.release()
         }
         _isRunning.value = false
+        if (!intentionalStop) {
+            ServiceStoppedNotifier.show(this)
+        }
         serviceScope.cancel()
         super.onDestroy()
     }

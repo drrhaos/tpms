@@ -20,15 +20,20 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.tpms.app.R
+import com.tpms.app.domain.WheelLayout
+import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.theme.StatusColors
 import com.tpms.app.ui.theme.TpmsColors
@@ -41,6 +46,7 @@ fun MainScreen(
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -68,39 +74,53 @@ fun MainScreen(
             )
         }
     ) { padding ->
-        Column(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.checkNow() },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatusHeader(state = uiState.tpmsState)
-
-            CarTopDown(
-                sensors = uiState.wheelSlots,
-                pressureUnit = uiState.pressureUnit,
-                onNavigateToSettings = onNavigateToSettings,
-                onNavigateToDebug = onNavigateToDebug,
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                StatusHeader(
+                    state = uiState.tpmsState,
+                    wheelMapping = uiState.wheelMapping
+                )
 
-            uiState.lastError?.let { message ->
-                UiErrorBanner(message = message)
+                CarTopDown(
+                    sensors = uiState.wheelSlots,
+                    pressureUnit = uiState.pressureUnit,
+                    onNavigateToSettings = onNavigateToSettings,
+                    onNavigateToDebug = onNavigateToDebug,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+
+                uiState.lastError?.let { message ->
+                    UiErrorBanner(message = message)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun StatusHeader(state: TpmsState) {
+private fun StatusHeader(state: TpmsState, wheelMapping: Map<String, String>) {
     val (text, color) = when (state) {
         is TpmsState.Disconnected -> "Disconnected" to StatusColors.disconnected
         is TpmsState.Connecting -> "Connecting…" to StatusColors.warning
         is TpmsState.Connected -> "Monitoring" to StatusColors.ok
-        is TpmsState.Alert -> "Alert!" to StatusColors.alert
+        is TpmsState.Alert -> {
+            val wheel = WheelLayout.resolveWheelLabel(state.sensor, wheelMapping)
+            val alertLabel = state.type.shortLabel()
+            stringResource(R.string.status_alert_format, wheel, alertLabel) to StatusColors.alert
+        }
     }
 
     Row(
@@ -126,6 +146,14 @@ private fun StatusHeader(state: TpmsState) {
             fontWeight = FontWeight.SemiBold
         )
     }
+}
+
+private fun AlertType.shortLabel(): String = when (this) {
+    AlertType.LOW_PRESSURE -> "LOW"
+    AlertType.HIGH_PRESSURE -> "HIGH"
+    AlertType.SENSOR_LOST -> "LOST"
+    AlertType.HIGH_TEMP -> "HIGH TEMP"
+    AlertType.BATTERY_LOW -> "LOW BATT"
 }
 
 @Composable

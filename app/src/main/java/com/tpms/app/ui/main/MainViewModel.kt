@@ -11,18 +11,24 @@ import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
+import com.tpms.app.service.TpmsMonitorService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class MainUiState(
     val tpmsState: TpmsState = TpmsState.Disconnected,
     val sensors: Map<String, TireSensor> = emptyMap(),
     val wheelSlots: List<TireSensor?> = List(WheelLayout.ORDER.size) { null },
+    val wheelMapping: Map<String, String> = emptyMap(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
     val lastError: String? = null
 )
@@ -49,6 +55,18 @@ class MainViewModel @Inject constructor(
         emit(MainUiState(lastError = error.message ?: error.javaClass.simpleName))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MainUiState())
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    fun checkNow() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            TpmsMonitorService.wake(getApplication())
+            delay(CHECK_NOW_REFRESH_MS)
+            _isRefreshing.value = false
+        }
+    }
+
     private fun buildUiState(
         tpmsState: TpmsState,
         sensors: Map<String, TireSensor>,
@@ -60,6 +78,7 @@ class MainViewModel @Inject constructor(
                 tpmsState = tpmsState,
                 sensors = sensors,
                 wheelSlots = WheelLayout.orderedSlots(sensors, wheelMapping),
+                wheelMapping = wheelMapping,
                 pressureUnit = unit
             )
         } catch (error: Exception) {
@@ -77,5 +96,9 @@ class MainViewModel @Inject constructor(
     fun logUiError(component: String, error: Throwable) {
         debugLog.error("MainScreen/$component", uiBreadcrumbs.describe())
         debugLog.exception("MainScreen/$component", error)
+    }
+
+    companion object {
+        private const val CHECK_NOW_REFRESH_MS = 1500L
     }
 }
