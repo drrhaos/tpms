@@ -29,7 +29,11 @@ class AlertNotifier @Inject constructor(
             if (lastAlerted[sensor.id] == alertType) return
             lastAlerted[sensor.id] = alertType
 
-            val wheelLabel = WheelLayout.resolveWheelLabel(sensor, settingsStore.wheelMapping.value)
+            val wheelLabel = WheelLayout.resolveWheelLabel(
+                sensor,
+                settingsStore.wheelMapping.value,
+                settingsStore.wheelNames.value
+            )
             val unit = settingsStore.pressureUnit.value
             val pressureText = when {
                 alertType == AlertType.SENSOR_LOST -> null

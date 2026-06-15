@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
@@ -56,8 +57,20 @@ class SettingsStore @Inject constructor(
     private val _sensorTimeoutMs = MutableStateFlow(DEFAULT_SENSOR_TIMEOUT_MS)
     val sensorTimeoutMs = _sensorTimeoutMs.asStateFlow()
 
+    private val _staleFrameTimeoutMs = MutableStateFlow(ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS)
+    val staleFrameTimeoutMs = _staleFrameTimeoutMs.asStateFlow()
+
     private val _wheelMapping = MutableStateFlow<Map<String, String>>(emptyMap())
     val wheelMapping = _wheelMapping.asStateFlow()
+
+    private val _wheelNames = MutableStateFlow<Map<String, String>>(emptyMap())
+    val wheelNames = _wheelNames.asStateFlow()
+
+    private val _showSpareWheel = MutableStateFlow(false)
+    val showSpareWheel = _showSpareWheel.asStateFlow()
+
+    private val _minLiveWheelPressureKpa = MutableStateFlow(SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA)
+    val minLiveWheelPressureKpa = _minLiveWheelPressureKpa.asStateFlow()
 
     private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
     val teyesChecklist = _teyesChecklist.asStateFlow()
@@ -83,10 +96,22 @@ class SettingsStore @Inject constructor(
                 } ?: DongleProtocolMode.AUTO
 
                 _sensorTimeoutMs.value = prefs[KEY_SENSOR_TIMEOUT_MS] ?: DEFAULT_SENSOR_TIMEOUT_MS
+                _staleFrameTimeoutMs.value =
+                    prefs[KEY_STALE_FRAME_TIMEOUT_MS] ?: ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS
 
-                _wheelMapping.value = WheelLayout.ORDER.associateWith { slot ->
+                val showSpare = prefs[KEY_SHOW_SPARE_WHEEL] ?: false
+                _showSpareWheel.value = showSpare
+
+                _wheelMapping.value = WheelLayout.allSlots(showSpare).associateWith { slot ->
                     prefs[wheelMappingKey(slot)] ?: ""
                 }
+
+                _wheelNames.value = WheelLayout.allSlots(showSpare).associateWith { slot ->
+                    prefs[wheelNameKey(slot)] ?: ""
+                }
+
+                _minLiveWheelPressureKpa.value =
+                    prefs[KEY_MIN_LIVE_WHEEL_PRESSURE] ?: SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA
 
                 _teyesChecklist.value = TeyesChecklist(
                     autoStart = prefs[KEY_TEYES_AUTO_START] ?: false,
@@ -127,9 +152,27 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_SENSOR_TIMEOUT_MS] = timeoutMs }
     }
 
+    suspend fun setStaleFrameTimeoutMs(timeoutMs: Long) {
+        context.settingsDataStore.edit { it[KEY_STALE_FRAME_TIMEOUT_MS] = timeoutMs }
+    }
+
+    suspend fun setShowSpareWheel(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_SHOW_SPARE_WHEEL] = enabled }
+    }
+
+    suspend fun setMinLiveWheelPressureKpa(value: Float) {
+        context.settingsDataStore.edit { it[KEY_MIN_LIVE_WHEEL_PRESSURE] = value }
+    }
+
     suspend fun setWheelMapping(slot: String, sensorId: String) {
         context.settingsDataStore.edit { prefs ->
             prefs[wheelMappingKey(slot)] = sensorId
+        }
+    }
+
+    suspend fun setWheelName(slot: String, name: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[wheelNameKey(slot)] = name
         }
     }
 
@@ -151,6 +194,38 @@ class SettingsStore @Inject constructor(
         }
     }
 
+    suspend fun applyImported(imported: ImportedSettings) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[KEY_PRESSURE_UNIT] = imported.pressureUnit.name
+            prefs[KEY_LOW_PRESSURE] = imported.thresholds.lowPressureKpa
+            prefs[KEY_HIGH_PRESSURE] = imported.thresholds.highPressureKpa
+            prefs[KEY_HIGH_TEMP] = imported.thresholds.highTempCelsius
+            prefs[KEY_DONGLE_PROTOCOL] = imported.dongleProtocolMode.name
+            prefs[KEY_SENSOR_TIMEOUT_MS] = imported.sensorTimeoutMs
+            prefs[KEY_STALE_FRAME_TIMEOUT_MS] = imported.staleFrameTimeoutMs
+            prefs[KEY_SHOW_SPARE_WHEEL] = imported.showSpareWheel
+            prefs[KEY_MIN_LIVE_WHEEL_PRESSURE] = imported.minLiveWheelPressureKpa
+            prefs[KEY_ALERT_SOUND] = imported.alertNotificationPrefs.soundEnabled
+            prefs[KEY_ALERT_VIBRATION] = imported.alertNotificationPrefs.vibrationEnabled
+            prefs[KEY_TEYES_AUTO_START] = imported.teyesChecklist.autoStart
+            prefs[KEY_TEYES_BATTERY] = imported.teyesChecklist.batteryUnrestricted
+            prefs[KEY_TEYES_LOCK] = imported.teyesChecklist.lockInRecents
+            prefs[KEY_TEYES_BOOT] = imported.teyesChecklist.bootCompleted
+            WheelLayout.allSlots(imported.showSpareWheel).forEach { slot ->
+                prefs[wheelMappingKey(slot)] = imported.wheelMapping[slot].orEmpty()
+                prefs[wheelNameKey(slot)] = imported.wheelNames[slot].orEmpty()
+            }
+        }
+    }
+
+    fun isTeyesChecklistComplete(): Boolean {
+        val checklist = _teyesChecklist.value
+        return checklist.autoStart &&
+            checklist.batteryUnrestricted &&
+            checklist.lockInRecents &&
+            checklist.bootCompleted
+    }
+
     companion object {
         const val DEFAULT_SENSOR_TIMEOUT_MS = 60_000L
 
@@ -160,6 +235,9 @@ class SettingsStore @Inject constructor(
         private val KEY_HIGH_TEMP = floatPreferencesKey("high_temp_celsius")
         private val KEY_DONGLE_PROTOCOL = stringPreferencesKey("dongle_protocol")
         private val KEY_SENSOR_TIMEOUT_MS = longPreferencesKey("sensor_timeout_ms")
+        private val KEY_STALE_FRAME_TIMEOUT_MS = longPreferencesKey("stale_frame_timeout_ms")
+        private val KEY_SHOW_SPARE_WHEEL = booleanPreferencesKey("show_spare_wheel")
+        private val KEY_MIN_LIVE_WHEEL_PRESSURE = floatPreferencesKey("min_live_wheel_pressure_kpa")
         private val KEY_TEYES_AUTO_START = booleanPreferencesKey("teyes_auto_start")
         private val KEY_TEYES_BATTERY = booleanPreferencesKey("teyes_battery")
         private val KEY_TEYES_LOCK = booleanPreferencesKey("teyes_lock")
@@ -168,5 +246,6 @@ class SettingsStore @Inject constructor(
         private val KEY_ALERT_VIBRATION = booleanPreferencesKey("alert_vibration")
 
         private fun wheelMappingKey(slot: String) = stringPreferencesKey("wheel_map_$slot")
+        private fun wheelNameKey(slot: String) = stringPreferencesKey("wheel_name_$slot")
     }
 }

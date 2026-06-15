@@ -14,9 +14,11 @@ import com.tpms.app.data.usb.UsbDeviceInfo
 import androidx.core.app.NotificationCompat
 import com.tpms.app.R
 import com.tpms.app.TpmsApplication
+import com.tpms.app.data.diagnostics.ServiceHealth
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbConnection
+import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.main.MainActivity
 import com.tpms.app.ui.widget.TpmsWidget
@@ -44,9 +46,11 @@ class TpmsMonitorService : Service() {
     @Inject lateinit var repository: TpmsRepository
     @Inject lateinit var alertNotifier: AlertNotifier
     @Inject lateinit var settingsStore: SettingsStore
+    @Inject lateinit var serviceHealth: ServiceHealth
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: Job? = null
+    private var watchdogJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var muteUntil: Long = 0
     private var intentionalStop = false
@@ -88,7 +92,7 @@ class TpmsMonitorService : Service() {
             }
             ACTION_USB_DETACHED -> {
                 serviceScope.launch {
-                    runCatching { repository.closeUsb() }
+                    runCatching { repository.closeUsbForReconnect() }
                 }
                 return START_STICKY
             }
@@ -96,9 +100,13 @@ class TpmsMonitorService : Service() {
 
         startForeground(NOTIF_ID, buildPersistentNotification())
         ServiceStoppedNotifier.dismiss(this)
+        BootStartScheduler.cancel(this)
         _isRunning.value = true
         if (pollingJob?.isActive != true) {
             startPolling()
+        }
+        if (watchdogJob?.isActive != true) {
+            startWatchdog()
         }
         refreshPersistentNotification()
         return START_STICKY
@@ -109,6 +117,8 @@ class TpmsMonitorService : Service() {
     override fun onDestroy() {
         pollingJob?.cancel()
         pollingJob = null
+        watchdogJob?.cancel()
+        watchdogJob = null
         repository.closeUsb()
         wakeLock?.let {
             if (it.isHeld) it.release()
@@ -155,6 +165,12 @@ class TpmsMonitorService : Service() {
                 var absentPolls = 0
                 while (isActive && repository.isUsbConnected()) {
                     try {
+                        if (repository.shouldReconnectStaleFrame()) {
+                            Log.w(TAG, "Stale frame detected — reconnecting USB")
+                            repository.reconnectStaleFrame()
+                            break
+                        }
+
                         pollOnce()
 
                         val present = repository.isOpenDevicePresent()
@@ -175,18 +191,39 @@ class TpmsMonitorService : Service() {
                         throw e
                     } catch (e: Exception) {
                         Log.w(TAG, "Poll iteration failed", e)
+                        serviceHealth.recordError("poll: ${e.message}")
                     }
                     delay(POLL_INTERVAL_MS)
                 }
 
                 Log.d(TAG, "USB dongle detached, reconnecting...")
-                runCatching { repository.closeUsb() }
+                runCatching { repository.closeUsbForReconnect() }
                 delay(RECONNECT_DEBOUNCE_MS)
             }
         }
     }
 
+    private fun startWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = serviceScope.launch {
+            while (isActive) {
+                delay(WATCHDOG_INTERVAL_MS)
+                val lastCompleted = repository.lastPollCompletedAtMs()
+                if (lastCompleted <= 0L) continue
+                val stuckFor = System.currentTimeMillis() - lastCompleted
+                if (stuckFor > ConnectionHealthPolicy.POLL_STUCK_MS) {
+                    Log.w(TAG, "Watchdog: polling stuck for ${stuckFor}ms — restarting loop")
+                    serviceHealth.recordWatchdogRestart()
+                    pollingJob?.cancel()
+                    pollingJob = null
+                    startPolling()
+                }
+            }
+        }
+    }
+
     private suspend fun pollOnce() {
+        serviceHealth.recordPollStart()
         acquireWakeLock()
         try {
             runCatching { repository.readSensor() }
@@ -196,6 +233,7 @@ class TpmsMonitorService : Service() {
                 refreshPersistentNotification()
             }
         } finally {
+            serviceHealth.recordPollCompleted()
             releaseWakeLock()
         }
     }
@@ -211,7 +249,9 @@ class TpmsMonitorService : Service() {
             state = repository.state.value,
             sensors = repository.sensors.value,
             unit = settingsStore.pressureUnit.value,
-            wheelMapping = settingsStore.wheelMapping.value
+            wheelMapping = settingsStore.wheelMapping.value,
+            showSpareWheel = settingsStore.showSpareWheel.value,
+            wheelNames = settingsStore.wheelNames.value
         )
         withContext(Dispatchers.Main) {
             runCatching { TpmsWidget.pushUpdate(this@TpmsMonitorService, snapshot) }
@@ -230,16 +270,25 @@ class TpmsMonitorService : Service() {
 
     private fun buildPersistentNotification(): android.app.Notification {
         val statusLine = repository.serviceStatusLine()
+        val protocolUnhealthy = repository.isProtocolUnhealthy()
         val snapshot = WidgetSnapshot.from(
             this,
             state = repository.state.value,
             sensors = repository.sensors.value,
             unit = settingsStore.pressureUnit.value,
-            wheelMapping = settingsStore.wheelMapping.value
+            wheelMapping = settingsStore.wheelMapping.value,
+            showSpareWheel = settingsStore.showSpareWheel.value,
+            wheelNames = settingsStore.wheelNames.value
         )
         val collapsed = WidgetRemoteViews.forNotificationCollapsed(this, snapshot)
         val expanded = WidgetRemoteViews.forNotificationExpanded(this, snapshot, statusLine)
-        val summary = WidgetRemoteViews.summaryLine(snapshot)
+        val summary = buildString {
+            append(WidgetRemoteViews.summaryLine(snapshot))
+            if (protocolUnhealthy) {
+                append(" · ")
+                append(getString(R.string.notification_protocol_warn))
+            }
+        }
 
         return NotificationCompat.Builder(this, TpmsApplication.CHANNEL_STATUS)
             .setContentTitle(getString(R.string.notification_service_running))
@@ -247,7 +296,10 @@ class TpmsMonitorService : Service() {
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(
+                if (protocolUnhealthy) android.R.drawable.ic_dialog_alert
+                else android.R.drawable.ic_dialog_info
+            )
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(
@@ -286,6 +338,7 @@ class TpmsMonitorService : Service() {
         private const val RECONNECT_DEBOUNCE_MS = 5000L
         private const val DETACH_ABSENT_POLLS = 3
         private const val MUTE_DURATION_MS = 30 * 60 * 1000L
+        private const val WATCHDOG_INTERVAL_MS = 5000L
 
         const val ACTION_MUTE = "com.tpms.app.action.MUTE"
         const val ACTION_STOP = "com.tpms.app.action.STOP"

@@ -23,9 +23,12 @@ class DiagnosticsExporter @Inject constructor(
         tpmsState: TpmsState,
         sensors: Map<String, TireSensor>,
         wheelMapping: Map<String, String>,
+        wheelNames: Map<String, String>,
+        showSpareWheel: Boolean,
         pressureUnit: PressureUnit,
         usbScan: String,
-        serviceStatusLine: String
+        serviceStatusLine: String,
+        serviceHealth: ServiceHealth
     ): String = buildString {
         appendLine("=== TPMS Full Diagnostic Report ===")
         appendLine("Generated: ${timestamp()}")
@@ -36,25 +39,33 @@ class DiagnosticsExporter @Inject constructor(
         appendLine(serviceStatusLine)
         appendLine("TPMS state: ${formatState(tpmsState)}")
         appendLine()
+        serviceHealth.reportBlock()
+        appendLine()
         appendLine("--- Wheel mapping ---")
+        val slots = WheelLayout.allSlots(showSpareWheel)
         if (wheelMapping.values.any { it.isNotBlank() }) {
-            WheelLayout.ORDER.forEach { slot ->
-                appendLine("  $slot → ${wheelMapping[slot].orEmpty().ifBlank { "(auto)" }}")
+            slots.forEach { slot ->
+                val name = wheelNames[slot]?.takeIf { it.isNotBlank() }
+                val nameSuffix = name?.let { " ($it)" }.orEmpty()
+                appendLine("  $slot$nameSuffix → ${wheelMapping[slot].orEmpty().ifBlank { "(auto)" }}")
             }
         } else {
             appendLine("  (automatic)")
+            wheelNames.filterValues { it.isNotBlank() }.forEach { (slot, name) ->
+                appendLine("  $slot display name: $name")
+            }
         }
         appendLine()
         appendLine("--- Sensors (${sensors.size}) ---")
         if (sensors.isEmpty()) {
             appendLine("  No sensor data")
         } else {
-            WheelLayout.orderedSlots(sensors, wheelMapping).forEachIndexed { index, sensor ->
-                val slot = WheelLayout.ORDER[index]
+            WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel).forEachIndexed { index, sensor ->
+                val slot = slots[index]
                 appendLine("  $slot: ${formatSensor(sensor, pressureUnit)}")
             }
             sensors.values.sortedBy { it.id }.forEach { sensor ->
-                if (WheelLayout.orderedSlots(sensors, wheelMapping).none { it?.id == sensor.id }) {
+                if (WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel).none { it?.id == sensor.id }) {
                     appendLine("  unmapped ${sensor.id}: ${formatSensor(sensor, pressureUnit)}")
                 }
             }

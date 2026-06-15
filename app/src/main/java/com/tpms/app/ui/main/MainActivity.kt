@@ -35,6 +35,15 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    override fun onResume() {
+        super.onResume()
+        runCatching {
+            TpmsMonitorService.start(this)
+        }.onFailure { error ->
+            debugLog.exception("App", error, "ensure service on resume")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

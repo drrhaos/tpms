@@ -35,18 +35,27 @@ data class WidgetSnapshot(
             state: TpmsState,
             sensors: Map<String, TireSensor>,
             unit: PressureUnit,
-            wheelMapping: Map<String, String> = emptyMap()
+            wheelMapping: Map<String, String> = emptyMap(),
+            showSpareWheel: Boolean = false,
+            wheelNames: Map<String, String> = emptyMap()
         ): WidgetSnapshot {
-            val tires = WheelLayout.ORDER.mapIndexed { index, label ->
-                val sensor = WheelLayout.orderedSlots(sensors, wheelMapping).getOrNull(index)
-                formatTireSlot(context, sensor, label, unit)
+            val slots = WheelLayout.allSlots(showSpareWheel)
+            val ordered = WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel)
+            val tires = slots.mapIndexed { index, slot ->
+                val sensor = ordered.getOrNull(index)
+                val displayLabel = wheelNames[slot]?.takeIf { it.isNotBlank() } ?: slot
+                formatTireSlot(context, sensor, displayLabel, unit)
             }
 
             return WidgetSnapshot(state.widgetStatusLabel(context), unit.localizedLabel(context), tires)
         }
 
-        fun empty(context: Context, unit: PressureUnit = PressureUnit.PSI): WidgetSnapshot {
-            val tires = WheelLayout.ORDER.map { formatTireSlot(context, null, it, unit) }
+        fun empty(
+            context: Context,
+            unit: PressureUnit = PressureUnit.PSI,
+            showSpareWheel: Boolean = false
+        ): WidgetSnapshot {
+            val tires = WheelLayout.allSlots(showSpareWheel).map { formatTireSlot(context, null, it, unit) }
             return WidgetSnapshot(
                 context.getString(R.string.widget_status_offline),
                 unit.localizedLabel(context),

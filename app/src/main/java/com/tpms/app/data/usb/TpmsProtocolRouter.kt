@@ -3,6 +3,7 @@ package com.tpms.app.data.usb
 import com.tpms.app.data.usb.protocol.Aa55SerialProtocol
 import com.tpms.app.data.usb.protocol.DeelifeProtocol
 import com.tpms.app.data.usb.protocol.HidGenericProtocol
+import com.tpms.app.data.settings.SensorValidatorDefaults
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
@@ -57,7 +58,8 @@ class TpmsProtocolRouter @Inject constructor(
     fun parse(
         raw: ByteArray,
         timestamp: Long,
-        alertChecker: (TireSensor) -> AlertType?
+        alertChecker: (TireSensor) -> AlertType?,
+        minLiveWheelPressureKpa: Float = SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA
     ): List<TireSensor> {
         if (raw.isEmpty()) return emptyList()
         val protocol = activeProtocol ?: return emptyList()
@@ -70,7 +72,7 @@ class TpmsProtocolRouter @Inject constructor(
                 DongleProtocol.SERIAL_AA55 -> aa55Protocol.feed(raw, timestamp, alertChecker)
                 DongleProtocol.DEELIFE -> deelifeProtocol.feed(raw, timestamp, alertChecker)
             }
-            parsed.mapNotNull { SensorValidator.sanitize(it) }
+            parsed.mapNotNull { SensorValidator.sanitize(it, minLiveWheelPressureKpa) }
         } catch (e: Exception) {
             debugLog.warn(TAG, "Parse error (${protocol.displayName}): ${e.message}")
             emptyList()

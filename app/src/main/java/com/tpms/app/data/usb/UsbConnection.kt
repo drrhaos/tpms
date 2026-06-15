@@ -8,7 +8,9 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import com.tpms.app.domain.model.DongleProtocol
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -135,13 +137,24 @@ class UsbConnection @Inject constructor(
         true
     }
 
+    @Volatile
+    var onReadTimeout: (() -> Unit)? = null
+
     suspend fun read(timeoutMs: Long = READ_TIMEOUT_MS): ByteArray? = withContext(Dispatchers.IO) {
-        synchronized(usbLock) {
+        val snapshot = synchronized(usbLock) {
             val conn = connection ?: return@withContext null
             val ep = inEndpoint ?: return@withContext null
-            val buf = ByteArray(ep.maxPacketSize.coerceAtLeast(64))
-            try {
-                val read = conn.bulkTransfer(ep, buf, buf.size, timeoutMs.toInt())
+            ReadSnapshot(conn, ep, ep.maxPacketSize.coerceAtLeast(64))
+        }
+        try {
+            withTimeout(timeoutMs + READ_TIMEOUT_MARGIN_MS) {
+                val buf = ByteArray(snapshot.bufSize)
+                val read = snapshot.connection.bulkTransfer(
+                    snapshot.endpoint,
+                    buf,
+                    buf.size,
+                    timeoutMs.toInt()
+                )
                 when {
                     read > 0 -> {
                         val data = buf.copyOf(read)
@@ -158,10 +171,15 @@ class UsbConnection @Inject constructor(
                         null
                     }
                 }
-            } catch (e: Exception) {
-                debugLog.error(TAG, "Read error: ${e.message}")
-                null
             }
+        } catch (e: TimeoutCancellationException) {
+            debugLog.error(TAG, "Coroutine timeout on bulkTransfer — forcing close")
+            onReadTimeout?.invoke()
+            close()
+            null
+        } catch (e: Exception) {
+            debugLog.error(TAG, "Read error: ${e.message}")
+            null
         }
     }
 
@@ -339,9 +357,16 @@ class UsbConnection @Inject constructor(
 
     private enum class UsbTransport { HID, SERIAL }
 
+    private data class ReadSnapshot(
+        val connection: UsbDeviceConnection,
+        val endpoint: UsbEndpoint,
+        val bufSize: Int
+    )
+
     companion object {
         private const val TAG = "UsbConnection"
         const val READ_TIMEOUT_MS = 3000L
+        private const val READ_TIMEOUT_MARGIN_MS = 500L
         private const val WRITE_TIMEOUT_MS = 1000L
         private const val SERIAL_BAUD_RATE = 19200
         private const val USB_CLASS_CDC_DATA = 0x0A

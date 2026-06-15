@@ -1,6 +1,8 @@
 package com.tpms.app.ui.main
 
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -121,11 +123,17 @@ fun MainScreen(
             ) {
                 StatusHeader(
                     state = uiState.tpmsState,
-                    wheelMapping = uiState.wheelMapping
+                    wheelMapping = uiState.wheelMapping,
+                    wheelNames = uiState.wheelNames
                 )
+
+                if (uiState.teyesChecklistIncomplete) {
+                    TeyesChecklistBanner(onNavigateToSettings = onNavigateToSettings)
+                }
 
                 CarTopDown(
                     sensors = uiState.wheelSlots,
+                    wheelLabels = uiState.wheelSlotLabels,
                     pressureUnit = uiState.pressureUnit,
                     onNavigateToSettings = onNavigateToSettings,
                     onNavigateToDebug = onNavigateToDebug,
@@ -144,13 +152,17 @@ fun MainScreen(
 }
 
 @Composable
-private fun StatusHeader(state: TpmsState, wheelMapping: Map<String, String>) {
+private fun StatusHeader(
+    state: TpmsState,
+    wheelMapping: Map<String, String>,
+    wheelNames: Map<String, String> = emptyMap()
+) {
     val (text, color) = when (state) {
         is TpmsState.Disconnected -> state.statusLabel() to StatusColors.disconnected
         is TpmsState.Connecting -> state.statusLabel() to StatusColors.warning
         is TpmsState.Connected -> state.statusLabel() to StatusColors.ok
         is TpmsState.Alert -> {
-            val wheel = WheelLayout.resolveWheelLabel(state.sensor, wheelMapping)
+            val wheel = WheelLayout.resolveWheelLabel(state.sensor, wheelMapping, wheelNames)
             val alertLabel = state.type.shortLabel()
             stringResource(R.string.status_alert_format, wheel, alertLabel) to StatusColors.alert
         }
@@ -272,6 +284,31 @@ private fun wheelDetailTemperature(sensor: TireSensor): String {
 private fun formatTimestamp(timestamp: Long, emDash: String): String {
     if (timestamp <= 0L) return emDash
     return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
+}
+
+@Composable
+private fun TeyesChecklistBanner(onNavigateToSettings: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(StatusColors.warning.copy(alpha = 0.12f))
+            .border(1.dp, StatusColors.warning.copy(alpha = 0.35f), MaterialTheme.shapes.medium)
+            .clickable(onClick = onNavigateToSettings)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = stringResource(R.string.main_teyes_checklist_incomplete),
+            style = MaterialTheme.typography.bodySmall,
+            color = StatusColors.warning,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onNavigateToSettings) {
+            Text(stringResource(R.string.main_open_settings))
+        }
+    }
 }
 
 @Composable

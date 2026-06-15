@@ -17,6 +17,7 @@
     <string name="notification_action_restart">Перезапустить</string>
     <string name="notification_service_stopped_title">Мониторинг TPMS остановлен</string>
     <string name="notification_service_stopped_body">Мониторинг выключен — нажмите, чтобы перезапустить</string>
+    <string name="notification_protocol_warn">Нет валидных данных датчиков</string>
 
     <!-- Status -->
     <string name="status_alert_format">%1$s — %2$s</string>
@@ -96,6 +97,25 @@
     <string name="settings_teyes_battery">Батарея → Без ограничений</string>
     <string name="settings_teyes_lock">Закреплено в недавних приложениях</string>
     <string name="settings_teyes_boot">Разрешён запуск после загрузки</string>
+    <string name="main_teyes_checklist_incomplete">Для стабильного фонового мониторинга завершите разрешения Teyes в настройках.</string>
+    <string name="main_open_settings">Настройки</string>
+    <string name="settings_stability">Стабильность</string>
+    <string name="settings_stale_frame_timeout">Reconnect при устаревших кадрах (сек)</string>
+    <string name="settings_min_live_wheel_pressure">Мин. давление живого колеса (кПа)</string>
+    <string name="settings_show_spare_wheel">Показать запаску (SP)</string>
+    <string name="settings_wheel_names">Имена колёс</string>
+    <string name="settings_wheel_names_hint">Свои подписи для алертов и UI. Пусто = FL/FR/RL/RR.</string>
+    <string name="settings_wheel_name_label">Имя для %1$s</string>
+    <string name="settings_import_export">Импорт / экспорт</string>
+    <string name="settings_export_copy">Копировать JSON настроек</string>
+    <string name="settings_import_json">Вставить JSON настроек</string>
+    <string name="settings_import_apply">Применить импорт</string>
+    <string name="settings_export_copied">Настройки скопированы в буфер</string>
+    <string name="settings_import_ok">Настройки импортированы</string>
+    <string name="settings_import_failed">Ошибка импорта: %1$s</string>
+    <string name="settings_open_app_details">Открыть настройки приложения (автозапуск)</string>
+    <string name="settings_open_battery_settings">Открыть оптимизацию батареи</string>
+    <string name="settings_open_notification_settings">Открыть настройки уведомлений</string>
     <string name="action_save">Сохранить</string>
 
     <!-- Protocol modes -->

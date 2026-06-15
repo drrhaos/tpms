@@ -33,7 +33,14 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -69,11 +76,28 @@ fun SettingsScreen(
     val teyesChecklist by viewModel.teyesChecklist.collectAsState()
     val alertSoundEnabled by viewModel.alertSoundEnabled.collectAsState()
     val alertVibrationEnabled by viewModel.alertVibrationEnabled.collectAsState()
+    val showSpareWheel by viewModel.showSpareWheel.collectAsState()
+    val staleFrameTimeoutSec by viewModel.staleFrameTimeoutSec.collectAsState()
+    val minLiveWheelPressure by viewModel.minLiveWheelPressure.collectAsState()
+    val wheelNames by viewModel.wheelNames.collectAsState()
+    val importExportMessage by viewModel.importExportMessage.collectAsState()
+    var importJson by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(importExportMessage) {
+        importExportMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearImportExportMessage()
+        }
+    }
+
+    val wheelSlots = viewModel.wheelSlots()
     val pinSupported = TpmsWidgetHelper.isPinSupported(context)
     val hasWidget = TpmsWidgetHelper.hasActiveWidgets(context)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.title_settings), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
@@ -224,7 +248,7 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                viewModel.wheelSlots.forEach { slot ->
+                wheelSlots.forEach { slot ->
                     val selected = wheelMapping[slot].orEmpty()
                     Row(
                         modifier = Modifier
@@ -240,6 +264,92 @@ fun SettingsScreen(
                             Text(selected.ifBlank { stringResource(R.string.settings_auto) })
                         }
                     }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(stringResource(R.string.settings_show_spare_wheel))
+                    Switch(
+                        checked = showSpareWheel,
+                        onCheckedChange = { viewModel.setShowSpareWheel(it) }
+                    )
+                }
+            }
+
+            TpmsCard(title = stringResource(R.string.settings_wheel_names)) {
+                Text(
+                    text = stringResource(R.string.settings_wheel_names_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val fieldColors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = TpmsColors.outline
+                )
+                wheelSlots.forEach { slot ->
+                    OutlinedTextField(
+                        value = wheelNames[slot].orEmpty(),
+                        onValueChange = { viewModel.setWheelName(slot, it) },
+                        label = { Text(stringResource(R.string.settings_wheel_name_label, slot)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = fieldColors,
+                        singleLine = true
+                    )
+                }
+            }
+
+            TpmsCard(title = stringResource(R.string.settings_stability)) {
+                val fieldColors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = TpmsColors.outline,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground
+                )
+                OutlinedTextField(
+                    value = staleFrameTimeoutSec.toString(),
+                    onValueChange = { it.toIntOrNull()?.let { v -> viewModel.setStaleFrameTimeoutSec(v) } },
+                    label = { Text(stringResource(R.string.settings_stale_frame_timeout)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = minLiveWheelPressure.toString(),
+                    onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setMinLiveWheelPressure(v) } },
+                    label = { Text(stringResource(R.string.settings_min_live_wheel_pressure)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors
+                )
+            }
+
+            TpmsCard(title = stringResource(R.string.settings_import_export)) {
+                OutlinedButton(
+                    onClick = { viewModel.copySettingsToClipboard() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.settings_export_copy))
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = importJson,
+                    onValueChange = { importJson = it },
+                    label = { Text(stringResource(R.string.settings_import_json)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { viewModel.importSettingsJson(importJson) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = importJson.isNotBlank()
+                ) {
+                    Text(stringResource(R.string.settings_import_apply))
                 }
             }
 
@@ -317,6 +427,27 @@ fun SettingsScreen(
                     checked = teyesChecklist.bootCompleted,
                     onCheckedChange = { viewModel.setTeyesChecklistItem("boot", it) }
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { TeyesPermissionHelper.openAppDetails(context) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.settings_open_app_details))
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { TeyesPermissionHelper.openBatteryOptimization(context) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.settings_open_battery_settings))
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { TeyesPermissionHelper.openNotificationSettings(context) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.settings_open_notification_settings))
+                }
             }
 
             Button(

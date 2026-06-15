@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tpms.app.R
+import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
@@ -58,6 +59,7 @@ private val WHEELS = listOf(
 @Composable
 fun CarTopDown(
     sensors: List<TireSensor?>,
+    wheelLabels: List<String> = WHEELS.map { it.label },
     pressureUnit: PressureUnit = PressureUnit.PSI,
     onNavigateToSettings: () -> Unit = {},
     onNavigateToDebug: () -> Unit = {},
@@ -117,7 +119,8 @@ fun CarTopDown(
             }
         }
 
-        WHEELS.forEachIndexed { index, pos ->
+        val positions = wheelPositions(wheelLabels)
+        positions.forEachIndexed { index, pos ->
             val sensor = sensors.getOrNull(index)
             val dotColor = sensor.toSeverity().statusColor()
 
@@ -231,3 +234,17 @@ internal fun clampOffset(value: Dp, min: Dp, max: Dp): Dp =
 
 internal fun clampOffset(value: Float, min: Float, max: Float): Float =
     if (max < min) min else value.coerceIn(min, max)
+
+private fun wheelPositions(labels: List<String>): List<WheelPos> {
+    val coords = listOf(
+        0.25f to 0.25f,
+        0.75f to 0.25f,
+        0.25f to 0.75f,
+        0.75f to 0.75f,
+        0.5f to 0.55f
+    )
+    return labels.mapIndexed { index, label ->
+        val (x, y) = coords.getOrElse(index) { 0.5f to 0.5f }
+        WheelPos(x, y, label)
+    }
+}

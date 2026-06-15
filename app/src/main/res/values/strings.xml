@@ -17,6 +17,7 @@
     <string name="notification_action_restart">Restart</string>
     <string name="notification_service_stopped_title">TPMS monitor stopped</string>
     <string name="notification_service_stopped_body">Monitoring is off — tap to restart</string>
+    <string name="notification_protocol_warn">No valid sensor data</string>
 
     <!-- Status -->
     <string name="status_alert_format">%1$s — %2$s</string>
@@ -96,6 +97,25 @@
     <string name="settings_teyes_battery">Battery → No restrictions</string>
     <string name="settings_teyes_lock">Locked in recent apps</string>
     <string name="settings_teyes_boot">Boot completed allowed</string>
+    <string name="main_teyes_checklist_incomplete">Complete Teyes permissions in Settings for stable background monitoring.</string>
+    <string name="main_open_settings">Settings</string>
+    <string name="settings_stability">Stability</string>
+    <string name="settings_stale_frame_timeout">Stale frame reconnect (sec)</string>
+    <string name="settings_min_live_wheel_pressure">Min live wheel pressure (kPa)</string>
+    <string name="settings_show_spare_wheel">Show spare wheel (SP)</string>
+    <string name="settings_wheel_names">Wheel Names</string>
+    <string name="settings_wheel_names_hint">Custom labels for alerts and UI. Leave blank for FL/FR/RL/RR.</string>
+    <string name="settings_wheel_name_label">Name for %1$s</string>
+    <string name="settings_import_export">Import / Export</string>
+    <string name="settings_export_copy">Copy settings JSON</string>
+    <string name="settings_import_json">Paste settings JSON</string>
+    <string name="settings_import_apply">Apply imported settings</string>
+    <string name="settings_export_copied">Settings copied to clipboard</string>
+    <string name="settings_import_ok">Settings imported</string>
+    <string name="settings_import_failed">Import failed: %1$s</string>
+    <string name="settings_open_app_details">Open app settings (auto-start)</string>
+    <string name="settings_open_battery_settings">Open battery optimization</string>
+    <string name="settings_open_notification_settings">Open notification settings</string>
     <string name="action_save">Save</string>
 
     <!-- Protocol modes -->

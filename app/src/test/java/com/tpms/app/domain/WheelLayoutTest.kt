@@ -66,9 +66,19 @@ class WheelLayoutTest {
     }
 
     @Test
-    fun resolveWheelLabel_prefersMapping() {
+    fun resolveWheelLabel_usesCustomName() {
         val sensor = sensor("ABC123", "ignored")
-        val label = WheelLayout.resolveWheelLabel(sensor, mapOf("FL" to "ABC123"))
-        assertEquals("FL", label)
+        val label = WheelLayout.resolveWheelLabel(
+            sensor,
+            mapOf("FL" to "ABC123"),
+            mapOf("FL" to "Перед левое")
+        )
+        assertEquals("Перед левое", label)
+    }
+
+    @Test
+    fun allSlots_includesSpareWhenEnabled() {
+        assertEquals(5, WheelLayout.allSlots(showSpareWheel = true).size)
+        assertEquals(WheelLayout.SPARE_SLOT, WheelLayout.allSlots(true).last())
     }
 }
