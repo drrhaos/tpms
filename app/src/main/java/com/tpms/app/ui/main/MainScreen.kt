@@ -12,12 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -33,7 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.domain.model.TpmsState
-import com.tpms.app.ui.dashboard.MiniDashboard
 import com.tpms.app.ui.theme.StatusColors
 import com.tpms.app.ui.theme.TpmsColors
 
@@ -68,19 +64,7 @@ fun MainScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.onBackground
-                ),
-                actions = {
-                    IconButton(onClick = onNavigateToDebug) {
-                        Icon(Icons.Default.BugReport, contentDescription = "Debug log", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                )
             )
         }
     ) { padding ->
@@ -93,13 +77,11 @@ fun MainScreen(
         ) {
             StatusHeader(state = uiState.tpmsState)
 
-            if (uiState.dashboardSensors.isNotEmpty()) {
-                MiniDashboard(sensors = uiState.dashboardSensors, pressureUnit = uiState.pressureUnit)
-            }
-
             CarTopDown(
                 sensors = uiState.wheelSlots,
                 pressureUnit = uiState.pressureUnit,
+                onNavigateToSettings = onNavigateToSettings,
+                onNavigateToDebug = onNavigateToDebug,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()

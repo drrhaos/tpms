@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -15,12 +16,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,9 +56,12 @@ private val WHEELS = listOf(
 fun CarTopDown(
     sensors: List<TireSensor?>,
     pressureUnit: PressureUnit = PressureUnit.PSI,
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToDebug: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val margin = 8.dp
+    val toolbarHeight = 40.dp
 
     BoxWithConstraints(
         modifier = modifier
@@ -63,22 +73,45 @@ fun CarTopDown(
         val boxH = maxHeight
         if (boxW <= 0.dp || boxH <= 0.dp) return@BoxWithConstraints
 
-        val cardW = minOf(110.dp, boxW * 0.26f)
-        val cardH = minOf(76.dp, boxH * 0.22f)
-        val imgSide = minOf(boxW, boxH) * 0.85f
+        val cardW = minOf(142.dp, boxW * 0.32f)
+        val cardH = minOf(118.dp, boxH * 0.32f)
+        val imgSide = minOf(boxW, boxH - toolbarHeight) * 0.76f
         val offsetX = (boxW - imgSide) / 2f
-        val offsetY = (boxH - imgSide) / 2f
+        val offsetY = toolbarHeight + (boxH - toolbarHeight - imgSide) / 2f
 
         Image(
             painter = painterResource(R.drawable.auto),
             contentDescription = "Car top-down view",
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp)
+                .padding(top = toolbarHeight + 8.dp, start = 12.dp, end = 12.dp, bottom = 12.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(TpmsColors.carCanvas),
             contentScale = ContentScale.Fit
         )
+
+        Row(
+            modifier = Modifier
+                .width(boxW)
+                .padding(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onNavigateToDebug, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Default.BugReport,
+                    contentDescription = "Debug log",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         WHEELS.forEachIndexed { index, pos ->
             val sensor = sensors.getOrNull(index)
@@ -89,7 +122,7 @@ fun CarTopDown(
             val wheelCenterY = offsetY + imgSide * pos.yFrac
 
             val cardX: Dp = if (isLeft) margin else maxOf(margin, boxW - cardW - margin)
-            val cardY = clampOffset(wheelCenterY - cardH / 2f, margin, maxOf(margin, boxH - cardH - margin))
+            val cardY = clampOffset(wheelCenterY - cardH / 2f, toolbarHeight + margin, maxOf(toolbarHeight + margin, boxH - cardH - margin))
 
             Box(
                 modifier = Modifier
@@ -99,41 +132,10 @@ fun CarTopDown(
                     .clip(MaterialTheme.shapes.small)
                     .background(dotColor.copy(alpha = 0.12f))
                     .border(1.dp, dotColor.copy(alpha = 0.35f), MaterialTheme.shapes.small)
-                    .padding(6.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = pos.label,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = dotColor.copy(alpha = 0.7f),
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = when {
-                            sensor?.alertType == AlertType.SENSOR_LOST -> "LOST"
-                            sensor != null && sensor.pressureKpa.isFinite() ->
-                                "%.0f".format(pressureUnit.fromKpa(sensor.pressureKpa))
-                            else -> "--"
-                        },
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = dotColor,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = if (sensor != null && sensor.temperatureCelsius.isFinite())
-                            "%.0f°C".format(sensor.temperatureCelsius)
-                        else "--°C",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                WheelCardContent(sensor = sensor, label = pos.label, pressureUnit = pressureUnit, accentColor = dotColor)
             }
 
             Box(
@@ -145,6 +147,74 @@ fun CarTopDown(
             )
         }
     }
+}
+
+@Composable
+private fun WheelCardContent(
+    sensor: TireSensor?,
+    label: String,
+    pressureUnit: PressureUnit,
+    accentColor: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = accentColor.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = formatPressure(sensor, pressureUnit),
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
+            color = accentColor,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+        Text(
+            text = formatTemperature(sensor),
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+        Text(
+            text = formatBattery(sensor),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = batteryColor(sensor),
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
+private fun formatPressure(sensor: TireSensor?, unit: PressureUnit): String = when {
+    sensor?.alertType == AlertType.SENSOR_LOST -> "LOST"
+    sensor != null && sensor.pressureKpa.isFinite() ->
+        "${unit.formatFromKpa(sensor.pressureKpa)} ${unit.label}"
+    else -> "-- ${unit.label}"
+}
+
+private fun formatTemperature(sensor: TireSensor?): String =
+    if (sensor != null && sensor.temperatureCelsius.isFinite()) {
+        "%.0f°C".format(sensor.temperatureCelsius)
+    } else {
+        "--°C"
+    }
+
+private fun formatBattery(sensor: TireSensor?): String =
+    if (sensor != null) "${sensor.batteryPercent}%" else "--%"
+
+@Composable
+private fun batteryColor(sensor: TireSensor?) = when (sensor?.alertType) {
+    AlertType.BATTERY_LOW -> MaterialTheme.colorScheme.error
+    null -> MaterialTheme.colorScheme.onSurfaceVariant
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 internal fun clampOffset(value: Dp, min: Dp, max: Dp): Dp =

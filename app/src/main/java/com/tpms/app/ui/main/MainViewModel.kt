@@ -23,7 +23,6 @@ data class MainUiState(
     val tpmsState: TpmsState = TpmsState.Disconnected,
     val sensors: Map<String, TireSensor> = emptyMap(),
     val wheelSlots: List<TireSensor?> = List(WheelLayout.ORDER.size) { null },
-    val dashboardSensors: List<TireSensor> = emptyList(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
     val lastError: String? = null
 )
@@ -61,7 +60,6 @@ class MainViewModel @Inject constructor(
                 tpmsState = tpmsState,
                 sensors = sensors,
                 wheelSlots = WheelLayout.orderedSlots(sensors, wheelMapping),
-                dashboardSensors = WheelLayout.orderedValues(sensors, wheelMapping),
                 pressureUnit = unit
             )
         } catch (error: Exception) {
