@@ -19,7 +19,7 @@ class SettingsExporterTest {
             wheelMapping = mapOf("FL" to "ABC"),
             showSpareWheel = true,
             minLiveWheelPressureKpa = 110f,
-            alertNotificationPrefs = AlertNotificationPrefs(soundEnabled = false, vibrationEnabled = true),
+            alertNotificationPrefs = AlertNotificationPrefs(soundEnabled = false),
             teyesChecklist = TeyesChecklist(autoStart = true, batteryUnrestricted = true, lockInRecents = false, bootCompleted = true, autoRunAwake = true)
         )
 

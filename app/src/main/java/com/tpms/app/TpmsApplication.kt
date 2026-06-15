@@ -52,7 +52,7 @@ class TpmsApplication : Application() {
                 getString(R.string.notification_channel_alert),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                enableVibration(true)
+                enableVibration(false)
                 setShowBadge(true)
             }
         )

@@ -72,9 +72,6 @@ class SettingsViewModel @Inject constructor(
     private val _alertSoundEnabled = MutableStateFlow(true)
     val alertSoundEnabled: StateFlow<Boolean> = _alertSoundEnabled.asStateFlow()
 
-    private val _alertVibrationEnabled = MutableStateFlow(true)
-    val alertVibrationEnabled: StateFlow<Boolean> = _alertVibrationEnabled.asStateFlow()
-
     private val _importExportMessage = MutableStateFlow<String?>(null)
     val importExportMessage: StateFlow<String?> = _importExportMessage.asStateFlow()
 
@@ -110,7 +107,6 @@ class SettingsViewModel @Inject constructor(
             _settingsUiMode.value = settingsStore.settingsUiMode.value
             val alertPrefs = settingsStore.alertNotificationPrefs.value
             _alertSoundEnabled.value = alertPrefs.soundEnabled
-            _alertVibrationEnabled.value = alertPrefs.vibrationEnabled
         }
         viewModelScope.launch {
             settingsStore.wheelMapping.collect { _wheelMapping.value = it }
@@ -206,22 +202,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setAlertSoundEnabled(enabled: Boolean) {
         _alertSoundEnabled.value = enabled
-        persistAlertNotificationPrefs()
-    }
-
-    fun setAlertVibrationEnabled(enabled: Boolean) {
-        _alertVibrationEnabled.value = enabled
-        persistAlertNotificationPrefs()
-    }
-
-    private fun persistAlertNotificationPrefs() {
         viewModelScope.launch {
-            settingsStore.setAlertNotificationPrefs(
-                AlertNotificationPrefs(
-                    soundEnabled = _alertSoundEnabled.value,
-                    vibrationEnabled = _alertVibrationEnabled.value
-                )
-            )
+            settingsStore.setAlertNotificationPrefs(AlertNotificationPrefs(soundEnabled = enabled))
         }
     }
 
@@ -250,8 +232,7 @@ class SettingsViewModel @Inject constructor(
             showSpareWheel = _showSpareWheel.value,
             minLiveWheelPressureKpa = _minLiveWheelPressure.value,
             alertNotificationPrefs = AlertNotificationPrefs(
-                soundEnabled = _alertSoundEnabled.value,
-                vibrationEnabled = _alertVibrationEnabled.value
+                soundEnabled = _alertSoundEnabled.value
             ),
             teyesChecklist = settingsStore.teyesChecklist.value
         )
@@ -307,10 +288,7 @@ class SettingsViewModel @Inject constructor(
             )
         )
         settingsStore.setAlertNotificationPrefs(
-            AlertNotificationPrefs(
-                soundEnabled = _alertSoundEnabled.value,
-                vibrationEnabled = _alertVibrationEnabled.value
-            )
+            AlertNotificationPrefs(soundEnabled = _alertSoundEnabled.value)
         )
     }
 

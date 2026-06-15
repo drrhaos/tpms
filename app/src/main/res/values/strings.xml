@@ -108,7 +108,6 @@
     <string name="settings_sensor_timeout">Sensor lost timeout (sec)</string>
     <string name="settings_alert_notifications">Alert Notifications</string>
     <string name="settings_alert_sound">Alert sound</string>
-    <string name="settings_alert_vibration">Alert vibration</string>
     <string name="settings_teyes_permissions">Teyes Permissions</string>
     <string name="settings_teyes_auto_start">Auto start enabled (Settings → Apps → TPMS)</string>
     <string name="settings_teyes_battery">Battery → No restrictions</string>

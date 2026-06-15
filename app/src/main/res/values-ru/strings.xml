@@ -108,7 +108,6 @@
     <string name="settings_sensor_timeout">Таймаут потери датчика (сек)</string>
     <string name="settings_alert_notifications">Оповещения</string>
     <string name="settings_alert_sound">Звук оповещений</string>
-    <string name="settings_alert_vibration">Вибрация оповещений</string>
     <string name="settings_teyes_permissions">Разрешения Teyes</string>
     <string name="settings_teyes_auto_start">Автозапуск включён (Настройки → Приложения → TPMS)</string>
     <string name="settings_teyes_battery">Батарея → Без ограничений</string>

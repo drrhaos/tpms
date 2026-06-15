@@ -70,19 +70,14 @@ class AlertNotifier @Inject constructor(
             }
 
             val alertPrefs = settingsStore.alertNotificationPrefs.value
-            val defaults = when {
-                alertPrefs.soundEnabled && alertPrefs.vibrationEnabled -> NotificationCompat.DEFAULT_ALL
-                alertPrefs.soundEnabled -> NotificationCompat.DEFAULT_SOUND
-                alertPrefs.vibrationEnabled -> NotificationCompat.DEFAULT_VIBRATE
-                else -> 0
-            }
+            val defaults = if (alertPrefs.soundEnabled) NotificationCompat.DEFAULT_SOUND else 0
 
             val notification = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_ALERT)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setDefaults(defaults)
-                .setSilent(!alertPrefs.soundEnabled && !alertPrefs.vibrationEnabled)
+                .setSilent(!alertPrefs.soundEnabled)
                 .setPriority(
                     if (isCritical) NotificationCompat.PRIORITY_HIGH
                     else NotificationCompat.PRIORITY_DEFAULT

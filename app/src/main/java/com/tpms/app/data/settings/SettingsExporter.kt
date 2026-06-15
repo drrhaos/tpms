@@ -34,7 +34,6 @@ object SettingsExporter {
         put("show_spare_wheel", showSpareWheel)
         put("min_live_wheel_pressure_kpa", minLiveWheelPressureKpa.toDouble())
         put("alert_sound", alertNotificationPrefs.soundEnabled)
-        put("alert_vibration", alertNotificationPrefs.vibrationEnabled)
         put("teyes_auto_start", teyesChecklist.autoStart)
         put("teyes_battery", teyesChecklist.batteryUnrestricted)
         put("teyes_lock", teyesChecklist.lockInRecents)
@@ -79,8 +78,7 @@ object SettingsExporter {
                 SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA.toDouble()
             ).toFloat(),
             alertNotificationPrefs = AlertNotificationPrefs(
-                soundEnabled = root.optBoolean("alert_sound", true),
-                vibrationEnabled = root.optBoolean("alert_vibration", true)
+                soundEnabled = root.optBoolean("alert_sound", true)
             ),
             teyesChecklist = TeyesChecklist(
                 autoStart = root.optBoolean("teyes_auto_start", false),

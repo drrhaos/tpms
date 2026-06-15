@@ -37,8 +37,7 @@ data class TeyesChecklist(
 )
 
 data class AlertNotificationPrefs(
-    val soundEnabled: Boolean = true,
-    val vibrationEnabled: Boolean = true
+    val soundEnabled: Boolean = true
 )
 
 @Singleton
@@ -120,8 +119,7 @@ class SettingsStore @Inject constructor(
                 )
 
                 _alertNotificationPrefs.value = AlertNotificationPrefs(
-                    soundEnabled = prefs[KEY_ALERT_SOUND] ?: true,
-                    vibrationEnabled = prefs[KEY_ALERT_VIBRATION] ?: true
+                    soundEnabled = prefs[KEY_ALERT_SOUND] ?: true
                 )
 
                 _settingsUiMode.value = SettingsUiMode.fromName(prefs[KEY_SETTINGS_UI_MODE])
@@ -190,7 +188,6 @@ class SettingsStore @Inject constructor(
     suspend fun setAlertNotificationPrefs(prefs: AlertNotificationPrefs) {
         context.settingsDataStore.edit {
             it[KEY_ALERT_SOUND] = prefs.soundEnabled
-            it[KEY_ALERT_VIBRATION] = prefs.vibrationEnabled
         }
     }
 
@@ -206,7 +203,6 @@ class SettingsStore @Inject constructor(
             prefs[KEY_SHOW_SPARE_WHEEL] = imported.showSpareWheel
             prefs[KEY_MIN_LIVE_WHEEL_PRESSURE] = imported.minLiveWheelPressureKpa
             prefs[KEY_ALERT_SOUND] = imported.alertNotificationPrefs.soundEnabled
-            prefs[KEY_ALERT_VIBRATION] = imported.alertNotificationPrefs.vibrationEnabled
             prefs[KEY_TEYES_AUTO_START] = imported.teyesChecklist.autoStart
             prefs[KEY_TEYES_BATTERY] = imported.teyesChecklist.batteryUnrestricted
             prefs[KEY_TEYES_LOCK] = imported.teyesChecklist.lockInRecents
@@ -247,7 +243,6 @@ class SettingsStore @Inject constructor(
         private val KEY_TEYES_BOOT = booleanPreferencesKey("teyes_boot")
         private val KEY_TEYES_AUTO_RUN_AWAKE = booleanPreferencesKey("teyes_auto_run_awake")
         private val KEY_ALERT_SOUND = booleanPreferencesKey("alert_sound")
-        private val KEY_ALERT_VIBRATION = booleanPreferencesKey("alert_vibration")
 
         private fun wheelMappingKey(slot: String) = stringPreferencesKey("wheel_map_$slot")
     }
