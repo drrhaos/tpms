@@ -33,7 +33,7 @@
 
         <activity-alias
             android:name=".launcher.LauncherIconOk"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_ok"
             android:label="@string/app_name"
@@ -46,7 +46,7 @@
 
         <activity-alias
             android:name=".launcher.LauncherIconAlert"
-            android:enabled="false"
+            android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_alert"
             android:label="@string/app_name"
