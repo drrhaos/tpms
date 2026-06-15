@@ -17,7 +17,6 @@ class SettingsExporterTest {
             sensorTimeoutMs = 90_000L,
             staleFrameTimeoutMs = 120_000L,
             wheelMapping = mapOf("FL" to "ABC"),
-            wheelNames = mapOf("FL" to "Front Left"),
             showSpareWheel = true,
             minLiveWheelPressureKpa = 110f,
             alertNotificationPrefs = AlertNotificationPrefs(soundEnabled = false, vibrationEnabled = true),
@@ -32,7 +31,6 @@ class SettingsExporterTest {
         assertEquals(90_000L, imported.sensorTimeoutMs)
         assertEquals(120_000L, imported.staleFrameTimeoutMs)
         assertEquals("ABC", imported.wheelMapping["FL"])
-        assertEquals("Front Left", imported.wheelNames["FL"])
         assertEquals(true, imported.showSpareWheel)
         assertEquals(110f, imported.minLiveWheelPressureKpa, 0.01f)
     }

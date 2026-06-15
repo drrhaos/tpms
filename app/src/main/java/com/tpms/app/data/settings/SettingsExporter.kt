@@ -18,7 +18,6 @@ object SettingsExporter {
         sensorTimeoutMs: Long,
         staleFrameTimeoutMs: Long,
         wheelMapping: Map<String, String>,
-        wheelNames: Map<String, String>,
         showSpareWheel: Boolean,
         minLiveWheelPressureKpa: Float,
         alertNotificationPrefs: AlertNotificationPrefs,
@@ -45,11 +44,6 @@ object SettingsExporter {
                 put(slot, wheelMapping[slot].orEmpty())
             }
         })
-        put("wheel_names", JSONObject().apply {
-            WheelLayout.allSlots(showSpareWheel).forEach { slot ->
-                put(slot, wheelNames[slot].orEmpty())
-            }
-        })
     }.toString(2)
 
     fun import(json: String): ImportedSettings {
@@ -61,7 +55,6 @@ object SettingsExporter {
         val unitName = root.optString("pressure_unit", PressureUnit.KPA.name)
         val protocolName = root.optString("dongle_protocol", DongleProtocolMode.AUTO.name)
         val wheelMappingJson = root.optJSONObject("wheel_mapping")
-        val wheelNamesJson = root.optJSONObject("wheel_names")
         val showSpare = root.optBoolean("show_spare_wheel", false)
         val slots = WheelLayout.allSlots(showSpare)
 
@@ -96,9 +89,6 @@ object SettingsExporter {
             ),
             wheelMapping = slots.associateWith { slot ->
                 wheelMappingJson?.optString(slot, "").orEmpty()
-            },
-            wheelNames = slots.associateWith { slot ->
-                wheelNamesJson?.optString(slot, "").orEmpty()
             }
         )
     }
@@ -114,8 +104,7 @@ data class ImportedSettings(
     val minLiveWheelPressureKpa: Float,
     val alertNotificationPrefs: AlertNotificationPrefs,
     val teyesChecklist: TeyesChecklist,
-    val wheelMapping: Map<String, String>,
-    val wheelNames: Map<String, String>
+    val wheelMapping: Map<String, String>
 )
 
 object SensorValidatorDefaults {

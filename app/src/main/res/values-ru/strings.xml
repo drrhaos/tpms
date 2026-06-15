@@ -103,9 +103,6 @@
     <string name="settings_stale_frame_timeout">Reconnect при устаревших кадрах (сек)</string>
     <string name="settings_min_live_wheel_pressure">Мин. давление живого колеса (кПа)</string>
     <string name="settings_show_spare_wheel">Показать запаску (SP)</string>
-    <string name="settings_wheel_names">Имена колёс</string>
-    <string name="settings_wheel_names_hint">Свои подписи для алертов и UI. Пусто = FL/FR/RL/RR.</string>
-    <string name="settings_wheel_name_label">Имя для %1$s</string>
     <string name="settings_import_export">Импорт / экспорт</string>
     <string name="settings_export_copy">Копировать JSON настроек</string>
     <string name="settings_import_json">Вставить JSON настроек</string>
@@ -116,6 +113,20 @@
     <string name="settings_open_app_details">Открыть настройки приложения (автозапуск)</string>
     <string name="settings_open_battery_settings">Открыть оптимизацию батареи</string>
     <string name="settings_open_notification_settings">Открыть настройки уведомлений</string>
+    <string name="settings_mode_title">Режим настроек</string>
+    <string name="settings_mode_user">Пользовательский</string>
+    <string name="settings_mode_advanced">Расширенный</string>
+    <string name="settings_mode_user_hint">Основное для ежедневного использования: единицы, пороги, колёса и оповещения.</string>
+    <string name="settings_mode_advanced_hint">Диагностика, протокол, стабильность и резервная копия настроек.</string>
+    <string name="settings_section_general">Основное</string>
+    <string name="settings_section_general_hint">Единицы и пороги оповещений</string>
+    <string name="settings_section_wheels">Колёса</string>
+    <string name="settings_section_wheels_hint">Привязка датчиков к позициям колёс</string>
+    <string name="settings_section_alerts">Оповещения</string>
+    <string name="settings_section_advanced">Расширенное</string>
+    <string name="settings_section_advanced_hint">Диагностика донгла и тонкая настройка</string>
+    <string name="settings_low_pressure_short">Низк. (%1$s)</string>
+    <string name="settings_high_pressure_short">Выс. (%1$s)</string>
     <string name="action_save">Сохранить</string>
 
     <!-- Protocol modes -->

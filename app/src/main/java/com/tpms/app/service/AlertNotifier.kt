@@ -31,8 +31,7 @@ class AlertNotifier @Inject constructor(
 
             val wheelLabel = WheelLayout.resolveWheelLabel(
                 sensor,
-                settingsStore.wheelMapping.value,
-                settingsStore.wheelNames.value
+                settingsStore.wheelMapping.value
             )
             val unit = settingsStore.pressureUnit.value
             val pressureText = when {

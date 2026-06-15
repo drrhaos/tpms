@@ -23,7 +23,6 @@ class DiagnosticsExporter @Inject constructor(
         tpmsState: TpmsState,
         sensors: Map<String, TireSensor>,
         wheelMapping: Map<String, String>,
-        wheelNames: Map<String, String>,
         showSpareWheel: Boolean,
         pressureUnit: PressureUnit,
         usbScan: String,
@@ -45,15 +44,10 @@ class DiagnosticsExporter @Inject constructor(
         val slots = WheelLayout.allSlots(showSpareWheel)
         if (wheelMapping.values.any { it.isNotBlank() }) {
             slots.forEach { slot ->
-                val name = wheelNames[slot]?.takeIf { it.isNotBlank() }
-                val nameSuffix = name?.let { " ($it)" }.orEmpty()
-                appendLine("  $slot$nameSuffix → ${wheelMapping[slot].orEmpty().ifBlank { "(auto)" }}")
+                appendLine("  $slot → ${wheelMapping[slot].orEmpty().ifBlank { "(auto)" }}")
             }
         } else {
             appendLine("  (automatic)")
-            wheelNames.filterValues { it.isNotBlank() }.forEach { (slot, name) ->
-                appendLine("  $slot display name: $name")
-            }
         }
         appendLine()
         appendLine("--- Sensors (${sensors.size}) ---")

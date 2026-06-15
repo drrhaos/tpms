@@ -9,11 +9,11 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.AlertNotificationPrefs
 import com.tpms.app.data.settings.SettingsExporter
 import com.tpms.app.data.settings.SettingsStore
-import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.domain.model.SettingsUiMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,11 +62,8 @@ class SettingsViewModel @Inject constructor(
     private val _wheelMapping = MutableStateFlow<Map<String, String>>(emptyMap())
     val wheelMapping: StateFlow<Map<String, String>> = _wheelMapping.asStateFlow()
 
-    private val _wheelNames = MutableStateFlow<Map<String, String>>(emptyMap())
-    val wheelNames: StateFlow<Map<String, String>> = _wheelNames.asStateFlow()
-
-    private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
-    val teyesChecklist: StateFlow<TeyesChecklist> = _teyesChecklist.asStateFlow()
+    private val _settingsUiMode = MutableStateFlow(SettingsUiMode.USER)
+    val settingsUiMode: StateFlow<SettingsUiMode> = _settingsUiMode.asStateFlow()
 
     private val _alertSoundEnabled = MutableStateFlow(true)
     val alertSoundEnabled: StateFlow<Boolean> = _alertSoundEnabled.asStateFlow()
@@ -94,8 +91,7 @@ class SettingsViewModel @Inject constructor(
             _showSpareWheel.value = settingsStore.showSpareWheel.value
             _minLiveWheelPressure.value = settingsStore.minLiveWheelPressureKpa.value
             _wheelMapping.value = settingsStore.wheelMapping.value
-            _wheelNames.value = settingsStore.wheelNames.value
-            _teyesChecklist.value = settingsStore.teyesChecklist.value
+            _settingsUiMode.value = settingsStore.settingsUiMode.value
             val alertPrefs = settingsStore.alertNotificationPrefs.value
             _alertSoundEnabled.value = alertPrefs.soundEnabled
             _alertVibrationEnabled.value = alertPrefs.vibrationEnabled
@@ -104,10 +100,7 @@ class SettingsViewModel @Inject constructor(
             settingsStore.wheelMapping.collect { _wheelMapping.value = it }
         }
         viewModelScope.launch {
-            settingsStore.wheelNames.collect { _wheelNames.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.teyesChecklist.collect { _teyesChecklist.value = it }
+            settingsStore.settingsUiMode.collect { _settingsUiMode.value = it }
         }
         viewModelScope.launch {
             settingsStore.showSpareWheel.collect { _showSpareWheel.value = it }
@@ -158,8 +151,9 @@ class SettingsViewModel @Inject constructor(
         _minLiveWheelPressure.value = v.coerceIn(0f, 500f)
     }
 
-    fun setWheelName(slot: String, name: String) {
-        viewModelScope.launch { settingsStore.setWheelName(slot, name) }
+    fun setSettingsUiMode(mode: SettingsUiMode) {
+        _settingsUiMode.value = mode
+        viewModelScope.launch { settingsStore.setSettingsUiMode(mode) }
     }
 
     fun setAlertSoundEnabled(enabled: Boolean) {
@@ -179,12 +173,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setTeyesChecklistItem(key: String, checked: Boolean) {
-        viewModelScope.launch {
-            settingsStore.setTeyesChecklistItem(key, checked)
-        }
-    }
-
     fun exportSettingsJson(): String {
         val unit = _pressureUnit.value
         return SettingsExporter.export(
@@ -198,14 +186,13 @@ class SettingsViewModel @Inject constructor(
             sensorTimeoutMs = _sensorTimeoutSec.value * 1000L,
             staleFrameTimeoutMs = _staleFrameTimeoutSec.value * 1000L,
             wheelMapping = _wheelMapping.value,
-            wheelNames = _wheelNames.value,
             showSpareWheel = _showSpareWheel.value,
             minLiveWheelPressureKpa = _minLiveWheelPressure.value,
             alertNotificationPrefs = AlertNotificationPrefs(
                 soundEnabled = _alertSoundEnabled.value,
                 vibrationEnabled = _alertVibrationEnabled.value
             ),
-            teyesChecklist = _teyesChecklist.value
+            teyesChecklist = settingsStore.teyesChecklist.value
         )
     }
 

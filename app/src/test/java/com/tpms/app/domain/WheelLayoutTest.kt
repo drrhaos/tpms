@@ -66,14 +66,10 @@ class WheelLayoutTest {
     }
 
     @Test
-    fun resolveWheelLabel_usesCustomName() {
+    fun resolveWheelLabel_prefersMapping() {
         val sensor = sensor("ABC123", "ignored")
-        val label = WheelLayout.resolveWheelLabel(
-            sensor,
-            mapOf("FL" to "ABC123"),
-            mapOf("FL" to "Перед левое")
-        )
-        assertEquals("Перед левое", label)
+        val label = WheelLayout.resolveWheelLabel(sensor, mapOf("FL" to "ABC123"))
+        assertEquals("FL", label)
     }
 
     @Test

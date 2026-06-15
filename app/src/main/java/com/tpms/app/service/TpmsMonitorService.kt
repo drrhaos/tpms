@@ -250,8 +250,7 @@ class TpmsMonitorService : Service() {
             sensors = repository.sensors.value,
             unit = settingsStore.pressureUnit.value,
             wheelMapping = settingsStore.wheelMapping.value,
-            showSpareWheel = settingsStore.showSpareWheel.value,
-            wheelNames = settingsStore.wheelNames.value
+            showSpareWheel = settingsStore.showSpareWheel.value
         )
         withContext(Dispatchers.Main) {
             runCatching { TpmsWidget.pushUpdate(this@TpmsMonitorService, snapshot) }
@@ -277,8 +276,7 @@ class TpmsMonitorService : Service() {
             sensors = repository.sensors.value,
             unit = settingsStore.pressureUnit.value,
             wheelMapping = settingsStore.wheelMapping.value,
-            showSpareWheel = settingsStore.showSpareWheel.value,
-            wheelNames = settingsStore.wheelNames.value
+            showSpareWheel = settingsStore.showSpareWheel.value
         )
         val collapsed = WidgetRemoteViews.forNotificationCollapsed(this, snapshot)
         val expanded = WidgetRemoteViews.forNotificationExpanded(this, snapshot, statusLine)

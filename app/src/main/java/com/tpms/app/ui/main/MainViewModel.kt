@@ -11,7 +11,6 @@ import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
-import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.service.TpmsMonitorService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -30,10 +29,8 @@ data class MainUiState(
     val sensors: Map<String, TireSensor> = emptyMap(),
     val wheelSlots: List<TireSensor?> = List(WheelLayout.ORDER.size) { null },
     val wheelSlotLabels: List<String> = WheelLayout.ORDER,
-    val wheelNames: Map<String, String> = emptyMap(),
     val wheelMapping: Map<String, String> = emptyMap(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
-    val teyesChecklistIncomplete: Boolean = false,
     val lastError: String? = null
 )
 
@@ -52,11 +49,9 @@ class MainViewModel @Inject constructor(
         combine(
             settingsStore.pressureUnit,
             settingsStore.wheelMapping,
-            settingsStore.wheelNames,
-            settingsStore.showSpareWheel,
-            settingsStore.teyesChecklist
-        ) { unit, mapping, names, spare, checklist ->
-            SettingsUiBundle(unit, mapping, names, spare, checklist)
+            settingsStore.showSpareWheel
+        ) { unit, mapping, spare ->
+            MainSettingsBundle(unit, mapping, spare)
         }
     ) { tpmsState, sensors, settings ->
         buildUiState(tpmsState, sensors, settings)
@@ -81,27 +76,18 @@ class MainViewModel @Inject constructor(
     private fun buildUiState(
         tpmsState: TpmsState,
         sensors: Map<String, TireSensor>,
-        settings: SettingsUiBundle
+        settings: MainSettingsBundle
     ): MainUiState {
         return try {
             val slots = WheelLayout.allSlots(settings.showSpareWheel)
             val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
-            val wheelSlotLabels = slots.map { slot ->
-                settings.wheelNames[slot]?.takeIf { it.isNotBlank() } ?: slot
-            }
-            val checklistIncomplete = !settings.teyesChecklist.autoStart ||
-                !settings.teyesChecklist.batteryUnrestricted ||
-                !settings.teyesChecklist.lockInRecents ||
-                !settings.teyesChecklist.bootCompleted
             MainUiState(
                 tpmsState = tpmsState,
                 sensors = sensors,
                 wheelSlots = wheelSlots,
-                wheelSlotLabels = wheelSlotLabels,
-                wheelNames = settings.wheelNames,
+                wheelSlotLabels = slots,
                 wheelMapping = settings.wheelMapping,
-                pressureUnit = settings.pressureUnit,
-                teyesChecklistIncomplete = checklistIncomplete
+                pressureUnit = settings.pressureUnit
             )
         } catch (error: Exception) {
             debugLog.error("MainScreen", uiBreadcrumbs.describe())
@@ -125,10 +111,8 @@ class MainViewModel @Inject constructor(
     }
 }
 
-private data class SettingsUiBundle(
+private data class MainSettingsBundle(
     val pressureUnit: PressureUnit,
     val wheelMapping: Map<String, String>,
-    val wheelNames: Map<String, String>,
-    val showSpareWheel: Boolean,
-    val teyesChecklist: TeyesChecklist
+    val showSpareWheel: Boolean
 )

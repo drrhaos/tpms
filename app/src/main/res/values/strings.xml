@@ -103,9 +103,6 @@
     <string name="settings_stale_frame_timeout">Stale frame reconnect (sec)</string>
     <string name="settings_min_live_wheel_pressure">Min live wheel pressure (kPa)</string>
     <string name="settings_show_spare_wheel">Show spare wheel (SP)</string>
-    <string name="settings_wheel_names">Wheel Names</string>
-    <string name="settings_wheel_names_hint">Custom labels for alerts and UI. Leave blank for FL/FR/RL/RR.</string>
-    <string name="settings_wheel_name_label">Name for %1$s</string>
     <string name="settings_import_export">Import / Export</string>
     <string name="settings_export_copy">Copy settings JSON</string>
     <string name="settings_import_json">Paste settings JSON</string>
@@ -116,6 +113,20 @@
     <string name="settings_open_app_details">Open app settings (auto-start)</string>
     <string name="settings_open_battery_settings">Open battery optimization</string>
     <string name="settings_open_notification_settings">Open notification settings</string>
+    <string name="settings_mode_title">Settings mode</string>
+    <string name="settings_mode_user">User</string>
+    <string name="settings_mode_advanced">Advanced</string>
+    <string name="settings_mode_user_hint">Essential options for daily use: units, thresholds, wheels, and alerts.</string>
+    <string name="settings_mode_advanced_hint">Diagnostics, protocol, stability tuning, and config backup.</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_section_general_hint">Units and alert thresholds</string>
+    <string name="settings_section_wheels">Wheels</string>
+    <string name="settings_section_wheels_hint">Map sensors to wheel positions</string>
+    <string name="settings_section_alerts">Alerts</string>
+    <string name="settings_section_advanced">Advanced</string>
+    <string name="settings_section_advanced_hint">For dongle troubleshooting and power users</string>
+    <string name="settings_low_pressure_short">Low (%1$s)</string>
+    <string name="settings_high_pressure_short">High (%1$s)</string>
     <string name="action_save">Save</string>
 
     <!-- Protocol modes -->

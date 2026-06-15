@@ -36,15 +36,13 @@ data class WidgetSnapshot(
             sensors: Map<String, TireSensor>,
             unit: PressureUnit,
             wheelMapping: Map<String, String> = emptyMap(),
-            showSpareWheel: Boolean = false,
-            wheelNames: Map<String, String> = emptyMap()
+            showSpareWheel: Boolean = false
         ): WidgetSnapshot {
             val slots = WheelLayout.allSlots(showSpareWheel)
             val ordered = WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel)
             val tires = slots.mapIndexed { index, slot ->
                 val sensor = ordered.getOrNull(index)
-                val displayLabel = wheelNames[slot]?.takeIf { it.isNotBlank() } ?: slot
-                formatTireSlot(context, sensor, displayLabel, unit)
+                formatTireSlot(context, sensor, slot, unit)
             }
 
             return WidgetSnapshot(state.widgetStatusLabel(context), unit.localizedLabel(context), tires)

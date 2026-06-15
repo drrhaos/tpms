@@ -39,21 +39,14 @@ object WheelLayout {
             }.ifEmpty { sensors.values.sortedBy { it.id }.take(allSlots(showSpareWheel).size) }
         }
 
-    fun resolveWheelLabel(
-        sensor: TireSensor,
-        wheelMapping: Map<String, String>,
-        wheelNames: Map<String, String> = emptyMap()
-    ): String {
+    fun resolveWheelLabel(sensor: TireSensor, wheelMapping: Map<String, String>): String {
         wheelMapping.entries
             .firstOrNull { it.value == sensor.id }
             ?.key
-            ?.let { slot -> return wheelNames[slot]?.takeIf { it.isNotBlank() } ?: slot }
+            ?.let { return it }
         val slotByLabel = allSlots(showSpareWheel = true)
             .firstOrNull { it == sensor.label || it == sensor.id }
-        if (slotByLabel != null) {
-            wheelNames[slotByLabel]?.takeIf { it.isNotBlank() }?.let { return it }
-            return slotByLabel
-        }
+        if (slotByLabel != null) return slotByLabel
         return sensor.label.ifEmpty { sensor.id }
     }
 }

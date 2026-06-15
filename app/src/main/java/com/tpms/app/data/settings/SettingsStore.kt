@@ -14,6 +14,7 @@ import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.domain.model.SettingsUiMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,9 +64,6 @@ class SettingsStore @Inject constructor(
     private val _wheelMapping = MutableStateFlow<Map<String, String>>(emptyMap())
     val wheelMapping = _wheelMapping.asStateFlow()
 
-    private val _wheelNames = MutableStateFlow<Map<String, String>>(emptyMap())
-    val wheelNames = _wheelNames.asStateFlow()
-
     private val _showSpareWheel = MutableStateFlow(false)
     val showSpareWheel = _showSpareWheel.asStateFlow()
 
@@ -77,6 +75,9 @@ class SettingsStore @Inject constructor(
 
     private val _alertNotificationPrefs = MutableStateFlow(AlertNotificationPrefs())
     val alertNotificationPrefs = _alertNotificationPrefs.asStateFlow()
+
+    private val _settingsUiMode = MutableStateFlow(SettingsUiMode.USER)
+    val settingsUiMode = _settingsUiMode.asStateFlow()
 
     init {
         scope.launch {
@@ -106,10 +107,6 @@ class SettingsStore @Inject constructor(
                     prefs[wheelMappingKey(slot)] ?: ""
                 }
 
-                _wheelNames.value = WheelLayout.allSlots(showSpare).associateWith { slot ->
-                    prefs[wheelNameKey(slot)] ?: ""
-                }
-
                 _minLiveWheelPressureKpa.value =
                     prefs[KEY_MIN_LIVE_WHEEL_PRESSURE] ?: SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA
 
@@ -124,6 +121,8 @@ class SettingsStore @Inject constructor(
                     soundEnabled = prefs[KEY_ALERT_SOUND] ?: true,
                     vibrationEnabled = prefs[KEY_ALERT_VIBRATION] ?: true
                 )
+
+                _settingsUiMode.value = SettingsUiMode.fromName(prefs[KEY_SETTINGS_UI_MODE])
             }
         }
     }
@@ -170,12 +169,6 @@ class SettingsStore @Inject constructor(
         }
     }
 
-    suspend fun setWheelName(slot: String, name: String) {
-        context.settingsDataStore.edit { prefs ->
-            prefs[wheelNameKey(slot)] = name
-        }
-    }
-
     suspend fun setTeyesChecklistItem(key: String, checked: Boolean) {
         val prefKey = when (key) {
             "auto_start" -> KEY_TEYES_AUTO_START
@@ -185,6 +178,10 @@ class SettingsStore @Inject constructor(
             else -> return
         }
         context.settingsDataStore.edit { it[prefKey] = checked }
+    }
+
+    suspend fun setSettingsUiMode(mode: SettingsUiMode) {
+        context.settingsDataStore.edit { it[KEY_SETTINGS_UI_MODE] = mode.name }
     }
 
     suspend fun setAlertNotificationPrefs(prefs: AlertNotificationPrefs) {
@@ -213,7 +210,6 @@ class SettingsStore @Inject constructor(
             prefs[KEY_TEYES_BOOT] = imported.teyesChecklist.bootCompleted
             WheelLayout.allSlots(imported.showSpareWheel).forEach { slot ->
                 prefs[wheelMappingKey(slot)] = imported.wheelMapping[slot].orEmpty()
-                prefs[wheelNameKey(slot)] = imported.wheelNames[slot].orEmpty()
             }
         }
     }
@@ -228,6 +224,8 @@ class SettingsStore @Inject constructor(
 
     companion object {
         const val DEFAULT_SENSOR_TIMEOUT_MS = 60_000L
+
+        private val KEY_SETTINGS_UI_MODE = stringPreferencesKey("settings_ui_mode")
 
         private val KEY_PRESSURE_UNIT = stringPreferencesKey("pressure_unit")
         private val KEY_LOW_PRESSURE = floatPreferencesKey("low_pressure_kpa")
@@ -246,6 +244,5 @@ class SettingsStore @Inject constructor(
         private val KEY_ALERT_VIBRATION = booleanPreferencesKey("alert_vibration")
 
         private fun wheelMappingKey(slot: String) = stringPreferencesKey("wheel_map_$slot")
-        private fun wheelNameKey(slot: String) = stringPreferencesKey("wheel_name_$slot")
     }
 }
