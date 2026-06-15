@@ -24,16 +24,38 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.TpmsMonitor">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
             </intent-filter>
             <meta-data
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/device_filter" />
         </activity>
+
+        <activity-alias
+            android:name=".launcher.LauncherIconOk"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_ok"
+            android:label="@string/app_name"
+            android:targetActivity=".ui.main.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".launcher.LauncherIconAlert"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_alert"
+            android:label="@string/app_name"
+            android:targetActivity=".ui.main.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <service
             android:name=".service.TpmsMonitorService"

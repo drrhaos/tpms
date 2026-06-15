@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import com.tpms.app.data.diagnostics.SystemDiagnostics
 import com.tpms.app.data.usb.UsbDebugLog
+import com.tpms.app.launcher.LauncherIconController
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -13,12 +14,14 @@ class TpmsApplication : Application() {
 
     @Inject lateinit var debugLog: UsbDebugLog
     @Inject lateinit var systemDiagnostics: SystemDiagnostics
+    @Inject lateinit var launcherIconController: LauncherIconController
 
     override fun onCreate() {
         super.onCreate()
         installGlobalExceptionHandler()
         systemDiagnostics.logStartup(debugLog)
         createNotificationChannels()
+        launcherIconController.start()
     }
 
     private fun installGlobalExceptionHandler() {
