@@ -1,6 +1,7 @@
 package com.tpms.app.ui.widget
 
 import android.content.Context
+import android.content.res.Configuration
 import com.tpms.app.R
 import com.tpms.app.domain.AlertSeverity
 import com.tpms.app.domain.WheelLayout
@@ -9,6 +10,7 @@ import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
+import com.tpms.app.domain.model.WidgetThemeMode
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.widgetStatusLabel
 
@@ -29,7 +31,8 @@ data class WidgetSnapshot(
     val unitLabel: String,
     val tires: List<WidgetTireSlot>,
     val dataAgeSec: Long? = null,
-    val dataStale: Boolean = false
+    val dataStale: Boolean = false,
+    val useLightTheme: Boolean = false
 ) {
     companion object {
         fun from(
@@ -40,7 +43,8 @@ data class WidgetSnapshot(
             wheelMapping: Map<String, String> = emptyMap(),
             showSpareWheel: Boolean = false,
             dataAgeSec: Long? = null,
-            dataStale: Boolean = false
+            dataStale: Boolean = false,
+            useLightTheme: Boolean = false
         ): WidgetSnapshot {
             val slots = WheelLayout.allSlots(showSpareWheel)
             val ordered = WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel)
@@ -60,19 +64,30 @@ data class WidgetSnapshot(
                 else -> baseStatus
             }
 
-            return WidgetSnapshot(status, unit.localizedLabel(context), tires, dataAgeSec, dataStale)
+            return WidgetSnapshot(status, unit.localizedLabel(context), tires, dataAgeSec, dataStale, useLightTheme)
+        }
+
+        fun resolveLightTheme(context: Context, mode: WidgetThemeMode): Boolean = when (mode) {
+            WidgetThemeMode.LIGHT -> true
+            WidgetThemeMode.DARK -> false
+            WidgetThemeMode.AUTO -> {
+                val uiMode = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                uiMode != Configuration.UI_MODE_NIGHT_YES
+            }
         }
 
         fun empty(
             context: Context,
             unit: PressureUnit = PressureUnit.PSI,
-            showSpareWheel: Boolean = false
+            showSpareWheel: Boolean = false,
+            useLightTheme: Boolean = false
         ): WidgetSnapshot {
             val tires = WheelLayout.allSlots(showSpareWheel).map { formatTireSlot(context, null, it, unit) }
             return WidgetSnapshot(
                 context.getString(R.string.widget_status_offline),
                 unit.localizedLabel(context),
-                tires
+                tires,
+                useLightTheme = useLightTheme
             )
         }
 

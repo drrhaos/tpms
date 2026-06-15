@@ -7,29 +7,48 @@ import android.os.Build
 import android.widget.Toast
 import com.tpms.app.R
 
+enum class WidgetPinResult {
+    PINNED,
+    NOT_SUPPORTED,
+    DECLINED
+}
+
 object TpmsWidgetHelper {
 
     fun isPinSupported(context: Context): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             AppWidgetManager.getInstance(context).isRequestPinAppWidgetSupported
 
-    fun requestPinToTeyesPanel(context: Context): Boolean {
-        if (!isPinSupported(context)) {
-            Toast.makeText(context, R.string.widget_pin_not_supported, Toast.LENGTH_LONG).show()
-            return false
-        }
-        val manager = AppWidgetManager.getInstance(context)
-        val component = ComponentName(context, TpmsWidget::class.java)
-        val accepted = manager.requestPinAppWidget(component, null, null)
-        if (!accepted) {
-            Toast.makeText(context, R.string.widget_pin_failed, Toast.LENGTH_LONG).show()
-        }
-        return accepted
+    fun requestPinPanel(context: Context): WidgetPinResult {
+        return requestPin(context, TpmsWidget::class.java, R.string.widget_pin_failed)
     }
 
-    fun hasActiveWidgets(context: Context): Boolean {
-        val manager = AppWidgetManager.getInstance(context)
-        val ids = manager.getAppWidgetIds(ComponentName(context, TpmsWidget::class.java))
-        return ids.isNotEmpty()
+    fun requestPinCompact(context: Context): WidgetPinResult {
+        return requestPin(context, TpmsWidgetCompact::class.java, R.string.widget_pin_compact_failed)
     }
+
+    private fun requestPin(context: Context, providerClass: Class<*>, failMessageId: Int): WidgetPinResult {
+        if (!isPinSupported(context)) {
+            return WidgetPinResult.NOT_SUPPORTED
+        }
+        val manager = AppWidgetManager.getInstance(context)
+        val component = ComponentName(context, providerClass)
+        val accepted = manager.requestPinAppWidget(component, null, null)
+        return if (accepted) WidgetPinResult.PINNED else WidgetPinResult.DECLINED
+    }
+
+    fun showPinResultToast(context: Context, result: WidgetPinResult) {
+        val message = when (result) {
+            WidgetPinResult.PINNED -> R.string.widget_pin_success
+            WidgetPinResult.NOT_SUPPORTED -> R.string.widget_pin_manual_hint
+            WidgetPinResult.DECLINED -> R.string.widget_pin_failed
+        }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+
+    fun hasActiveWidgets(context: Context): Boolean =
+        TpmsWidgetUpdater.hasAnyActiveWidget(context)
+
+    /** @deprecated use [hasActiveWidgets] */
+    fun hasActiveWidgetsLegacy(context: Context): Boolean = hasActiveWidgets(context)
 }

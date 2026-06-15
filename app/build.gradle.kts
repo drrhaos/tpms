@@ -62,10 +62,6 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
-    implementation(libs.glance)
-    implementation(libs.glance.appwidget)
-    implementation(libs.glance.material3)
-
     implementation(libs.navigation.compose)
 
     implementation(libs.lifecycle.runtime.compose)

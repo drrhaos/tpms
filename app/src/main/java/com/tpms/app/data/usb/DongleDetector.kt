@@ -14,8 +14,14 @@ class DongleDetector @Inject constructor(
 ) {
     private var lastLogSignature: String? = null
 
-    fun findDongle(devices: Collection<UsbDevice>): UsbDevice? {
-        val candidates = devices.mapNotNull { device ->
+    fun findDongle(devices: Collection<UsbDevice>, preferredVidPid: String? = null): UsbDevice? {
+        val pool = if (!preferredVidPid.isNullOrBlank()) {
+            val preferred = devices.filter { UsbDeviceInfo.vidPid(it) == preferredVidPid }
+            if (preferred.isNotEmpty()) preferred else devices
+        } else {
+            devices
+        }
+        val candidates = pool.mapNotNull { device ->
             val score = scoreDevice(device)
             if (score > 0) device to score else null
         }

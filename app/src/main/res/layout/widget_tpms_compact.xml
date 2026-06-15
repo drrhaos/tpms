@@ -1,21 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center_vertical"
     android:orientation="vertical"
-    android:paddingVertical="4dp">
-
-    <TextView
-        android:id="@+id/notif_expanded_status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingBottom="6dp"
-        android:textSize="13sp" />
+    android:padding="8dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_compact_status"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Offline"
+            android:textColor="#8FA3BC"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/widget_compact_unit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PSI"
+            android:textColor="#8FA3BC"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
         android:orientation="horizontal">
 
         <LinearLayout
@@ -26,26 +47,28 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/notif_expanded_fl_label"
+                android:id="@+id/widget_compact_fl_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="FL"
+                android:textColor="#8FA3BC"
                 android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/notif_expanded_fl_pressure"
+                android:id="@+id/widget_compact_fl_pressure"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="--"
-                android:textSize="20sp"
+                android:textColor="#E8EDF4"
+                android:textSize="18sp"
                 android:textStyle="bold" />
 
             <ImageView
-                android:id="@+id/notif_expanded_fl_indicator"
+                android:id="@+id/widget_compact_fl_indicator"
                 android:layout_width="8dp"
                 android:layout_height="8dp"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="2dp"
                 android:contentDescription="@null"
                 android:src="@drawable/widget_indicator_empty" />
         </LinearLayout>
@@ -58,26 +81,28 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/notif_expanded_fr_label"
+                android:id="@+id/widget_compact_fr_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="FR"
+                android:textColor="#8FA3BC"
                 android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/notif_expanded_fr_pressure"
+                android:id="@+id/widget_compact_fr_pressure"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="--"
-                android:textSize="20sp"
+                android:textColor="#E8EDF4"
+                android:textSize="18sp"
                 android:textStyle="bold" />
 
             <ImageView
-                android:id="@+id/notif_expanded_fr_indicator"
+                android:id="@+id/widget_compact_fr_indicator"
                 android:layout_width="8dp"
                 android:layout_height="8dp"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="2dp"
                 android:contentDescription="@null"
                 android:src="@drawable/widget_indicator_empty" />
         </LinearLayout>
@@ -90,26 +115,28 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/notif_expanded_rl_label"
+                android:id="@+id/widget_compact_rl_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="RL"
+                android:textColor="#8FA3BC"
                 android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/notif_expanded_rl_pressure"
+                android:id="@+id/widget_compact_rl_pressure"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="--"
-                android:textSize="20sp"
+                android:textColor="#E8EDF4"
+                android:textSize="18sp"
                 android:textStyle="bold" />
 
             <ImageView
-                android:id="@+id/notif_expanded_rl_indicator"
+                android:id="@+id/widget_compact_rl_indicator"
                 android:layout_width="8dp"
                 android:layout_height="8dp"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="2dp"
                 android:contentDescription="@null"
                 android:src="@drawable/widget_indicator_empty" />
         </LinearLayout>
@@ -122,37 +149,30 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/notif_expanded_rr_label"
+                android:id="@+id/widget_compact_rr_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="RR"
+                android:textColor="#8FA3BC"
                 android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/notif_expanded_rr_pressure"
+                android:id="@+id/widget_compact_rr_pressure"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="--"
-                android:textSize="20sp"
+                android:textColor="#E8EDF4"
+                android:textSize="18sp"
                 android:textStyle="bold" />
 
             <ImageView
-                android:id="@+id/notif_expanded_rr_indicator"
+                android:id="@+id/widget_compact_rr_indicator"
                 android:layout_width="8dp"
                 android:layout_height="8dp"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="2dp"
                 android:contentDescription="@null"
                 android:src="@drawable/widget_indicator_empty" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/notif_expanded_unit"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="6dp"
-            android:text="PSI"
-            android:textSize="10sp" />
     </LinearLayout>
-
 </LinearLayout>

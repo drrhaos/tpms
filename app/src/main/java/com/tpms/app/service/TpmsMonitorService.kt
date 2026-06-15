@@ -52,6 +52,7 @@ class TpmsMonitorService : Service() {
     @Inject lateinit var settingsStore: SettingsStore
     @Inject lateinit var widgetSnapshotBuilder: WidgetSnapshotBuilder
     @Inject lateinit var serviceHealth: ServiceHealth
+    @Inject lateinit var floatingOverlayController: FloatingOverlayController
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: Job? = null
@@ -95,6 +96,13 @@ class TpmsMonitorService : Service() {
                 serviceScope.launch { pollOnce() }
                 return START_STICKY
             }
+            ACTION_PROBE_USB -> {
+                serviceScope.launch {
+                    runCatching { repository.closeUsbForReconnect() }
+                    pollOnce()
+                }
+                return START_STICKY
+            }
             ACTION_USB_DETACHED -> {
                 serviceScope.launch {
                     runCatching { repository.closeUsbForReconnect() }
@@ -134,6 +142,7 @@ class TpmsMonitorService : Service() {
         if (!intentionalStop) {
             ServiceStoppedNotifier.show(this)
         }
+        floatingOverlayController.hide(this)
         ServiceLivenessScheduler.cancel(this)
         serviceScope.cancel()
         super.onDestroy()
@@ -237,6 +246,7 @@ class TpmsMonitorService : Service() {
             runCatching { repository.readSensor() }
             runCatching { repository.checkSensorTimeouts() }
             runCatching { updateWidget() }
+            runCatching { updateFloatingOverlay() }
             runCatching { evaluateMonitoringHealth() }
             serviceScope.launch { heartbeatStore.recordBeat() }
             withContext(Dispatchers.Main) {
@@ -273,6 +283,17 @@ class TpmsMonitorService : Service() {
         val snapshot = widgetSnapshotBuilder.build(this)
         withContext(Dispatchers.Main) {
             runCatching { TpmsWidget.pushUpdate(this@TpmsMonitorService, snapshot) }
+        }
+    }
+
+    private suspend fun updateFloatingOverlay() {
+        if (!settingsStore.floatingOverlayEnabled.value) {
+            floatingOverlayController.hide(this)
+            return
+        }
+        val snapshot = widgetSnapshotBuilder.build(this)
+        withContext(Dispatchers.Main) {
+            floatingOverlayController.showOrUpdate(this@TpmsMonitorService, snapshot)
         }
     }
 
@@ -353,6 +374,7 @@ class TpmsMonitorService : Service() {
         const val ACTION_MUTE = "com.tpms.app.action.MUTE"
         const val ACTION_STOP = "com.tpms.app.action.STOP"
         const val ACTION_CHECK_NOW = "com.tpms.app.action.CHECK_NOW"
+        const val ACTION_PROBE_USB = "com.tpms.app.action.PROBE_USB"
         const val ACTION_USB_DETACHED = "com.tpms.app.action.USB_DETACHED"
 
         fun start(context: Context) {
@@ -363,6 +385,13 @@ class TpmsMonitorService : Service() {
         fun wake(context: Context) {
             val intent = Intent(context, TpmsMonitorService::class.java).apply {
                 action = ACTION_CHECK_NOW
+            }
+            context.startForegroundService(intent)
+        }
+
+        fun probeUsb(context: Context) {
+            val intent = Intent(context, TpmsMonitorService::class.java).apply {
+                action = ACTION_PROBE_USB
             }
             context.startForegroundService(intent)
         }

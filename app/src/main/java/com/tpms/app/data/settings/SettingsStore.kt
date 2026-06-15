@@ -15,6 +15,7 @@ import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
+import com.tpms.app.domain.model.WidgetThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +80,24 @@ class SettingsStore @Inject constructor(
     private val _settingsUiMode = MutableStateFlow(SettingsUiMode.USER)
     val settingsUiMode = _settingsUiMode.asStateFlow()
 
+    private val _onboardingComplete = MutableStateFlow(false)
+    val onboardingComplete = _onboardingComplete.asStateFlow()
+
+    private val _silentStartup = MutableStateFlow(false)
+    val silentStartup = _silentStartup.asStateFlow()
+
+    private val _floatingOverlayEnabled = MutableStateFlow(false)
+    val floatingOverlayEnabled = _floatingOverlayEnabled.asStateFlow()
+
+    private val _criticalAlertsFullscreen = MutableStateFlow(true)
+    val criticalAlertsFullscreen = _criticalAlertsFullscreen.asStateFlow()
+
+    private val _preferredUsbVidPid = MutableStateFlow<String?>(null)
+    val preferredUsbVidPid = _preferredUsbVidPid.asStateFlow()
+
+    private val _widgetThemeMode = MutableStateFlow(WidgetThemeMode.AUTO)
+    val widgetThemeMode = _widgetThemeMode.asStateFlow()
+
     init {
         scope.launch {
             context.settingsDataStore.data.collect { prefs ->
@@ -123,6 +142,12 @@ class SettingsStore @Inject constructor(
                 )
 
                 _settingsUiMode.value = SettingsUiMode.fromName(prefs[KEY_SETTINGS_UI_MODE])
+                _onboardingComplete.value = prefs[KEY_ONBOARDING_COMPLETE] ?: false
+                _silentStartup.value = prefs[KEY_SILENT_STARTUP] ?: false
+                _floatingOverlayEnabled.value = prefs[KEY_FLOATING_OVERLAY] ?: false
+                _criticalAlertsFullscreen.value = prefs[KEY_CRITICAL_ALERTS_FULLSCREEN] ?: true
+                _preferredUsbVidPid.value = prefs[KEY_PREFERRED_USB_VID_PID]?.takeIf { it.isNotBlank() }
+                _widgetThemeMode.value = WidgetThemeMode.fromName(prefs[KEY_WIDGET_THEME_MODE])
             }
         }
     }
@@ -191,6 +216,36 @@ class SettingsStore @Inject constructor(
         }
     }
 
+    suspend fun setOnboardingComplete(complete: Boolean) {
+        context.settingsDataStore.edit { it[KEY_ONBOARDING_COMPLETE] = complete }
+    }
+
+    suspend fun setSilentStartup(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_SILENT_STARTUP] = enabled }
+    }
+
+    suspend fun setFloatingOverlayEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_FLOATING_OVERLAY] = enabled }
+    }
+
+    suspend fun setCriticalAlertsFullscreen(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_CRITICAL_ALERTS_FULLSCREEN] = enabled }
+    }
+
+    suspend fun setPreferredUsbVidPid(vidPid: String?) {
+        context.settingsDataStore.edit {
+            if (vidPid.isNullOrBlank()) {
+                it.remove(KEY_PREFERRED_USB_VID_PID)
+            } else {
+                it[KEY_PREFERRED_USB_VID_PID] = vidPid
+            }
+        }
+    }
+
+    suspend fun setWidgetThemeMode(mode: WidgetThemeMode) {
+        context.settingsDataStore.edit { it[KEY_WIDGET_THEME_MODE] = mode.name }
+    }
+
     suspend fun applyImported(imported: ImportedSettings) {
         context.settingsDataStore.edit { prefs ->
             prefs[KEY_PRESSURE_UNIT] = imported.pressureUnit.name
@@ -208,6 +263,13 @@ class SettingsStore @Inject constructor(
             prefs[KEY_TEYES_LOCK] = imported.teyesChecklist.lockInRecents
             prefs[KEY_TEYES_BOOT] = imported.teyesChecklist.bootCompleted
             prefs[KEY_TEYES_AUTO_RUN_AWAKE] = imported.teyesChecklist.autoRunAwake
+            prefs[KEY_ONBOARDING_COMPLETE] = imported.onboardingComplete
+            prefs[KEY_SILENT_STARTUP] = imported.silentStartup
+            prefs[KEY_FLOATING_OVERLAY] = imported.floatingOverlayEnabled
+            prefs[KEY_CRITICAL_ALERTS_FULLSCREEN] = imported.criticalAlertsFullscreen
+            imported.preferredUsbVidPid?.let { prefs[KEY_PREFERRED_USB_VID_PID] = it }
+                ?: prefs.remove(KEY_PREFERRED_USB_VID_PID)
+            prefs[KEY_WIDGET_THEME_MODE] = imported.widgetThemeMode.name
             WheelLayout.allSlots(imported.showSpareWheel).forEach { slot ->
                 prefs[wheelMappingKey(slot)] = imported.wheelMapping[slot].orEmpty()
             }
@@ -243,6 +305,12 @@ class SettingsStore @Inject constructor(
         private val KEY_TEYES_BOOT = booleanPreferencesKey("teyes_boot")
         private val KEY_TEYES_AUTO_RUN_AWAKE = booleanPreferencesKey("teyes_auto_run_awake")
         private val KEY_ALERT_SOUND = booleanPreferencesKey("alert_sound")
+        private val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        private val KEY_SILENT_STARTUP = booleanPreferencesKey("silent_startup")
+        private val KEY_FLOATING_OVERLAY = booleanPreferencesKey("floating_overlay")
+        private val KEY_CRITICAL_ALERTS_FULLSCREEN = booleanPreferencesKey("critical_alerts_fullscreen")
+        private val KEY_PREFERRED_USB_VID_PID = stringPreferencesKey("preferred_usb_vid_pid")
+        private val KEY_WIDGET_THEME_MODE = stringPreferencesKey("widget_theme_mode")
 
         private fun wheelMappingKey(slot: String) = stringPreferencesKey("wheel_map_$slot")
     }

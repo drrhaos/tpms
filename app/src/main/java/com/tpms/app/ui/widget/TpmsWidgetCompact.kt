@@ -5,7 +5,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import com.tpms.app.service.TpmsMonitorService
 
-class TpmsWidget : AppWidgetProvider() {
+class TpmsWidgetCompact : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
@@ -15,8 +15,8 @@ class TpmsWidget : AppWidgetProvider() {
         val pending = goAsync()
         TpmsWidgetUpdater.refreshWidgets(
             context = context,
-            providerClass = TpmsWidget::class.java,
-            layoutKind = WidgetLayoutKind.CAR,
+            providerClass = TpmsWidgetCompact::class.java,
+            layoutKind = WidgetLayoutKind.COMPACT,
             appWidgetManager = appWidgetManager,
             appWidgetIds = appWidgetIds,
             preferPersisted = true,
@@ -37,18 +37,12 @@ class TpmsWidget : AppWidgetProvider() {
         val pending = goAsync()
         TpmsWidgetUpdater.refreshWidgets(
             context = context,
-            providerClass = TpmsWidget::class.java,
-            layoutKind = WidgetLayoutKind.CAR,
+            providerClass = TpmsWidgetCompact::class.java,
+            layoutKind = WidgetLayoutKind.COMPACT,
             appWidgetManager = appWidgetManager,
             appWidgetIds = intArrayOf(appWidgetId),
             preferPersisted = true,
             onComplete = pending?.let { { it.finish() } }
         )
-    }
-
-    companion object {
-        fun pushUpdate(context: Context, snapshot: WidgetSnapshot) {
-            TpmsWidgetUpdater.pushUpdateAll(context, snapshot)
-        }
     }
 }

@@ -33,6 +33,25 @@ internal object WidgetRemoteViews {
         )
     )
 
+    private val WIDGET_COMPACT_SLOTS = listOf(
+        TireViewIds(
+            R.id.widget_compact_fl_label, R.id.widget_compact_fl_pressure,
+            indicator = R.id.widget_compact_fl_indicator
+        ),
+        TireViewIds(
+            R.id.widget_compact_fr_label, R.id.widget_compact_fr_pressure,
+            indicator = R.id.widget_compact_fr_indicator
+        ),
+        TireViewIds(
+            R.id.widget_compact_rl_label, R.id.widget_compact_rl_pressure,
+            indicator = R.id.widget_compact_rl_indicator
+        ),
+        TireViewIds(
+            R.id.widget_compact_rr_label, R.id.widget_compact_rr_pressure,
+            indicator = R.id.widget_compact_rr_indicator
+        )
+    )
+
     private val NOTIF_COLLAPSED_SLOTS = listOf(
         TireViewIds(R.id.notif_fl_label, R.id.notif_fl_pressure),
         TireViewIds(R.id.notif_fr_label, R.id.notif_fr_pressure),
@@ -47,8 +66,9 @@ internal object WidgetRemoteViews {
         TireViewIds(R.id.notif_expanded_rr_label, R.id.notif_expanded_rr_pressure, indicator = R.id.notif_expanded_rr_indicator)
     )
 
-    fun forWidget(context: Context, snapshot: WidgetSnapshot): RemoteViews {
+    fun forWidgetCar(context: Context, snapshot: WidgetSnapshot): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_tpms_car)
+        applyTheme(views, snapshot.useLightTheme)
         bindSnapshot(
             views = views,
             snapshot = snapshot,
@@ -56,10 +76,31 @@ internal object WidgetRemoteViews {
             statusId = R.id.widget_status,
             unitId = R.id.widget_unit,
             showIndicators = true,
-            showDetails = true
+            showDetails = true,
+            useLightTheme = snapshot.useLightTheme
         )
         return views
     }
+
+    fun forWidgetCompact(context: Context, snapshot: WidgetSnapshot): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.widget_tpms_compact)
+        applyTheme(views, snapshot.useLightTheme)
+        bindSnapshot(
+            views = views,
+            snapshot = snapshot,
+            tireSlots = WIDGET_COMPACT_SLOTS,
+            statusId = R.id.widget_compact_status,
+            unitId = R.id.widget_compact_unit,
+            showIndicators = true,
+            showDetails = false,
+            useLightTheme = snapshot.useLightTheme
+        )
+        return views
+    }
+
+    /** @deprecated use [forWidgetCar] */
+    fun forWidget(context: Context, snapshot: WidgetSnapshot): RemoteViews =
+        forWidgetCar(context, snapshot)
 
     fun forNotificationCollapsed(context: Context, snapshot: WidgetSnapshot): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.notification_tpms_collapsed)
@@ -70,7 +111,8 @@ internal object WidgetRemoteViews {
             statusId = null,
             unitId = R.id.notif_unit,
             showIndicators = false,
-            showDetails = false
+            showDetails = false,
+            useLightTheme = snapshot.useLightTheme
         )
         return views
     }
@@ -89,7 +131,8 @@ internal object WidgetRemoteViews {
             statusId = null,
             unitId = R.id.notif_expanded_unit,
             showIndicators = true,
-            showDetails = false
+            showDetails = false,
+            useLightTheme = snapshot.useLightTheme
         )
         return views
     }
@@ -102,6 +145,14 @@ internal object WidgetRemoteViews {
         return "$pressures ${snapshot.unitLabel}"
     }
 
+    private fun applyTheme(views: RemoteViews, useLightTheme: Boolean) {
+        views.setInt(
+            R.id.widget_container,
+            "setBackgroundResource",
+            if (useLightTheme) R.drawable.widget_bg_light else R.drawable.widget_bg
+        )
+    }
+
     private fun bindSnapshot(
         views: RemoteViews,
         snapshot: WidgetSnapshot,
@@ -109,18 +160,36 @@ internal object WidgetRemoteViews {
         statusId: Int?,
         unitId: Int?,
         showIndicators: Boolean,
-        showDetails: Boolean
+        showDetails: Boolean,
+        useLightTheme: Boolean
     ) {
-        statusId?.let { views.setTextViewText(it, snapshot.connectionStatus) }
-        unitId?.let { views.setTextViewText(it, snapshot.unitLabel) }
+        val muted = if (useLightTheme) 0xFF5A6570.toInt() else 0xFF8FA3BC.toInt()
+        val primary = if (useLightTheme) 0xFF1A2332.toInt() else 0xFFE8EDF4.toInt()
+
+        statusId?.let {
+            views.setTextViewText(it, snapshot.connectionStatus)
+            views.setTextColor(it, muted)
+        }
+        unitId?.let {
+            views.setTextViewText(it, snapshot.unitLabel)
+            views.setTextColor(it, muted)
+        }
 
         snapshot.tires.forEachIndexed { index, tire ->
             val ids = tireSlots.getOrNull(index) ?: return@forEachIndexed
             views.setTextViewText(ids.label, tire.label)
+            views.setTextColor(ids.label, muted)
             views.setTextViewText(ids.pressure, tire.pressureText)
+            views.setTextColor(ids.pressure, primary)
             if (showDetails) {
-                ids.temperature?.let { views.setTextViewText(it, tire.temperatureText) }
-                ids.battery?.let { views.setTextViewText(it, tire.batteryText) }
+                ids.temperature?.let {
+                    views.setTextViewText(it, tire.temperatureText)
+                    views.setTextColor(it, muted)
+                }
+                ids.battery?.let {
+                    views.setTextViewText(it, tire.batteryText)
+                    views.setTextColor(it, muted)
+                }
             }
             if (showIndicators) {
                 ids.indicator?.let {

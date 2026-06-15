@@ -1,6 +1,5 @@
 package com.tpms.app.ui.settings
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -28,7 +27,9 @@ object TeyesPermissionHelper {
         val fallback = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
         if (context.packageManager.resolveActivity(fallback, 0) != null) {
             context.startSettingsActivity(fallback)
+            return
         }
+        openAppDetails(context)
     }
 
     fun openNotificationSettings(context: Context) {
@@ -44,8 +45,25 @@ object TeyesPermissionHelper {
         context.startSettingsActivity(intent)
     }
 
+    fun openOverlaySettings(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:${context.packageName}")
+        )
+        context.startSettingsActivity(intent)
+    }
+
+    fun openFrontAppPlayStore(context: Context) {
+        val intent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("https://play.google.com/store/apps/details?id=ru.fytmods.frontapp")
+        )
+        context.startSettingsActivity(intent)
+    }
+
     private fun Context.startSettingsActivity(intent: Intent) {
-        if (this !is Activity) {
+        if (this !is android.app.Activity) {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         startActivity(intent)

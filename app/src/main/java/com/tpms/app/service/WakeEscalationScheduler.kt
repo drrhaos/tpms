@@ -13,11 +13,12 @@ object WakeEscalationScheduler {
 
     const val ACTION_WAKE = "com.tpms.app.action.WAKE_ESCALATION"
     private const val REQUEST_CODE_BASE = 9100
-    private val DELAYS_MS = longArrayOf(5_000L, 15_000L, 30_000L)
+    private val DELAYS_MS = longArrayOf(5_000L, 15_000L, 30_000L, 60_000L, 120_000L)
     private const val TAG = "WakeEscalation"
 
     fun onScreenOn(context: Context) {
         TpmsMonitorService.wake(context)
+        TpmsMonitorService.probeUsb(context)
         DELAYS_MS.forEachIndexed { index, delayMs ->
             schedule(context, index, delayMs)
         }
@@ -60,5 +61,6 @@ class WakeEscalationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != WakeEscalationScheduler.ACTION_WAKE) return
         TpmsMonitorService.wake(context)
+        TpmsMonitorService.probeUsb(context)
     }
 }

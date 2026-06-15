@@ -71,28 +71,34 @@ class AlertNotifier @Inject constructor(
 
             val alertPrefs = settingsStore.alertNotificationPrefs.value
             val defaults = if (alertPrefs.soundEnabled) NotificationCompat.DEFAULT_SOUND else 0
+            val contentIntent = PendingIntent.getActivity(
+                context, sensor.id.hashCode(),
+                MainActivity.newIntent(context),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
 
-            val notification = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_ALERT)
+            val builder = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_ALERT)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setDefaults(defaults)
                 .setSilent(!alertPrefs.soundEnabled)
                 .setPriority(
-                    if (isCritical) NotificationCompat.PRIORITY_HIGH
+                    if (isCritical) NotificationCompat.PRIORITY_MAX
                     else NotificationCompat.PRIORITY_DEFAULT
                 )
-                .setAutoCancel(true)
-                .setContentIntent(
-                    PendingIntent.getActivity(
-                        context, sensor.id.hashCode(),
-                        MainActivity.newIntent(context),
-                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                    )
+                .setCategory(
+                    if (isCritical) NotificationCompat.CATEGORY_ALARM
+                    else NotificationCompat.CATEGORY_STATUS
                 )
-                .build()
+                .setAutoCancel(true)
+                .setContentIntent(contentIntent)
 
-            notificationManager.notify(sensor.id.hashCode(), notification)
+            if (isCritical && settingsStore.criticalAlertsFullscreen.value) {
+                builder.setFullScreenIntent(contentIntent, true)
+            }
+
+            notificationManager.notify(sensor.id.hashCode(), builder.build())
         } catch (_: Exception) {
             // Ignore bad notification payloads
         }

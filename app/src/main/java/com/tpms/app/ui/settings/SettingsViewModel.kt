@@ -10,13 +10,20 @@ import com.tpms.app.data.settings.AlertNotificationPrefs
 import com.tpms.app.data.settings.SettingsExporter
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.settings.TeyesChecklist
+import com.tpms.app.data.usb.UsbConnection
+import com.tpms.app.data.usb.UsbDeviceInfo
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
+import com.tpms.app.domain.model.WidgetThemeMode
+import com.tpms.app.service.FloatingOverlayController
+import com.tpms.app.service.TpmsMonitorService
+import com.tpms.app.startup.TeyesDeviceDetector
 import com.tpms.app.startup.TeyesSetupStatusProvider
 import com.tpms.app.ui.widget.TpmsWidgetHelper
+import com.tpms.app.ui.widget.WidgetPinResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,8 +40,12 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsStore: SettingsStore,
     private val repository: TpmsRepository,
-    private val teyesSetupStatusProvider: TeyesSetupStatusProvider
+    private val teyesSetupStatusProvider: TeyesSetupStatusProvider,
+    private val usbConnection: UsbConnection,
+    private val floatingOverlayController: FloatingOverlayController
 ) : ViewModel() {
+
+    val isTeyesDevice: Boolean = TeyesDeviceDetector.isLikelyTeyesHeadUnit(context)
 
     private val _pressureUnit = MutableStateFlow(PressureUnit.KPA)
     val pressureUnit: StateFlow<PressureUnit> = _pressureUnit.asStateFlow()
@@ -87,6 +98,27 @@ class SettingsViewModel @Inject constructor(
     private val _widgetActive = MutableStateFlow(false)
     val widgetActive: StateFlow<Boolean> = _widgetActive.asStateFlow()
 
+    private val _silentStartup = MutableStateFlow(false)
+    val silentStartup: StateFlow<Boolean> = _silentStartup.asStateFlow()
+
+    private val _floatingOverlayEnabled = MutableStateFlow(false)
+    val floatingOverlayEnabled: StateFlow<Boolean> = _floatingOverlayEnabled.asStateFlow()
+
+    private val _criticalAlertsFullscreen = MutableStateFlow(true)
+    val criticalAlertsFullscreen: StateFlow<Boolean> = _criticalAlertsFullscreen.asStateFlow()
+
+    private val _widgetThemeMode = MutableStateFlow(WidgetThemeMode.AUTO)
+    val widgetThemeMode: StateFlow<WidgetThemeMode> = _widgetThemeMode.asStateFlow()
+
+    private val _preferredUsbVidPid = MutableStateFlow<String?>(null)
+    val preferredUsbVidPid: StateFlow<String?> = _preferredUsbVidPid.asStateFlow()
+
+    private val _usbDongleOptions = MutableStateFlow<List<String>>(emptyList())
+    val usbDongleOptions: StateFlow<List<String>> = _usbDongleOptions.asStateFlow()
+
+    private val _serviceRunning = MutableStateFlow(false)
+    val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
+
     val knownSensorIds: StateFlow<List<String>> = repository.sensors
         .combine(_wheelMapping) { sensors, _ ->
             sensors.keys.sorted()
@@ -120,6 +152,21 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.teyesChecklist.collect { _teyesChecklist.value = it }
         }
+        viewModelScope.launch {
+            settingsStore.silentStartup.collect { _silentStartup.value = it }
+        }
+        viewModelScope.launch {
+            settingsStore.floatingOverlayEnabled.collect { _floatingOverlayEnabled.value = it }
+        }
+        viewModelScope.launch {
+            settingsStore.criticalAlertsFullscreen.collect { _criticalAlertsFullscreen.value = it }
+        }
+        viewModelScope.launch {
+            settingsStore.widgetThemeMode.collect { _widgetThemeMode.value = it }
+        }
+        viewModelScope.launch {
+            settingsStore.preferredUsbVidPid.collect { _preferredUsbVidPid.value = it }
+        }
         refreshRuntimeSetupStatus()
     }
 
@@ -127,6 +174,16 @@ class SettingsViewModel @Inject constructor(
         _batteryUnrestricted.value = teyesSetupStatusProvider.isBatteryUnrestricted(context)
         _notificationsEnabled.value = teyesSetupStatusProvider.areNotificationsEnabled(context)
         _widgetActive.value = TpmsWidgetHelper.hasActiveWidgets(context)
+        _serviceRunning.value = teyesSetupStatusProvider.current(context).serviceRunning
+        refreshUsbDongleOptions()
+    }
+
+    private fun refreshUsbDongleOptions() {
+        val auto = listOf("")
+        val devices = usbConnection.listAllDevices()
+            .map { UsbDeviceInfo.vidPid(it) }
+            .distinct()
+        _usbDongleOptions.value = auto + devices
     }
 
     fun setTeyesChecklistItem(key: String, checked: Boolean) {
@@ -136,11 +193,66 @@ class SettingsViewModel @Inject constructor(
     fun openAppDetails() = TeyesPermissionHelper.openAppDetails(context)
     fun openBatterySettings() = TeyesPermissionHelper.openBatteryOptimization(context)
     fun openNotificationSettings() = TeyesPermissionHelper.openNotificationSettings(context)
+    fun openFrontAppStore() = TeyesPermissionHelper.openFrontAppPlayStore(context)
+    fun openOverlaySettings() = TeyesPermissionHelper.openOverlaySettings(context)
 
-    fun pinWidgetToHome(): Boolean {
-        val accepted = TpmsWidgetHelper.requestPinToTeyesPanel(context)
+    fun pinWidgetToHome(): WidgetPinResult {
+        val result = TpmsWidgetHelper.requestPinPanel(context)
+        TpmsWidgetHelper.showPinResultToast(context, result)
         refreshRuntimeSetupStatus()
-        return accepted
+        return result
+    }
+
+    fun pinCompactWidget(): WidgetPinResult {
+        val result = TpmsWidgetHelper.requestPinCompact(context)
+        TpmsWidgetHelper.showPinResultToast(context, result)
+        refreshRuntimeSetupStatus()
+        return result
+    }
+
+    fun setSilentStartup(enabled: Boolean) {
+        _silentStartup.value = enabled
+        viewModelScope.launch { settingsStore.setSilentStartup(enabled) }
+    }
+
+    fun setFloatingOverlayEnabled(enabled: Boolean) {
+        _floatingOverlayEnabled.value = enabled
+        viewModelScope.launch {
+            settingsStore.setFloatingOverlayEnabled(enabled)
+            if (!enabled) {
+                floatingOverlayController.hide(context)
+            } else if (!floatingOverlayController.canDrawOverlays(context)) {
+                openOverlaySettings()
+            } else {
+                TpmsMonitorService.wake(context)
+            }
+        }
+    }
+
+    fun setCriticalAlertsFullscreen(enabled: Boolean) {
+        _criticalAlertsFullscreen.value = enabled
+        viewModelScope.launch { settingsStore.setCriticalAlertsFullscreen(enabled) }
+    }
+
+    fun setWidgetThemeMode(mode: WidgetThemeMode) {
+        _widgetThemeMode.value = mode
+        viewModelScope.launch {
+            settingsStore.setWidgetThemeMode(mode)
+            TpmsMonitorService.wake(context)
+        }
+    }
+
+    fun cyclePreferredUsbDevice() {
+        val options = _usbDongleOptions.value
+        if (options.isEmpty()) return
+        val current = _preferredUsbVidPid.value.orEmpty()
+        val next = options[(options.indexOf(current).coerceAtLeast(0) + 1) % options.size]
+        val value = next.takeIf { it.isNotBlank() }
+        _preferredUsbVidPid.value = value
+        viewModelScope.launch {
+            settingsStore.setPreferredUsbVidPid(value)
+            TpmsMonitorService.probeUsb(context)
+        }
     }
 
     private fun loadThresholdsFromStore() {
@@ -234,7 +346,13 @@ class SettingsViewModel @Inject constructor(
             alertNotificationPrefs = AlertNotificationPrefs(
                 soundEnabled = _alertSoundEnabled.value
             ),
-            teyesChecklist = settingsStore.teyesChecklist.value
+            teyesChecklist = settingsStore.teyesChecklist.value,
+            onboardingComplete = settingsStore.onboardingComplete.value,
+            silentStartup = _silentStartup.value,
+            floatingOverlayEnabled = _floatingOverlayEnabled.value,
+            criticalAlertsFullscreen = _criticalAlertsFullscreen.value,
+            preferredUsbVidPid = _preferredUsbVidPid.value,
+            widgetThemeMode = _widgetThemeMode.value
         )
     }
 

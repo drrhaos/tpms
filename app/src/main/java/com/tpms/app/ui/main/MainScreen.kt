@@ -29,8 +29,13 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.tpms.app.ui.dashboard.MiniDashboard
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,8 +69,20 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val teyesSetup by viewModel.teyesSetupStatus.collectAsState()
     var selectedWheel by remember { mutableStateOf<Pair<String, TireSensor?>?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshSetupStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     selectedWheel?.let { (label, sensor) ->
         ModalBottomSheet(
@@ -128,6 +145,20 @@ fun MainScreen(
                     onNavigateToSettings = onNavigateToSettings,
                     onNavigateToDebug = onNavigateToDebug
                 )
+
+                if (teyesSetup.isTeyesDevice) {
+                    TeyesSetupBanner(
+                        status = teyesSetup,
+                        onOpenSettings = onNavigateToSettings
+                    )
+                }
+
+                if (uiState.showMiniDashboard) {
+                    MiniDashboard(
+                        sensors = uiState.wheelSlots.filterNotNull(),
+                        pressureUnit = uiState.pressureUnit
+                    )
+                }
 
                 CarTopDown(
                     sensors = uiState.wheelSlots,

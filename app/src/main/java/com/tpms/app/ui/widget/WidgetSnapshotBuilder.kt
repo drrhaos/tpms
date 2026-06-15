@@ -52,7 +52,11 @@ class WidgetSnapshotBuilder @Inject constructor(
             wheelMapping = settingsStore.wheelMapping.value,
             showSpareWheel = settingsStore.showSpareWheel.value,
             dataAgeSec = dataAgeSec,
-            dataStale = dataStale
+            dataStale = dataStale,
+            useLightTheme = WidgetSnapshot.resolveLightTheme(
+                context,
+                settingsStore.widgetThemeMode.value
+            )
         )
     }
 

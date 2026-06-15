@@ -6,6 +6,7 @@ import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
+import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.model.DongleProtocol
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -17,7 +18,8 @@ import javax.inject.Singleton
 @Singleton
 class UsbConnection @Inject constructor(
     private val usbManager: UsbManager,
-    private val debugLog: UsbDebugLog
+    private val debugLog: UsbDebugLog,
+    private val settingsStore: SettingsStore
 ) {
     private val usbLock = Any()
 
@@ -79,7 +81,10 @@ class UsbConnection @Inject constructor(
 
     fun findDongle(detector: DongleDetector): UsbDevice? =
         try {
-            detector.findDongle(usbManager.deviceList.values)
+            detector.findDongle(
+                usbManager.deviceList.values,
+                settingsStore.preferredUsbVidPid.value
+            )
         } catch (_: Throwable) {
             null
         }

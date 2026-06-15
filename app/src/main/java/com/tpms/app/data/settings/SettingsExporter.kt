@@ -5,11 +5,12 @@ import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.domain.model.WidgetThemeMode
 import org.json.JSONObject
 
 object SettingsExporter {
 
-    const val EXPORT_VERSION = 1
+    const val EXPORT_VERSION = 2
 
     fun export(
         pressureUnit: PressureUnit,
@@ -21,7 +22,13 @@ object SettingsExporter {
         showSpareWheel: Boolean,
         minLiveWheelPressureKpa: Float,
         alertNotificationPrefs: AlertNotificationPrefs,
-        teyesChecklist: TeyesChecklist
+        teyesChecklist: TeyesChecklist,
+        onboardingComplete: Boolean = false,
+        silentStartup: Boolean = false,
+        floatingOverlayEnabled: Boolean = false,
+        criticalAlertsFullscreen: Boolean = true,
+        preferredUsbVidPid: String? = null,
+        widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO
     ): String = JSONObject().apply {
         put("version", EXPORT_VERSION)
         put("pressure_unit", pressureUnit.name)
@@ -39,6 +46,12 @@ object SettingsExporter {
         put("teyes_lock", teyesChecklist.lockInRecents)
         put("teyes_boot", teyesChecklist.bootCompleted)
         put("teyes_auto_run_awake", teyesChecklist.autoRunAwake)
+        put("onboarding_complete", onboardingComplete)
+        put("silent_startup", silentStartup)
+        put("floating_overlay", floatingOverlayEnabled)
+        put("critical_alerts_fullscreen", criticalAlertsFullscreen)
+        preferredUsbVidPid?.let { put("preferred_usb_vid_pid", it) }
+        put("widget_theme_mode", widgetThemeMode.name)
         put("wheel_mapping", JSONObject().apply {
             WheelLayout.allSlots(showSpareWheel).forEach { slot ->
                 put(slot, wheelMapping[slot].orEmpty())
@@ -87,6 +100,12 @@ object SettingsExporter {
                 bootCompleted = root.optBoolean("teyes_boot", false),
                 autoRunAwake = root.optBoolean("teyes_auto_run_awake", false)
             ),
+            onboardingComplete = root.optBoolean("onboarding_complete", false),
+            silentStartup = root.optBoolean("silent_startup", false),
+            floatingOverlayEnabled = root.optBoolean("floating_overlay", false),
+            criticalAlertsFullscreen = root.optBoolean("critical_alerts_fullscreen", true),
+            preferredUsbVidPid = root.optString("preferred_usb_vid_pid", "").takeIf { it.isNotBlank() },
+            widgetThemeMode = WidgetThemeMode.fromName(root.optString("widget_theme_mode", WidgetThemeMode.AUTO.name)),
             wheelMapping = slots.associateWith { slot ->
                 wheelMappingJson?.optString(slot, "").orEmpty()
             }
@@ -104,6 +123,12 @@ data class ImportedSettings(
     val minLiveWheelPressureKpa: Float,
     val alertNotificationPrefs: AlertNotificationPrefs,
     val teyesChecklist: TeyesChecklist,
+    val onboardingComplete: Boolean = false,
+    val silentStartup: Boolean = false,
+    val floatingOverlayEnabled: Boolean = false,
+    val criticalAlertsFullscreen: Boolean = true,
+    val preferredUsbVidPid: String? = null,
+    val widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO,
     val wheelMapping: Map<String, String>
 )
 

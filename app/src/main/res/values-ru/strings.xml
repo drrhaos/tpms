@@ -73,6 +73,23 @@
     <string name="widget_dashboard_active">Панель активна на главном экране</string>
     <string name="widget_dashboard_inactive">Показать TPMS на панели карты / авто</string>
     <string name="widget_pin_manual_hint">Закрепление виджета не поддерживается. Добавьте вручную из списка виджетов лаунчера.</string>
+    <string name="widget_pin_success">Виджет добавлен — проверьте главный экран Teyes</string>
+    <string name="widget_pin_compact_failed">Не удалось закрепить компактный виджет — добавьте вручную</string>
+    <string name="widget_description_compact">Компактная полоска TPMS для главного экрана Teyes</string>
+    <string name="widget_pin_compact">Добавить компактный виджет</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">Настройка TPMS на Teyes CC3</string>
+    <string name="onboarding_step_usb">Шаг 1: Подключите USB-донгл TPMS. Служба мониторинга запустится в фоне.</string>
+    <string name="onboarding_step_notifications">Шаг 2: Разрешите уведомления для оповещений о давлении за рулём.</string>
+    <string name="onboarding_step_teyes">Шаг 3: Отключите ограничения батареи и включите автозапуск в настройках Teyes.</string>
+    <string name="onboarding_step_widget">Шаг 4: Добавьте виджет TPMS на главный экран (долгий тап по карте → Виджеты).</string>
+    <string name="onboarding_grant_usb">Запустить мониторинг</string>
+    <string name="onboarding_open_notifications">Открыть настройки уведомлений</string>
+    <string name="onboarding_open_battery">Открыть настройки батареи</string>
+    <string name="onboarding_next">Далее</string>
+    <string name="onboarding_finish">Завершить</string>
+    <string name="onboarding_skip">Пропустить</string>
 
     <!-- Main screen -->
     <string name="title_main">TPMS Монитор</string>
@@ -114,7 +131,22 @@
     <string name="settings_teyes_lock">Закреплено в недавних приложениях</string>
     <string name="settings_teyes_boot">Разрешён запуск после загрузки</string>
     <string name="main_teyes_checklist_incomplete">Для стабильного фонового мониторинга завершите разрешения Teyes в настройках.</string>
+    <string name="main_teyes_service_stopped">Служба TPMS не работает — откройте настройки и проверьте разрешения.</string>
+    <string name="main_teyes_widget_hint">Добавьте виджет TPMS на главный экран Teyes для быстрого просмотра давления.</string>
     <string name="main_open_settings">Настройки</string>
+    <string name="settings_teyes_service_running">Фоновая служба: работает</string>
+    <string name="settings_teyes_service_stopped">Фоновая служба: остановлена</string>
+    <string name="settings_teyes_auto_run_hint">Также добавьте TPMS в Настройки → Общие → Автозапуск при пробуждении. Избегайте режима «только главный экран», если нужен фоновый мониторинг.</string>
+    <string name="settings_frontapp_hint">Опционально: FrontApp for Teyes — ярлык на главном экране</string>
+    <string name="settings_widget_theme">Тема виджета на главном экране</string>
+    <string name="settings_widget_theme_auto">Как день/ночь Teyes</string>
+    <string name="settings_widget_theme_light">Светлая</string>
+    <string name="settings_widget_theme_dark">Тёмная</string>
+    <string name="settings_teyes_experience">Опыт вождения на Teyes</string>
+    <string name="settings_silent_startup">Тихий фоновый запуск (без UI при загрузке)</string>
+    <string name="settings_floating_overlay">Плавающая мини-панель поверх приложений</string>
+    <string name="settings_critical_alerts_fullscreen">Полноэкранное оповещение при критическом давлении</string>
+    <string name="settings_preferred_usb_dongle">Предпочитаемый USB-донгл (порт CC3)</string>
     <string name="settings_stability">Стабильность</string>
     <string name="settings_stale_frame_timeout">Reconnect при устаревших кадрах (сек)</string>
     <string name="settings_min_live_wheel_pressure">Мин. давление живого колеса (кПа)</string>

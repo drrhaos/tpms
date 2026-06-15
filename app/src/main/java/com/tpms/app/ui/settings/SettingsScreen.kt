@@ -60,6 +60,7 @@ import kotlinx.coroutines.launch
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
+import com.tpms.app.domain.model.WidgetThemeMode
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.theme.TpmsColors
 import androidx.lifecycle.Lifecycle
@@ -88,6 +89,13 @@ fun SettingsScreen(
     val batteryUnrestricted by viewModel.batteryUnrestricted.collectAsState()
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsState()
     val widgetActive by viewModel.widgetActive.collectAsState()
+    val serviceRunning by viewModel.serviceRunning.collectAsState()
+    val silentStartup by viewModel.silentStartup.collectAsState()
+    val floatingOverlayEnabled by viewModel.floatingOverlayEnabled.collectAsState()
+    val criticalAlertsFullscreen by viewModel.criticalAlertsFullscreen.collectAsState()
+    val widgetThemeMode by viewModel.widgetThemeMode.collectAsState()
+    val preferredUsbVidPid by viewModel.preferredUsbVidPid.collectAsState()
+    val isTeyesDevice = viewModel.isTeyesDevice
     val staleFrameTimeoutSec by viewModel.staleFrameTimeoutSec.collectAsState()
     val minLiveWheelPressure by viewModel.minLiveWheelPressure.collectAsState()
     val importExportMessage by viewModel.importExportMessage.collectAsState()
@@ -400,83 +408,170 @@ fun SettingsScreen(
                 }
             }
 
-            item {
-                SettingsSectionHeader(
-                    title = stringResource(R.string.settings_teyes_permissions),
-                    subtitle = stringResource(R.string.settings_teyes_checklist_hint)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsGroup {
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_teyes_auto_start),
-                        checked = teyesChecklist.autoStart,
-                        onCheckedChange = { viewModel.setTeyesChecklistItem("auto_start", it) }
+            if (isTeyesDevice) {
+                item {
+                    SettingsSectionHeader(
+                        title = stringResource(R.string.settings_teyes_permissions),
+                        subtitle = stringResource(R.string.settings_teyes_checklist_hint)
                     )
-                    SettingsGroupDivider()
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_teyes_battery),
-                        checked = teyesChecklist.batteryUnrestricted,
-                        onCheckedChange = { viewModel.setTeyesChecklistItem("battery", it) }
-                    )
-                    SettingsGroupDivider()
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_teyes_lock),
-                        checked = teyesChecklist.lockInRecents,
-                        onCheckedChange = { viewModel.setTeyesChecklistItem("lock", it) }
-                    )
-                    SettingsGroupDivider()
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_teyes_boot),
-                        checked = teyesChecklist.bootCompleted,
-                        onCheckedChange = { viewModel.setTeyesChecklistItem("boot", it) }
-                    )
-                    SettingsGroupDivider()
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_teyes_auto_run_awake),
-                        checked = teyesChecklist.autoRunAwake,
-                        onCheckedChange = { viewModel.setTeyesChecklistItem("auto_run_awake", it) }
-                    )
-                    SettingsGroupDivider()
-                    SettingsNavigationRow(
-                        label = if (batteryUnrestricted) {
-                            stringResource(R.string.settings_teyes_runtime_battery_ok)
-                        } else {
-                            stringResource(R.string.settings_teyes_runtime_battery_restricted)
-                        },
-                        onClick = { viewModel.openBatterySettings() }
-                    )
-                    SettingsGroupDivider()
-                    SettingsNavigationRow(
-                        label = if (notificationsEnabled) {
-                            stringResource(R.string.settings_teyes_runtime_notifications_ok)
-                        } else {
-                            stringResource(R.string.settings_teyes_runtime_notifications_denied)
-                        },
-                        onClick = { viewModel.openNotificationSettings() }
-                    )
-                    SettingsGroupDivider()
-                    SettingsNavigationRow(
-                        label = stringResource(R.string.settings_open_app_details),
-                        onClick = { viewModel.openAppDetails() }
-                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsGroup {
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_teyes_auto_start),
+                            checked = teyesChecklist.autoStart,
+                            onCheckedChange = { viewModel.setTeyesChecklistItem("auto_start", it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_teyes_battery),
+                            checked = teyesChecklist.batteryUnrestricted,
+                            onCheckedChange = { viewModel.setTeyesChecklistItem("battery", it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_teyes_lock),
+                            checked = teyesChecklist.lockInRecents,
+                            onCheckedChange = { viewModel.setTeyesChecklistItem("lock", it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_teyes_boot),
+                            checked = teyesChecklist.bootCompleted,
+                            onCheckedChange = { viewModel.setTeyesChecklistItem("boot", it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_teyes_auto_run_awake),
+                            checked = teyesChecklist.autoRunAwake,
+                            onCheckedChange = { viewModel.setTeyesChecklistItem("auto_run_awake", it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsNavigationRow(
+                            label = if (serviceRunning) {
+                                stringResource(R.string.settings_teyes_service_running)
+                            } else {
+                                stringResource(R.string.settings_teyes_service_stopped)
+                            },
+                            onClick = { viewModel.openAppDetails() }
+                        )
+                        SettingsGroupDivider()
+                        SettingsNavigationRow(
+                            label = if (batteryUnrestricted) {
+                                stringResource(R.string.settings_teyes_runtime_battery_ok)
+                            } else {
+                                stringResource(R.string.settings_teyes_runtime_battery_restricted)
+                            },
+                            onClick = { viewModel.openBatterySettings() }
+                        )
+                        SettingsGroupDivider()
+                        SettingsNavigationRow(
+                            label = if (notificationsEnabled) {
+                                stringResource(R.string.settings_teyes_runtime_notifications_ok)
+                            } else {
+                                stringResource(R.string.settings_teyes_runtime_notifications_denied)
+                            },
+                            onClick = { viewModel.openNotificationSettings() }
+                        )
+                        SettingsGroupDivider()
+                        SettingsNavigationRow(
+                            label = stringResource(R.string.settings_open_app_details),
+                            onClick = { viewModel.openAppDetails() }
+                        )
+                        SettingsGroupDivider()
+                        Text(
+                            text = stringResource(R.string.settings_teyes_auto_run_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
                 }
-            }
 
-            item {
-                SettingsSectionHeader(
-                    title = stringResource(R.string.settings_teyes_home_title),
-                    subtitle = stringResource(R.string.widget_teyes_panel_hint)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsGroup {
-                    SettingsNavigationRow(
-                        label = if (widgetActive) {
-                            stringResource(R.string.widget_dashboard_active)
-                        } else {
-                            stringResource(R.string.widget_dashboard_inactive)
-                        },
-                        onClick = { viewModel.pinWidgetToHome() }
+                item {
+                    SettingsSectionHeader(
+                        title = stringResource(R.string.settings_teyes_home_title),
+                        subtitle = stringResource(R.string.widget_teyes_panel_hint)
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsGroup {
+                        SettingsNavigationRow(
+                            label = if (widgetActive) {
+                                stringResource(R.string.widget_dashboard_active)
+                            } else {
+                                stringResource(R.string.widget_dashboard_inactive)
+                            },
+                            onClick = { viewModel.pinWidgetToHome() }
+                        )
+                        SettingsGroupDivider()
+                        SettingsNavigationRow(
+                            label = stringResource(R.string.widget_pin_compact),
+                            onClick = { viewModel.pinCompactWidget() }
+                        )
+                        SettingsGroupDivider()
+                        SettingsNavigationRow(
+                            label = stringResource(R.string.settings_frontapp_hint),
+                            onClick = { viewModel.openFrontAppStore() }
+                        )
+                        SettingsGroupDivider()
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            Text(
+                                text = stringResource(R.string.settings_widget_theme),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                            WidgetThemeMode.entries.forEachIndexed { index, mode ->
+                                if (index > 0) SettingsGroupDivider()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { viewModel.setWidgetThemeMode(mode) }
+                                        .padding(start = 8.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = widgetThemeMode == mode,
+                                        onClick = { viewModel.setWidgetThemeMode(mode) },
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    )
+                                    Text(
+                                        text = when (mode) {
+                                            WidgetThemeMode.AUTO -> stringResource(R.string.settings_widget_theme_auto)
+                                            WidgetThemeMode.LIGHT -> stringResource(R.string.settings_widget_theme_light)
+                                            WidgetThemeMode.DARK -> stringResource(R.string.settings_widget_theme_dark)
+                                        },
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    SettingsSectionHeader(title = stringResource(R.string.settings_teyes_experience))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsGroup {
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_silent_startup),
+                            checked = silentStartup,
+                            onCheckedChange = { viewModel.setSilentStartup(it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_floating_overlay),
+                            checked = floatingOverlayEnabled,
+                            onCheckedChange = { viewModel.setFloatingOverlayEnabled(it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_critical_alerts_fullscreen),
+                            checked = criticalAlertsFullscreen,
+                            onCheckedChange = { viewModel.setCriticalAlertsFullscreen(it) }
+                        )
+                    }
                 }
             }
 
@@ -504,6 +599,13 @@ fun SettingsScreen(
                             label = stringResource(R.string.settings_usb_debug_title),
                             description = stringResource(R.string.settings_usb_debug_hint),
                             onClick = onNavigateToDebug
+                        )
+                        SettingsGroupDivider()
+                        SettingsValueRow(
+                            label = stringResource(R.string.settings_preferred_usb_dongle),
+                            value = preferredUsbVidPid?.ifBlank { null }
+                                ?: stringResource(R.string.settings_auto),
+                            onClick = { viewModel.cyclePreferredUsbDevice() }
                         )
                         SettingsGroupDivider()
                         Column(modifier = Modifier.padding(vertical = 4.dp)) {
