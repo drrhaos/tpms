@@ -18,6 +18,21 @@
     <string name="notification_service_stopped_title">Мониторинг TPMS остановлен</string>
     <string name="notification_service_stopped_body">Мониторинг выключен — нажмите, чтобы перезапустить</string>
     <string name="notification_protocol_warn">Нет валидных данных датчиков</string>
+    <string name="notification_usb_permission_title">Нужно разрешение USB</string>
+    <string name="notification_usb_permission_body">Откройте TPMS Монитор, чтобы разрешить доступ к донглу</string>
+    <string name="notification_monitoring_blind_title">Данные TPMS недоступны</string>
+    <string name="notification_monitoring_blind_body">Нет свежих данных давления — проверьте донгл и датчики</string>
+    <string name="notification_monitoring_offline_title">Мониторинг TPMS офлайн</string>
+    <string name="notification_monitoring_offline_body">USB-донгл отключён — контроль давления не активен</string>
+    <string name="widget_status_stale_format">%1$s · %2$d мин назад</string>
+    <string name="widget_status_stale_short">%1$s · устарело</string>
+    <string name="main_data_stale_warning">Данные датчиков могут быть устаревшими (%1$d мин назад)</string>
+    <string name="settings_teyes_auto_run_awake">Автозапуск при пробуждении (Настройки → Общие)</string>
+    <string name="settings_teyes_runtime_battery_ok">Батарея: без ограничений</string>
+    <string name="settings_teyes_runtime_battery_restricted">Батарея: ограничена — нажмите для исправления</string>
+    <string name="settings_teyes_runtime_notifications_ok">Уведомления: включены</string>
+    <string name="settings_teyes_runtime_notifications_denied">Уведомления: отключены — нажмите для исправления</string>
+    <string name="settings_teyes_checklist_hint">Выполните все пункты для стабильного фонового мониторинга на Teyes CC3.</string>
 
     <!-- Status -->
     <string name="status_alert_format">%1$s — %2$s</string>

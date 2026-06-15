@@ -15,21 +15,30 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
+        val attempt = intent.getIntExtra(BootStartScheduler.EXTRA_ATTEMPT, 0)
         val entryPoint = EntryPointAccessors.fromApplication(
             context.applicationContext,
             UsbReceiverEntryPoint::class.java
         )
         val debugLog = entryPoint.debugLog()
 
-        debugLog.info(TAG, "Boot event: $action — starting TPMS service")
+        debugLog.info(TAG, "Boot event: $action attempt=$attempt — starting TPMS service")
         runCatching {
             TpmsMonitorService.start(context)
         }.onSuccess {
             BootStartScheduler.cancel(context)
         }.onFailure { error ->
             Log.w(TAG, "Foreground service start failed on boot", error)
-            debugLog.warn(TAG, "Boot start failed: ${error.message} — scheduling delayed retry")
-            BootStartScheduler.scheduleDelayedStart(context)
+            val nextAttempt = attempt + 1
+            if (nextAttempt < BootStartScheduler.maxAttempts()) {
+                debugLog.warn(
+                    TAG,
+                    "Boot start failed: ${error.message} — scheduling retry #$nextAttempt"
+                )
+                BootStartScheduler.scheduleDelayedStart(context, nextAttempt)
+            } else {
+                debugLog.error(TAG, "Boot start failed after ${BootStartScheduler.maxAttempts()} attempts")
+            }
         }
     }
 

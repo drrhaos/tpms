@@ -17,8 +17,8 @@ class PowerEventReceiver : BroadcastReceiver() {
 
         when (intent.action) {
             Intent.ACTION_SCREEN_ON -> {
-                debugLog.info("Power", "SCREEN_ON — resuming USB monitor")
-                TpmsMonitorService.wake(context)
+                debugLog.info("Power", "SCREEN_ON — wake escalation")
+                WakeEscalationScheduler.onScreenOn(context)
             }
             Intent.ACTION_SCREEN_OFF -> {
                 debugLog.info("Power", "SCREEN_OFF")

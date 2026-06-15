@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -61,6 +63,8 @@ import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.theme.TpmsColors
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,12 +85,31 @@ fun SettingsScreen(
     val alertSoundEnabled by viewModel.alertSoundEnabled.collectAsState()
     val alertVibrationEnabled by viewModel.alertVibrationEnabled.collectAsState()
     val showSpareWheel by viewModel.showSpareWheel.collectAsState()
+    val teyesChecklist by viewModel.teyesChecklist.collectAsState()
+    val batteryUnrestricted by viewModel.batteryUnrestricted.collectAsState()
+    val notificationsEnabled by viewModel.notificationsEnabled.collectAsState()
+    val widgetActive by viewModel.widgetActive.collectAsState()
     val staleFrameTimeoutSec by viewModel.staleFrameTimeoutSec.collectAsState()
     val minLiveWheelPressure by viewModel.minLiveWheelPressure.collectAsState()
     val importExportMessage by viewModel.importExportMessage.collectAsState()
     var importJson by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshRuntimeSetupStatus()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshRuntimeSetupStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(importExportMessage) {
         importExportMessage?.let {
@@ -366,6 +389,86 @@ fun SettingsScreen(
                             onCheckedChange = { viewModel.setShowSpareWheel(it) }
                         )
                     }
+                }
+            }
+
+            item {
+                SettingsSectionHeader(
+                    title = stringResource(R.string.settings_teyes_permissions),
+                    subtitle = stringResource(R.string.settings_teyes_checklist_hint)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsGroup {
+                    SettingsSwitchRow(
+                        label = stringResource(R.string.settings_teyes_auto_start),
+                        checked = teyesChecklist.autoStart,
+                        onCheckedChange = { viewModel.setTeyesChecklistItem("auto_start", it) }
+                    )
+                    SettingsGroupDivider()
+                    SettingsSwitchRow(
+                        label = stringResource(R.string.settings_teyes_battery),
+                        checked = teyesChecklist.batteryUnrestricted,
+                        onCheckedChange = { viewModel.setTeyesChecklistItem("battery", it) }
+                    )
+                    SettingsGroupDivider()
+                    SettingsSwitchRow(
+                        label = stringResource(R.string.settings_teyes_lock),
+                        checked = teyesChecklist.lockInRecents,
+                        onCheckedChange = { viewModel.setTeyesChecklistItem("lock", it) }
+                    )
+                    SettingsGroupDivider()
+                    SettingsSwitchRow(
+                        label = stringResource(R.string.settings_teyes_boot),
+                        checked = teyesChecklist.bootCompleted,
+                        onCheckedChange = { viewModel.setTeyesChecklistItem("boot", it) }
+                    )
+                    SettingsGroupDivider()
+                    SettingsSwitchRow(
+                        label = stringResource(R.string.settings_teyes_auto_run_awake),
+                        checked = teyesChecklist.autoRunAwake,
+                        onCheckedChange = { viewModel.setTeyesChecklistItem("auto_run_awake", it) }
+                    )
+                    SettingsGroupDivider()
+                    SettingsNavigationRow(
+                        label = if (batteryUnrestricted) {
+                            stringResource(R.string.settings_teyes_runtime_battery_ok)
+                        } else {
+                            stringResource(R.string.settings_teyes_runtime_battery_restricted)
+                        },
+                        onClick = { viewModel.openBatterySettings() }
+                    )
+                    SettingsGroupDivider()
+                    SettingsNavigationRow(
+                        label = if (notificationsEnabled) {
+                            stringResource(R.string.settings_teyes_runtime_notifications_ok)
+                        } else {
+                            stringResource(R.string.settings_teyes_runtime_notifications_denied)
+                        },
+                        onClick = { viewModel.openNotificationSettings() }
+                    )
+                    SettingsGroupDivider()
+                    SettingsNavigationRow(
+                        label = stringResource(R.string.settings_open_app_details),
+                        onClick = { viewModel.openAppDetails() }
+                    )
+                }
+            }
+
+            item {
+                SettingsSectionHeader(
+                    title = stringResource(R.string.settings_teyes_home_title),
+                    subtitle = stringResource(R.string.widget_teyes_panel_hint)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsGroup {
+                    SettingsNavigationRow(
+                        label = if (widgetActive) {
+                            stringResource(R.string.widget_dashboard_active)
+                        } else {
+                            stringResource(R.string.widget_dashboard_inactive)
+                        },
+                        onClick = { viewModel.pinWidgetToHome() }
+                    )
                 }
             }
 

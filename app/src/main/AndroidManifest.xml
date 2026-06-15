@@ -63,6 +63,22 @@
             android:exported="false" />
 
         <receiver
+            android:name=".service.ServiceLivenessReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.tpms.app.action.SERVICE_LIVENESS_CHECK" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".service.WakeEscalationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.tpms.app.action.WAKE_ESCALATION" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".service.BootReceiver"
             android:exported="true">
             <intent-filter>

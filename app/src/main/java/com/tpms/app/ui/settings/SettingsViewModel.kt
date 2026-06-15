@@ -9,12 +9,14 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.AlertNotificationPrefs
 import com.tpms.app.data.settings.SettingsExporter
 import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
-import dagger.hilt.android.lifecycle.HiltViewModel
+import com.tpms.app.startup.TeyesSetupStatusProvider
+import com.tpms.app.ui.widget.TpmsWidgetHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,7 +31,8 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsStore: SettingsStore,
-    private val repository: TpmsRepository
+    private val repository: TpmsRepository,
+    private val teyesSetupStatusProvider: TeyesSetupStatusProvider
 ) : ViewModel() {
 
     private val _pressureUnit = MutableStateFlow(PressureUnit.KPA)
@@ -74,6 +77,18 @@ class SettingsViewModel @Inject constructor(
     private val _importExportMessage = MutableStateFlow<String?>(null)
     val importExportMessage: StateFlow<String?> = _importExportMessage.asStateFlow()
 
+    private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
+    val teyesChecklist: StateFlow<TeyesChecklist> = _teyesChecklist.asStateFlow()
+
+    private val _batteryUnrestricted = MutableStateFlow(true)
+    val batteryUnrestricted: StateFlow<Boolean> = _batteryUnrestricted.asStateFlow()
+
+    private val _notificationsEnabled = MutableStateFlow(true)
+    val notificationsEnabled: StateFlow<Boolean> = _notificationsEnabled.asStateFlow()
+
+    private val _widgetActive = MutableStateFlow(false)
+    val widgetActive: StateFlow<Boolean> = _widgetActive.asStateFlow()
+
     val knownSensorIds: StateFlow<List<String>> = repository.sensors
         .combine(_wheelMapping) { sensors, _ ->
             sensors.keys.sorted()
@@ -105,6 +120,30 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.showSpareWheel.collect { _showSpareWheel.value = it }
         }
+        viewModelScope.launch {
+            settingsStore.teyesChecklist.collect { _teyesChecklist.value = it }
+        }
+        refreshRuntimeSetupStatus()
+    }
+
+    fun refreshRuntimeSetupStatus() {
+        _batteryUnrestricted.value = teyesSetupStatusProvider.isBatteryUnrestricted(context)
+        _notificationsEnabled.value = teyesSetupStatusProvider.areNotificationsEnabled(context)
+        _widgetActive.value = TpmsWidgetHelper.hasActiveWidgets(context)
+    }
+
+    fun setTeyesChecklistItem(key: String, checked: Boolean) {
+        viewModelScope.launch { settingsStore.setTeyesChecklistItem(key, checked) }
+    }
+
+    fun openAppDetails() = TeyesPermissionHelper.openAppDetails(context)
+    fun openBatterySettings() = TeyesPermissionHelper.openBatteryOptimization(context)
+    fun openNotificationSettings() = TeyesPermissionHelper.openNotificationSettings(context)
+
+    fun pinWidgetToHome(): Boolean {
+        val accepted = TpmsWidgetHelper.requestPinToTeyesPanel(context)
+        refreshRuntimeSetupStatus()
+        return accepted
     }
 
     private fun loadThresholdsFromStore() {

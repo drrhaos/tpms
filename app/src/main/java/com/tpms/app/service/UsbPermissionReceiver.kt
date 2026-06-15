@@ -14,6 +14,7 @@ class UsbPermissionReceiver : BroadcastReceiver() {
         val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
         if (granted) {
             Log.d(TAG, "USB permission granted — waking service")
+            UsbPermissionNotifier.dismiss(context)
             TpmsMonitorService.wake(context)
         } else {
             Log.w(TAG, "USB permission denied")

@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import com.tpms.app.R
 import com.tpms.app.TpmsApplication
 import com.tpms.app.data.diagnostics.ServiceHealth
+import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbConnection
@@ -45,6 +46,8 @@ class TpmsMonitorService : Service() {
 
     @Inject lateinit var repository: TpmsRepository
     @Inject lateinit var alertNotifier: AlertNotifier
+    @Inject lateinit var monitoringHealthNotifier: MonitoringHealthNotifier
+    @Inject lateinit var heartbeatStore: ServiceHeartbeatStore
     @Inject lateinit var settingsStore: SettingsStore
     @Inject lateinit var serviceHealth: ServiceHealth
 
@@ -100,7 +103,9 @@ class TpmsMonitorService : Service() {
 
         startForeground(NOTIF_ID, buildPersistentNotification())
         ServiceStoppedNotifier.dismiss(this)
+        UsbPermissionNotifier.dismiss(this)
         BootStartScheduler.cancel(this)
+        ServiceLivenessScheduler.schedule(this)
         _isRunning.value = true
         if (pollingJob?.isActive != true) {
             startPolling()
@@ -127,6 +132,7 @@ class TpmsMonitorService : Service() {
         if (!intentionalStop) {
             ServiceStoppedNotifier.show(this)
         }
+        ServiceLivenessScheduler.cancel(this)
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -229,6 +235,8 @@ class TpmsMonitorService : Service() {
             runCatching { repository.readSensor() }
             runCatching { repository.checkSensorTimeouts() }
             runCatching { updateWidget() }
+            runCatching { evaluateMonitoringHealth() }
+            serviceScope.launch { heartbeatStore.recordBeat() }
             withContext(Dispatchers.Main) {
                 refreshPersistentNotification()
             }
@@ -243,15 +251,24 @@ class TpmsMonitorService : Service() {
         manager.notify(NOTIF_ID, buildPersistentNotification())
     }
 
-    private suspend fun updateWidget() {
-        val snapshot = WidgetSnapshot.from(
-            this,
-            state = repository.state.value,
-            sensors = repository.sensors.value,
-            unit = settingsStore.pressureUnit.value,
-            wheelMapping = settingsStore.wheelMapping.value,
-            showSpareWheel = settingsStore.showSpareWheel.value
+    private fun evaluateMonitoringHealth() {
+        if (repository.sensors.value.isEmpty() && !repository.isUsbConnected()) {
+            monitoringHealthNotifier.clear()
+            return
+        }
+        monitoringHealthNotifier.evaluate(
+            disconnectedSinceMs = if (repository.state.value is TpmsState.Disconnected) {
+                repository.disconnectedSinceMs()
+            } else {
+                null
+            },
+            dongleOpenedAtMs = repository.dongleOpenedAtMs(),
+            lastValidFrameAtMs = repository.lastValidFrameAtMs()
         )
+    }
+
+    private suspend fun updateWidget() {
+        val snapshot = buildWidgetSnapshot()
         withContext(Dispatchers.Main) {
             runCatching { TpmsWidget.pushUpdate(this@TpmsMonitorService, snapshot) }
         }
@@ -267,17 +284,22 @@ class TpmsMonitorService : Service() {
         }
     }
 
-    private fun buildPersistentNotification(): android.app.Notification {
-        val statusLine = repository.serviceStatusLine()
-        val protocolUnhealthy = repository.isProtocolUnhealthy()
-        val snapshot = WidgetSnapshot.from(
+    private fun buildWidgetSnapshot(): WidgetSnapshot =
+        WidgetSnapshot.from(
             this,
             state = repository.state.value,
             sensors = repository.sensors.value,
             unit = settingsStore.pressureUnit.value,
             wheelMapping = settingsStore.wheelMapping.value,
-            showSpareWheel = settingsStore.showSpareWheel.value
+            showSpareWheel = settingsStore.showSpareWheel.value,
+            dataAgeSec = repository.newestSensorAgeSec(),
+            dataStale = repository.isDataStale()
         )
+
+    private fun buildPersistentNotification(): android.app.Notification {
+        val statusLine = repository.serviceStatusLine()
+        val protocolUnhealthy = repository.isProtocolUnhealthy()
+        val snapshot = buildWidgetSnapshot()
         val collapsed = WidgetRemoteViews.forNotificationCollapsed(this, snapshot)
         val expanded = WidgetRemoteViews.forNotificationExpanded(this, snapshot, statusLine)
         val summary = buildString {

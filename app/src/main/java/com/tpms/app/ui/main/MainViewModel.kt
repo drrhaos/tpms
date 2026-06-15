@@ -8,6 +8,7 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.WheelLayout
+import com.tpms.app.startup.TeyesSetupStatusProvider
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -31,14 +32,18 @@ data class MainUiState(
     val wheelSlotLabels: List<String> = WheelLayout.ORDER,
     val wheelMapping: Map<String, String> = emptyMap(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
-    val lastError: String? = null
+    val lastError: String? = null,
+    val teyesSetupNeedsAttention: Boolean = false,
+    val dataStale: Boolean = false,
+    val dataAgeMinutes: Long? = null
 )
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     application: Application,
-    repository: TpmsRepository,
+    private val repository: TpmsRepository,
     settingsStore: SettingsStore,
+    private val teyesSetupStatusProvider: TeyesSetupStatusProvider,
     private val debugLog: UsbDebugLog,
     private val uiBreadcrumbs: UiBreadcrumbs
 ) : AndroidViewModel(application) {
@@ -49,8 +54,9 @@ class MainViewModel @Inject constructor(
         combine(
             settingsStore.pressureUnit,
             settingsStore.wheelMapping,
-            settingsStore.showSpareWheel
-        ) { unit, mapping, spare ->
+            settingsStore.showSpareWheel,
+            settingsStore.teyesChecklist
+        ) { unit, mapping, spare, _ ->
             MainSettingsBundle(unit, mapping, spare)
         }
     ) { tpmsState, sensors, settings ->
@@ -81,13 +87,19 @@ class MainViewModel @Inject constructor(
         return try {
             val slots = WheelLayout.allSlots(settings.showSpareWheel)
             val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
+            val setupStatus = teyesSetupStatusProvider.current(getApplication())
+            val ageSec = repository.newestSensorAgeSec()
+            val stale = repository.isDataStale()
             MainUiState(
                 tpmsState = tpmsState,
                 sensors = sensors,
                 wheelSlots = wheelSlots,
                 wheelSlotLabels = slots,
                 wheelMapping = settings.wheelMapping,
-                pressureUnit = settings.pressureUnit
+                pressureUnit = settings.pressureUnit,
+                teyesSetupNeedsAttention = setupStatus.needsAttention,
+                dataStale = stale,
+                dataAgeMinutes = ageSec?.let { (it / 60).coerceAtLeast(1) }
             )
         } catch (error: Exception) {
             debugLog.error("MainScreen", uiBreadcrumbs.describe())

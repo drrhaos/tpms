@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
 import com.tpms.app.data.usb.UsbPermissionHelper
+import com.tpms.app.service.UsbPermissionNotifier
 import com.tpms.app.ui.settings.TeyesPermissionHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -50,7 +51,10 @@ class StartupPermissionCoordinator @Inject constructor(
     private fun requestUsbPermissionIfNeeded(activity: Activity) {
         runCatching {
             val device = usbPermissionHelper.findDongle() ?: return
-            if (usbPermissionHelper.hasPermission(device)) return
+            if (usbPermissionHelper.hasPermission(device)) {
+                UsbPermissionNotifier.dismiss(activity)
+                return
+            }
             debugLog.usb("App", "Requesting USB permission for ${UsbDeviceInfo.shortLabel(device)}")
             usbPermissionHelper.requestPermission(activity, device)
         }.onFailure { error ->

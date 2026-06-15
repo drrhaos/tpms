@@ -39,6 +39,7 @@ object SettingsExporter {
         put("teyes_battery", teyesChecklist.batteryUnrestricted)
         put("teyes_lock", teyesChecklist.lockInRecents)
         put("teyes_boot", teyesChecklist.bootCompleted)
+        put("teyes_auto_run_awake", teyesChecklist.autoRunAwake)
         put("wheel_mapping", JSONObject().apply {
             WheelLayout.allSlots(showSpareWheel).forEach { slot ->
                 put(slot, wheelMapping[slot].orEmpty())
@@ -85,7 +86,8 @@ object SettingsExporter {
                 autoStart = root.optBoolean("teyes_auto_start", false),
                 batteryUnrestricted = root.optBoolean("teyes_battery", false),
                 lockInRecents = root.optBoolean("teyes_lock", false),
-                bootCompleted = root.optBoolean("teyes_boot", false)
+                bootCompleted = root.optBoolean("teyes_boot", false),
+                autoRunAwake = root.optBoolean("teyes_auto_run_awake", false)
             ),
             wheelMapping = slots.associateWith { slot ->
                 wheelMappingJson?.optString(slot, "").orEmpty()

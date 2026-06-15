@@ -6,6 +6,7 @@ import com.tpms.app.data.db.SensorReading
 import com.tpms.app.data.diagnostics.DiagnosticsExporter
 import com.tpms.app.data.diagnostics.ServiceHealth
 import com.tpms.app.data.diagnostics.UiBreadcrumbs
+import com.tpms.app.data.persistence.LastKnownSnapshotStore
 import com.tpms.app.data.usb.DongleDetector
 import com.tpms.app.data.usb.TpmsProtocolRouter
 import com.tpms.app.data.usb.UsbConnection
@@ -14,12 +15,17 @@ import com.tpms.app.data.usb.UsbDeviceInfo
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.AlertEvaluator
 import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.domain.MonitoringHealthPolicy
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,8 +42,10 @@ class TpmsRepository @Inject constructor(
     private val debugLog: UsbDebugLog,
     private val diagnosticsExporter: DiagnosticsExporter,
     private val uiBreadcrumbs: UiBreadcrumbs,
-    private val serviceHealth: ServiceHealth
+    private val serviceHealth: ServiceHealth,
+    private val lastKnownSnapshotStore: LastKnownSnapshotStore
 ) {
+    private val repoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow<TpmsState>(TpmsState.Disconnected)
     val state = _state.asStateFlow()
 
@@ -60,10 +68,29 @@ class TpmsRepository @Inject constructor(
     @Volatile
     private var isReconnecting: Boolean = false
 
+    @Volatile
+    private var disconnectedSinceMs: Long? = null
+
+    @Volatile
+    private var restoredFromSnapshot: Boolean = false
+
     init {
         usbConnection.onReadTimeout = {
             serviceHealth.recordReadTimeout()
         }
+        repoScope.launch {
+            settingsStore.awaitLoaded()
+            restoreLastKnownIfNeeded()
+        }
+    }
+
+    private suspend fun restoreLastKnownIfNeeded() {
+        if (_sensors.value.isNotEmpty()) return
+        val restored = lastKnownSnapshotStore.load() ?: return
+        _sensors.value = restored
+        restoredFromSnapshot = true
+        _state.value = TpmsState.Disconnected
+        debugLog.info("Repository", "Restored ${restored.size} sensors from last-known snapshot")
     }
 
     fun onAlert(callback: (TireSensor) -> Unit) {
@@ -85,6 +112,16 @@ class TpmsRepository @Inject constructor(
         runCatching { usbConnection.probe() }.getOrDefault(false)
 
     fun isReconnecting(): Boolean = isReconnecting
+
+    fun disconnectedSinceMs(): Long? = disconnectedSinceMs
+
+    fun newestSensorAgeSec(now: Long = System.currentTimeMillis()): Long? =
+        MonitoringHealthPolicy.newestSensorAgeSec(_sensors.value.values, now)
+
+    fun isDataStale(now: Long = System.currentTimeMillis()): Boolean {
+        val age = newestSensorAgeSec(now) ?: return restoredFromSnapshot
+        return age > MonitoringHealthPolicy.DATA_STALE_UI_SEC
+    }
 
     fun isProtocolUnhealthy(now: Long = System.currentTimeMillis()): Boolean =
         ConnectionHealthPolicy.isProtocolUnhealthy(
@@ -171,6 +208,8 @@ class TpmsRepository @Inject constructor(
     fun lastFrameAtMs(): Long = lastFrameAtMs
 
     fun lastValidFrameAtMs(): Long = lastValidFrameAtMs
+
+    fun dongleOpenedAtMs(): Long = dongleOpenedAtMs
 
     fun lastPollCompletedAtMs(): Long = serviceHealth.lastPollCompletedAtMs
 
@@ -270,6 +309,13 @@ class TpmsRepository @Inject constructor(
     }
 
     fun updateState(state: TpmsState) {
+        val wasDisconnected = _state.value is TpmsState.Disconnected
+        val isDisconnected = state is TpmsState.Disconnected
+        if (isDisconnected && !wasDisconnected) {
+            disconnectedSinceMs = System.currentTimeMillis()
+        } else if (!isDisconnected) {
+            disconnectedSinceMs = null
+        }
         _state.value = state
     }
 
@@ -324,7 +370,9 @@ class TpmsRepository @Inject constructor(
             } else {
                 onSensorNormalCallback?.invoke(sensor.id)
             }
+            restoredFromSnapshot = false
             refreshConnectionState(sensor.timestamp)
+            persistLastKnown()
         } catch (e: Exception) {
             debugLog.warn("Repository", "applySensorUpdate failed: ${e.message}")
         }
@@ -347,6 +395,14 @@ class TpmsRepository @Inject constructor(
             }
         } catch (e: Exception) {
             debugLog.warn("Repository", "refreshConnectionState failed: ${e.message}")
+        }
+    }
+
+    private fun persistLastKnown() {
+        val snapshot = _sensors.value
+        if (snapshot.isEmpty()) return
+        repoScope.launch {
+            runCatching { lastKnownSnapshotStore.save(snapshot) }
         }
     }
 

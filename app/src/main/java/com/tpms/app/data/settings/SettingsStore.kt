@@ -32,7 +32,8 @@ data class TeyesChecklist(
     val autoStart: Boolean = false,
     val batteryUnrestricted: Boolean = false,
     val lockInRecents: Boolean = false,
-    val bootCompleted: Boolean = false
+    val bootCompleted: Boolean = false,
+    val autoRunAwake: Boolean = false
 )
 
 data class AlertNotificationPrefs(
@@ -114,7 +115,8 @@ class SettingsStore @Inject constructor(
                     autoStart = prefs[KEY_TEYES_AUTO_START] ?: false,
                     batteryUnrestricted = prefs[KEY_TEYES_BATTERY] ?: false,
                     lockInRecents = prefs[KEY_TEYES_LOCK] ?: false,
-                    bootCompleted = prefs[KEY_TEYES_BOOT] ?: false
+                    bootCompleted = prefs[KEY_TEYES_BOOT] ?: false,
+                    autoRunAwake = prefs[KEY_TEYES_AUTO_RUN_AWAKE] ?: false
                 )
 
                 _alertNotificationPrefs.value = AlertNotificationPrefs(
@@ -175,6 +177,7 @@ class SettingsStore @Inject constructor(
             "battery" -> KEY_TEYES_BATTERY
             "lock" -> KEY_TEYES_LOCK
             "boot" -> KEY_TEYES_BOOT
+            "auto_run_awake" -> KEY_TEYES_AUTO_RUN_AWAKE
             else -> return
         }
         context.settingsDataStore.edit { it[prefKey] = checked }
@@ -208,6 +211,7 @@ class SettingsStore @Inject constructor(
             prefs[KEY_TEYES_BATTERY] = imported.teyesChecklist.batteryUnrestricted
             prefs[KEY_TEYES_LOCK] = imported.teyesChecklist.lockInRecents
             prefs[KEY_TEYES_BOOT] = imported.teyesChecklist.bootCompleted
+            prefs[KEY_TEYES_AUTO_RUN_AWAKE] = imported.teyesChecklist.autoRunAwake
             WheelLayout.allSlots(imported.showSpareWheel).forEach { slot ->
                 prefs[wheelMappingKey(slot)] = imported.wheelMapping[slot].orEmpty()
             }
@@ -219,7 +223,8 @@ class SettingsStore @Inject constructor(
         return checklist.autoStart &&
             checklist.batteryUnrestricted &&
             checklist.lockInRecents &&
-            checklist.bootCompleted
+            checklist.bootCompleted &&
+            checklist.autoRunAwake
     }
 
     companion object {
@@ -240,6 +245,7 @@ class SettingsStore @Inject constructor(
         private val KEY_TEYES_BATTERY = booleanPreferencesKey("teyes_battery")
         private val KEY_TEYES_LOCK = booleanPreferencesKey("teyes_lock")
         private val KEY_TEYES_BOOT = booleanPreferencesKey("teyes_boot")
+        private val KEY_TEYES_AUTO_RUN_AWAKE = booleanPreferencesKey("teyes_auto_run_awake")
         private val KEY_ALERT_SOUND = booleanPreferencesKey("alert_sound")
         private val KEY_ALERT_VIBRATION = booleanPreferencesKey("alert_vibration")
 

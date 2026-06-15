@@ -27,7 +27,9 @@ data class WidgetTireSlot(
 data class WidgetSnapshot(
     val connectionStatus: String,
     val unitLabel: String,
-    val tires: List<WidgetTireSlot>
+    val tires: List<WidgetTireSlot>,
+    val dataAgeSec: Long? = null,
+    val dataStale: Boolean = false
 ) {
     companion object {
         fun from(
@@ -36,7 +38,9 @@ data class WidgetSnapshot(
             sensors: Map<String, TireSensor>,
             unit: PressureUnit,
             wheelMapping: Map<String, String> = emptyMap(),
-            showSpareWheel: Boolean = false
+            showSpareWheel: Boolean = false,
+            dataAgeSec: Long? = null,
+            dataStale: Boolean = false
         ): WidgetSnapshot {
             val slots = WheelLayout.allSlots(showSpareWheel)
             val ordered = WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel)
@@ -45,7 +49,18 @@ data class WidgetSnapshot(
                 formatTireSlot(context, sensor, slot, unit)
             }
 
-            return WidgetSnapshot(state.widgetStatusLabel(context), unit.localizedLabel(context), tires)
+            val baseStatus = state.widgetStatusLabel(context)
+            val status = when {
+                dataStale && dataAgeSec != null -> {
+                    val minutes = (dataAgeSec / 60).coerceAtLeast(1)
+                    context.getString(R.string.widget_status_stale_format, baseStatus, minutes)
+                }
+                dataStale ->
+                    context.getString(R.string.widget_status_stale_short, baseStatus)
+                else -> baseStatus
+            }
+
+            return WidgetSnapshot(status, unit.localizedLabel(context), tires, dataAgeSec, dataStale)
         }
 
         fun empty(

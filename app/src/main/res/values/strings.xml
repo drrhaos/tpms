@@ -18,6 +18,21 @@
     <string name="notification_service_stopped_title">TPMS monitor stopped</string>
     <string name="notification_service_stopped_body">Monitoring is off — tap to restart</string>
     <string name="notification_protocol_warn">No valid sensor data</string>
+    <string name="notification_usb_permission_title">USB permission required</string>
+    <string name="notification_usb_permission_body">Open TPMS Monitor to allow the TPMS dongle</string>
+    <string name="notification_monitoring_blind_title">TPMS data unavailable</string>
+    <string name="notification_monitoring_blind_body">No fresh tire pressure data — check dongle and sensors</string>
+    <string name="notification_monitoring_offline_title">TPMS monitoring offline</string>
+    <string name="notification_monitoring_offline_body">USB dongle disconnected — tire monitoring is not active</string>
+    <string name="widget_status_stale_format">%1$s · %2$d min ago</string>
+    <string name="widget_status_stale_short">%1$s · stale</string>
+    <string name="main_data_stale_warning">Sensor data may be outdated (%1$d min ago)</string>
+    <string name="settings_teyes_auto_run_awake">Auto run when device awake (Settings → General)</string>
+    <string name="settings_teyes_runtime_battery_ok">Battery: unrestricted</string>
+    <string name="settings_teyes_runtime_battery_restricted">Battery: restricted — tap to fix</string>
+    <string name="settings_teyes_runtime_notifications_ok">Notifications: enabled</string>
+    <string name="settings_teyes_runtime_notifications_denied">Notifications: disabled — tap to fix</string>
+    <string name="settings_teyes_checklist_hint">Complete all items for stable background monitoring on Teyes CC3.</string>
 
     <!-- Status -->
     <string name="status_alert_format">%1$s — %2$s</string>
