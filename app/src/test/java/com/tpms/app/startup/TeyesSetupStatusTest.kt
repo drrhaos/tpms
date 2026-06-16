@@ -8,6 +8,20 @@ import org.junit.Test
 class TeyesSetupStatusTest {
 
     @Test
+    fun needsAttention_whenServiceStoppedOnAnyDevice() {
+        val status = TeyesSetupStatus(
+            isTeyesDevice = false,
+            checklist = TeyesChecklist(),
+            checklistComplete = true,
+            batteryUnrestricted = true,
+            notificationsEnabled = true,
+            serviceRunning = false,
+            widgetActive = true
+        )
+        assertTrue(status.needsAttention)
+    }
+
+    @Test
     fun needsAttention_whenServiceStoppedOnTeyes() {
         val status = TeyesSetupStatus(
             isTeyesDevice = true,
@@ -29,14 +43,14 @@ class TeyesSetupStatusTest {
     }
 
     @Test
-    fun needsAttention_falseOnNonTeyesEvenIfIncomplete() {
+    fun needsAttention_falseWhenOnlyTeyesChecklistIncompleteOnNonTeyes() {
         val status = TeyesSetupStatus(
             isTeyesDevice = false,
             checklist = TeyesChecklist(),
             checklistComplete = false,
-            batteryUnrestricted = false,
-            notificationsEnabled = false,
-            serviceRunning = false,
+            batteryUnrestricted = true,
+            notificationsEnabled = true,
+            serviceRunning = true,
             widgetActive = false
         )
         assertFalse(status.needsAttention)

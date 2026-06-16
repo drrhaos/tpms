@@ -29,10 +29,12 @@ fun TeyesSetupWarnings(
     modifier: Modifier = Modifier
 ) {
     val messages = buildList {
-        if (!status.serviceRunning) add(R.string.main_teyes_service_stopped)
-        if (!status.notificationsEnabled) add(R.string.settings_teyes_runtime_notifications_denied)
-        if (!status.batteryUnrestricted) add(R.string.settings_teyes_runtime_battery_restricted)
-        if (!status.checklistComplete) add(R.string.main_teyes_checklist_incomplete)
+        if (!status.serviceRunning) add(R.string.main_setup_service_stopped)
+        if (!status.notificationsEnabled) add(R.string.settings_runtime_notifications_denied)
+        if (!status.batteryUnrestricted) add(R.string.settings_runtime_battery_restricted)
+        if (status.isTeyesDevice && !status.checklistComplete) {
+            add(R.string.main_teyes_checklist_incomplete)
+        }
         if (status.showFrontAppHint) add(R.string.main_teyes_frontapp_hint)
     }
     if (messages.isEmpty()) return

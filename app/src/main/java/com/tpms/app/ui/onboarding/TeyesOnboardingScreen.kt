@@ -30,6 +30,7 @@ fun TeyesOnboardingScreen(
     viewModel: TeyesOnboardingViewModel = hiltViewModel()
 ) {
     val step by viewModel.step.collectAsState()
+    val showTeyesSteps = viewModel.showTeyesSteps
 
     Scaffold { padding ->
         Column(
@@ -41,7 +42,9 @@ fun TeyesOnboardingScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = stringResource(R.string.onboarding_title),
+                text = stringResource(
+                    if (showTeyesSteps) R.string.onboarding_title_teyes else R.string.onboarding_title
+                ),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -62,14 +65,25 @@ fun TeyesOnboardingScreen(
                     secondary = stringResource(R.string.onboarding_next),
                     onSecondary = { viewModel.nextStep() }
                 )
-                1 -> OnboardingActions(
-                    primary = stringResource(R.string.onboarding_open_teyes_settings),
-                    onPrimary = { viewModel.openTeyesSettings() },
-                    secondary = stringResource(R.string.onboarding_open_notifications),
-                    onSecondary = { viewModel.openNotifications() },
-                    tertiary = stringResource(R.string.onboarding_next),
-                    onTertiary = { viewModel.nextStep() }
-                )
+                1 -> if (showTeyesSteps) {
+                    OnboardingActions(
+                        primary = stringResource(R.string.onboarding_open_notifications),
+                        onPrimary = { viewModel.openNotifications() },
+                        secondary = stringResource(R.string.onboarding_open_battery),
+                        onSecondary = { viewModel.openBattery() },
+                        tertiary = stringResource(R.string.onboarding_next),
+                        onTertiary = { viewModel.nextStep() }
+                    )
+                } else {
+                    OnboardingActions(
+                        primary = stringResource(R.string.onboarding_open_notifications),
+                        onPrimary = { viewModel.openNotifications() },
+                        secondary = stringResource(R.string.onboarding_open_battery),
+                        onSecondary = { viewModel.openBattery() },
+                        tertiary = stringResource(R.string.onboarding_finish),
+                        onTertiary = { viewModel.complete(onComplete) }
+                    )
+                }
                 2 -> OnboardingActions(
                     primary = stringResource(R.string.onboarding_open_teyes_settings),
                     onPrimary = { viewModel.openTeyesSettings() },

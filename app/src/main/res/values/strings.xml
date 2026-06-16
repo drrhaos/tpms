@@ -28,10 +28,14 @@
     <string name="widget_status_stale_short">%1$s · stale</string>
     <string name="main_data_stale_warning">Sensor data may be outdated (%1$d min ago)</string>
     <string name="settings_teyes_auto_run_awake">Auto run when device awake (Settings → General)</string>
-    <string name="settings_teyes_runtime_battery_ok">Battery: unrestricted</string>
-    <string name="settings_teyes_runtime_battery_restricted">Battery: restricted — tap to fix</string>
-    <string name="settings_teyes_runtime_notifications_ok">Notifications: enabled</string>
-    <string name="settings_teyes_runtime_notifications_denied">Notifications: disabled — tap to fix</string>
+    <string name="settings_runtime_battery_ok">Battery: unrestricted</string>
+    <string name="settings_runtime_battery_restricted">Battery: restricted — tap to fix</string>
+    <string name="settings_runtime_notifications_ok">Notifications: enabled</string>
+    <string name="settings_runtime_notifications_denied">Notifications: disabled — tap to fix</string>
+    <string name="settings_teyes_runtime_battery_ok">@string/settings_runtime_battery_ok</string>
+    <string name="settings_teyes_runtime_battery_restricted">@string/settings_runtime_battery_restricted</string>
+    <string name="settings_teyes_runtime_notifications_ok">@string/settings_runtime_notifications_ok</string>
+    <string name="settings_teyes_runtime_notifications_denied">@string/settings_runtime_notifications_denied</string>
     <string name="settings_teyes_checklist_hint">Complete all items for stable background monitoring on Teyes CC3.</string>
 
     <!-- Status -->
@@ -60,7 +64,7 @@
 
     <!-- Widget -->
     <string name="widget_no_data">No sensor data</string>
-    <string name="widget_description">TPMS dashboard for Teyes home screen (car top-down view)</string>
+    <string name="widget_description">TPMS dashboard (car top-down view)</string>
     <string name="widget_car_content_description">Car top-down view</string>
     <string name="widget_teyes_panel_hint">On Teyes CC3 the stock launcher cannot pin App Widgets. Install FrontApp for Teyes, open it, and add TPMS Monitor to the home screen from there.</string>
     <string name="settings_teyes_frontapp_hint">On Teyes CC3, only FrontApp for Teyes can place TPMS on the launcher home screen. Open FrontApp → add TPMS Monitor shortcut to the map/car panel.</string>
@@ -68,7 +72,7 @@
     <string name="main_teyes_frontapp_hint">Add TPMS to the Teyes home screen with FrontApp for Teyes (Settings → Teyes home screen).</string>
     <string name="widget_pin_to_panel">Add dashboard to home screen</string>
     <string name="widget_pin_not_supported">Widget pinning is not supported on this device</string>
-    <string name="widget_pin_failed">Could not pin widget — add manually from Teyes home screen</string>
+    <string name="widget_pin_failed">Could not pin widget — add manually from the launcher widget list</string>
     <string name="widget_status_offline">Offline</string>
     <string name="widget_status_connecting">Connecting</string>
     <string name="widget_status_monitoring">Monitoring</string>
@@ -76,19 +80,21 @@
     <string name="widget_dashboard_active">Dashboard active on home screen</string>
     <string name="widget_dashboard_inactive">Show TPMS on map / car panel</string>
     <string name="widget_pin_manual_hint">Widget pinning is not supported on this device. Add manually from the launcher widget list.</string>
-    <string name="widget_pin_success">Widget added — check your Teyes home screen</string>
+    <string name="widget_pin_success">Widget added — check your home screen</string>
     <string name="widget_pin_compact_failed">Could not pin compact widget — add manually from Widgets</string>
-    <string name="widget_description_compact">Compact TPMS strip for Teyes home screen</string>
+    <string name="widget_description_compact">Compact TPMS strip for home screen</string>
     <string name="widget_pin_compact">Add compact widget to home screen</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_title">Set up TPMS on Teyes CC3</string>
+    <string name="onboarding_title">Set up TPMS Monitor</string>
+    <string name="onboarding_title_teyes">Set up TPMS on Teyes</string>
     <string name="onboarding_step_usb">Step 1: Connect the USB TPMS dongle. The monitor service will start in the background.</string>
     <string name="onboarding_step_notifications">Step 2: Allow notifications so pressure alerts can reach you while driving.</string>
     <string name="onboarding_step_teyes">Step 3: Disable battery restrictions and enable auto-start in Teyes app settings.</string>
     <string name="onboarding_step_widget">Step 4: Install FrontApp for Teyes and add TPMS Monitor to the launcher home screen. The stock Teyes launcher cannot pin widgets.</string>
     <string name="onboarding_grant_usb">Start monitoring</string>
     <string name="onboarding_open_notifications">Open notification settings</string>
+    <string name="onboarding_open_battery">Open battery settings</string>
     <string name="onboarding_open_teyes_settings">Open Teyes settings</string>
     <string name="onboarding_open_frontapp">Open FrontApp for Teyes</string>
     <string name="onboarding_frontapp_done">Added via FrontApp</string>
@@ -136,7 +142,8 @@
     <string name="settings_teyes_lock">Locked in recent apps</string>
     <string name="settings_teyes_boot">Boot completed allowed</string>
     <string name="main_teyes_checklist_incomplete">Complete Teyes permissions in Settings for stable background monitoring.</string>
-    <string name="main_teyes_service_stopped">TPMS service is not running — open Settings to fix permissions.</string>
+    <string name="main_setup_service_stopped">TPMS service is not running — open Settings to fix permissions.</string>
+    <string name="main_teyes_service_stopped">@string/main_setup_service_stopped</string>
     <string name="main_teyes_widget_hint">Add TPMS to the Teyes home screen with FrontApp for Teyes.</string>
     <string name="main_open_settings">Settings</string>
     <string name="settings_teyes_service_running">Background service: running</string>
@@ -150,14 +157,14 @@
     <string name="settings_teyes_manual_notifications">Open Teyes Settings → Apps → TPMS → allow notifications.</string>
     <string name="settings_teyes_manual_overlay">Open Teyes Settings → Apps → TPMS → Display over other apps.</string>
     <string name="settings_widget_theme">Home screen widget theme</string>
-    <string name="settings_widget_theme_auto">Match Teyes day/night</string>
+    <string name="settings_widget_theme_auto">Match system day/night</string>
     <string name="settings_widget_theme_light">Light</string>
     <string name="settings_widget_theme_dark">Dark</string>
     <string name="settings_teyes_experience">Teyes driving experience</string>
     <string name="settings_silent_startup">Silent background startup (no UI on boot)</string>
     <string name="settings_floating_overlay">Floating mini panel over other apps</string>
     <string name="settings_critical_alerts_fullscreen">Full-screen alert for critical pressure events</string>
-    <string name="settings_preferred_usb_dongle">Preferred USB dongle (CC3 port)</string>
+    <string name="settings_preferred_usb_dongle">Preferred USB dongle</string>
     <string name="settings_stability">Stability</string>
     <string name="settings_stale_frame_timeout">Stale frame reconnect (sec)</string>
     <string name="settings_min_live_wheel_pressure">Min live wheel pressure (kPa)</string>
@@ -177,6 +184,10 @@
     <string name="settings_mode_advanced">Advanced</string>
     <string name="settings_mode_user_hint">Essential options for daily use: units, thresholds, wheels, and alerts.</string>
     <string name="settings_mode_advanced_hint">Diagnostics, protocol, stability tuning, and config backup.</string>
+    <string name="settings_section_background">Background monitoring</string>
+    <string name="settings_section_background_hint">Keep TPMS running reliably while the app is in the background.</string>
+    <string name="settings_section_widget">Home screen widget</string>
+    <string name="settings_section_widget_hint">Pin a TPMS panel to your launcher home screen.</string>
     <string name="settings_section_general">General</string>
     <string name="settings_section_general_hint">Units and alert thresholds</string>
     <string name="settings_section_wheels">Wheels</string>

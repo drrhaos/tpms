@@ -19,12 +19,10 @@ data class TeyesSetupStatus(
     val widgetActive: Boolean
 ) {
     val needsAttention: Boolean =
-        isTeyesDevice && (
-            !checklistComplete ||
-                !batteryUnrestricted ||
-                !notificationsEnabled ||
-                !serviceRunning
-            )
+        !serviceRunning ||
+            !batteryUnrestricted ||
+            !notificationsEnabled ||
+            (isTeyesDevice && !checklistComplete)
 
     val showFrontAppHint: Boolean = isTeyesDevice && !checklist.frontAppHome
 }
