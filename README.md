@@ -112,7 +112,7 @@ The [Release workflow](.github/workflows/release.yml) builds the APK and attache
 ./gradlew :app:assembleDebug        # debug APK
 ```
 
-See [AGENTS.md](AGENTS.md) for architecture notes and key source files.
+Key source paths: `service/TpmsMonitorService.kt`, `data/usb/TpmsProtocolRouter.kt`, `data/repository/TpmsRepository.kt`, `ui/onboarding/OnboardingScreen.kt`.
 
 ### USB debugging
 
