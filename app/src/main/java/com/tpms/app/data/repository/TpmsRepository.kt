@@ -133,6 +133,7 @@ class TpmsRepository @Inject constructor(
     fun shouldReconnectStaleFrame(now: Long = System.currentTimeMillis()): Boolean =
         ConnectionHealthPolicy.shouldReconnectStaleFrame(
             isUsbConnected = isUsbConnected(),
+            dongleOpenedAtMs = dongleOpenedAtMs,
             lastValidFrameAtMs = lastValidFrameAtMs,
             staleThresholdMs = settingsStore.staleFrameTimeoutMs.value,
             now = now
@@ -240,6 +241,8 @@ class TpmsRepository @Inject constructor(
             if (opened) {
                 protocolRouter.onDongleOpened(protocol, usbConnection)
                 dongleOpenedAtMs = System.currentTimeMillis()
+                lastFrameAtMs = 0L
+                lastValidFrameAtMs = 0L
                 isReconnecting = false
                 debugLog.info("Repository", "Dongle opened with ${protocol.displayName}")
             } else {
@@ -344,6 +347,8 @@ class TpmsRepository @Inject constructor(
     }
 
     fun closeUsbForReconnect() {
+        lastFrameAtMs = 0L
+        lastValidFrameAtMs = 0L
         closeUsb(clearSensorState = false)
         serviceHealth.recordReconnect()
     }

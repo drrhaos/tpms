@@ -8,12 +8,18 @@ object ConnectionHealthPolicy {
 
   fun shouldReconnectStaleFrame(
       isUsbConnected: Boolean,
+      dongleOpenedAtMs: Long,
       lastValidFrameAtMs: Long,
       staleThresholdMs: Long,
       now: Long = System.currentTimeMillis()
   ): Boolean {
-    if (!isUsbConnected || lastValidFrameAtMs <= 0L) return false
-    return now - lastValidFrameAtMs > staleThresholdMs
+    if (!isUsbConnected || dongleOpenedAtMs <= 0L) return false
+    val referenceMs = if (lastValidFrameAtMs >= dongleOpenedAtMs) {
+      lastValidFrameAtMs
+    } else {
+      dongleOpenedAtMs
+    }
+    return now - referenceMs > staleThresholdMs
   }
 
   fun isProtocolUnhealthy(
