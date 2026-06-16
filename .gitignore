@@ -18,6 +18,7 @@ release.keystore
 # Cursor / AI agent (local dev context, not for the repo)
 AGENTS.md
 AGENT.md
+PLAN.md
 CLAUDE.md
 .cursor/
 
