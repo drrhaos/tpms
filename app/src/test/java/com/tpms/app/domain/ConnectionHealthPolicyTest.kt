@@ -8,7 +8,7 @@ class ConnectionHealthPolicyTest {
 
     @Test
     fun shouldReconnectStaleFrame_whenConnectedAndOldValidFrame() {
-        val now = 100_000L
+        val now = 1_000_000L
         assertTrue(
             ConnectionHealthPolicy.shouldReconnectStaleFrame(
                 isUsbConnected = true,
@@ -22,7 +22,7 @@ class ConnectionHealthPolicyTest {
 
     @Test
     fun shouldNotReconnectStaleFrame_whenRecentFrame() {
-        val now = 100_000L
+        val now = 1_000_000L
         assertFalse(
             ConnectionHealthPolicy.shouldReconnectStaleFrame(
                 isUsbConnected = true,

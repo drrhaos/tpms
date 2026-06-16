@@ -28,7 +28,7 @@ class HidGenericProtocol @Inject constructor() {
                 .short
                 .toInt() and 0xFFFF
             val pressureKpa = pressureRaw * 0.1f
-            val tempRaw = raw[4].toInt()
+            val tempRaw = raw[4].toInt() and 0xFF
             val temperatureCelsius = (if (tempRaw and 0x80 != 0) tempRaw - 256 else tempRaw).toFloat()
             val battery = raw[5].toInt() and 0xFF
             val isBatteryLow = flags and 0x01 != 0
