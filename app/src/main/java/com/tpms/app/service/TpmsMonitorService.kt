@@ -1,10 +1,13 @@
 package com.tpms.app.service
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
@@ -111,7 +114,7 @@ class TpmsMonitorService : Service() {
             }
         }
 
-        startForeground(NOTIF_ID, buildPersistentNotification())
+        promoteToForeground(buildPersistentNotification())
         ServiceStoppedNotifier.dismiss(this)
         UsbPermissionNotifier.dismiss(this)
         BootStartScheduler.cancel(this)
@@ -128,6 +131,27 @@ class TpmsMonitorService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun promoteToForeground(notification: Notification) {
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                startForeground(
+                    NOTIF_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                )
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                startForeground(
+                    NOTIF_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            }
+            else -> startForeground(NOTIF_ID, notification)
+        }
+    }
 
     override fun onDestroy() {
         pollingJob?.cancel()

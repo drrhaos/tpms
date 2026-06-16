@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.tpms.app"
-        minSdk = 28
+        minSdk = 28 // Android 9 — applies to debug and release
         targetSdk = 35
         versionCode = project.findProperty("versionCode")?.toString()?.toIntOrNull() ?: 1
         versionName = project.findProperty("versionName")?.toString() ?: "1.1.0"
@@ -39,6 +39,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            isMinifyEnabled = false
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(
