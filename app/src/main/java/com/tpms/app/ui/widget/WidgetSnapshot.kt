@@ -23,6 +23,8 @@ data class WidgetTireSlot(
     val pressureText: String,
     val temperatureText: String = "--°C",
     val batteryText: String = "--%",
+    val batteryPercent: Int? = null,
+    val isLowBattery: Boolean = false,
     val status: WidgetTireStatus
 )
 
@@ -130,6 +132,8 @@ data class WidgetSnapshot(
                 pressureText = pressureText,
                 temperatureText = temperatureText,
                 batteryText = "${sensor.batteryPercent}%",
+                batteryPercent = sensor.batteryPercent,
+                isLowBattery = sensor.alertType == AlertType.BATTERY_LOW,
                 status = sensor.toSeverity().toWidgetStatus()
             )
         }

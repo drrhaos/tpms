@@ -1,267 +1,480 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
-    android:padding="8dp">
+    android:orientation="vertical"
+    android:padding="6dp">
 
-    <TextView
-        android:id="@+id/widget_status"
-        android:layout_width="wrap_content"
+    <RelativeLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:paddingBottom="4dp"
-        android:text="Offline"
-        android:textColor="#8FA3BC"
-        android:textSize="11sp" />
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:layout_toStartOf="@id/widget_unit"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingEnd="8dp"
+            android:textColor="#8FA3BC"
+            android:textSize="11sp"
+            android:autoSizeMaxTextSize="11sp"
+            android:autoSizeMinTextSize="8sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
+            tools:text="Connected" />
+
+        <TextView
+            android:id="@+id/widget_unit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:textColor="#8FA3BC"
+            android:textSize="10sp"
+            tools:text="PSI" />
+    </RelativeLayout>
 
     <FrameLayout
-        android:layout_width="140dp"
-        android:layout_height="200dp"
-        android:layout_gravity="center"
-        android:padding="4dp">
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_tpms_panel_bg">
 
-        <ImageView
-            android:id="@+id/widget_car"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:contentDescription="@string/widget_car_content_description"
-            android:scaleType="fitCenter"
-            android:src="@drawable/auto" />
+            android:orientation="horizontal"
+            android:padding="4dp"
+            android:weightSum="10">
+
+            <!-- Left column: FL, RL -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:orientation="vertical"
+                android:weightSum="2">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_marginBottom="3dp"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:id="@+id/widget_fl_card"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/widget_wheel_card_empty"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="2dp">
+
+                        <TextView
+                            android:id="@+id/widget_fl_label"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="14sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="FL" />
+
+                        <TextView
+                            android:id="@+id/widget_fl_pressure"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="2"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#E8EDF4"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="28sp"
+                            android:autoSizeMinTextSize="10sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="32.0" />
+
+                        <TextView
+                            android:id="@+id/widget_fl_temp"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:autoSizeMaxTextSize="12sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="25°C" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/widget_fl_battery"
+                        android:layout_width="12dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="3dp"
+                        android:contentDescription="@null"
+                        android:rotation="270"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/widget_battery_unknown" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:id="@+id/widget_rl_card"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/widget_wheel_card_empty"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="2dp">
+
+                        <TextView
+                            android:id="@+id/widget_rl_label"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="14sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="RL" />
+
+                        <TextView
+                            android:id="@+id/widget_rl_pressure"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="2"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#E8EDF4"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="28sp"
+                            android:autoSizeMinTextSize="10sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="32.0" />
+
+                        <TextView
+                            android:id="@+id/widget_rl_temp"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:autoSizeMaxTextSize="12sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="25°C" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/widget_rl_battery"
+                        android:layout_width="12dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="3dp"
+                        android:contentDescription="@null"
+                        android:rotation="270"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/widget_battery_unknown" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Center column: car + optional spare -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginHorizontal="3dp"
+                android:layout_weight="4"
+                android:orientation="vertical"
+                android:weightSum="11.4">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="10"
+                    android:paddingHorizontal="2dp"
+                    android:paddingVertical="2dp">
+
+                    <ImageView
+                        android:id="@+id/widget_car"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="@string/widget_car_content_description"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/auto" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:id="@+id/widget_sp_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_marginTop="3dp"
+                    android:layout_weight="1.4"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    tools:visibility="visible">
+
+                    <ImageView
+                        android:id="@+id/widget_sp_battery"
+                        android:layout_width="12dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginEnd="3dp"
+                        android:contentDescription="@null"
+                        android:rotation="270"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/widget_battery_unknown" />
+
+                    <LinearLayout
+                        android:id="@+id/widget_sp_card"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/widget_wheel_card_empty"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="2dp">
+
+                        <TextView
+                            android:id="@+id/widget_sp_label"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="14sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="SP" />
+
+                        <TextView
+                            android:id="@+id/widget_sp_pressure"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="2"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#E8EDF4"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="24sp"
+                            android:autoSizeMinTextSize="10sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="32.0" />
+
+                        <TextView
+                            android:id="@+id/widget_sp_temp"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:autoSizeMaxTextSize="12sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="25°C" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Right column: FR, RR -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:orientation="vertical"
+                android:weightSum="2">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_marginBottom="3dp"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/widget_fr_battery"
+                        android:layout_width="12dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginEnd="3dp"
+                        android:contentDescription="@null"
+                        android:rotation="270"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/widget_battery_unknown" />
+
+                    <LinearLayout
+                        android:id="@+id/widget_fr_card"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/widget_wheel_card_empty"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="2dp">
+
+                        <TextView
+                            android:id="@+id/widget_fr_label"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="14sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="FR" />
+
+                        <TextView
+                            android:id="@+id/widget_fr_pressure"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="2"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#E8EDF4"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="28sp"
+                            android:autoSizeMinTextSize="10sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="32.0" />
+
+                        <TextView
+                            android:id="@+id/widget_fr_temp"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:autoSizeMaxTextSize="12sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="25°C" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/widget_rr_battery"
+                        android:layout_width="12dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginEnd="3dp"
+                        android:contentDescription="@null"
+                        android:rotation="270"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/widget_battery_unknown" />
+
+                    <LinearLayout
+                        android:id="@+id/widget_rr_card"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/widget_wheel_card_empty"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="2dp">
+
+                        <TextView
+                            android:id="@+id/widget_rr_label"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="14sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="RR" />
+
+                        <TextView
+                            android:id="@+id/widget_rr_pressure"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="2"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#E8EDF4"
+                            android:textStyle="bold"
+                            android:autoSizeMaxTextSize="28sp"
+                            android:autoSizeMinTextSize="10sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="32.0" />
+
+                        <TextView
+                            android:id="@+id/widget_rr_temp"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:textColor="#8FA3BC"
+                            android:autoSizeMaxTextSize="12sp"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeStepGranularity="1sp"
+                            android:autoSizeTextType="uniform"
+                            tools:text="25°C" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
     </FrameLayout>
-
-    <!-- FL -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginTop="22dp"
-        android:background="@drawable/widget_wheel_card_bg"
-        android:gravity="center"
-        android:minWidth="72dp"
-        android:orientation="vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="6dp">
-
-        <TextView
-            android:id="@+id/widget_fl_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="FL"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_fl_pressure"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--"
-            android:textColor="#E8EDF4"
-            android:textSize="17sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_fl_temp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°C"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp" />
-
-        <TextView
-            android:id="@+id/widget_fl_battery"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--%"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp" />
-
-        <ImageView
-            android:id="@+id/widget_fl_indicator"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_marginTop="3dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_indicator_empty" />
-    </LinearLayout>
-
-    <!-- FR -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="22dp"
-        android:background="@drawable/widget_wheel_card_bg"
-        android:gravity="center"
-        android:minWidth="72dp"
-        android:orientation="vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="6dp">
-
-        <TextView
-            android:id="@+id/widget_fr_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="FR"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_fr_pressure"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--"
-            android:textColor="#E8EDF4"
-            android:textSize="17sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_fr_temp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°C"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp" />
-
-        <TextView
-            android:id="@+id/widget_fr_battery"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--%"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp" />
-
-        <ImageView
-            android:id="@+id/widget_fr_indicator"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_marginTop="3dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_indicator_empty" />
-    </LinearLayout>
-
-    <!-- RL -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_marginBottom="4dp"
-        android:background="@drawable/widget_wheel_card_bg"
-        android:gravity="center"
-        android:minWidth="72dp"
-        android:orientation="vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="6dp">
-
-        <TextView
-            android:id="@+id/widget_rl_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="RL"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_rl_pressure"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--"
-            android:textColor="#E8EDF4"
-            android:textSize="17sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_rl_temp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°C"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp" />
-
-        <TextView
-            android:id="@+id/widget_rl_battery"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--%"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp" />
-
-        <ImageView
-            android:id="@+id/widget_rl_indicator"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_marginTop="3dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_indicator_empty" />
-    </LinearLayout>
-
-    <!-- RR -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginBottom="4dp"
-        android:background="@drawable/widget_wheel_card_bg"
-        android:gravity="center"
-        android:minWidth="72dp"
-        android:orientation="vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="6dp">
-
-        <TextView
-            android:id="@+id/widget_rr_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="RR"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_rr_pressure"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--"
-            android:textColor="#E8EDF4"
-            android:textSize="17sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/widget_rr_temp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°C"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp" />
-
-        <TextView
-            android:id="@+id/widget_rr_battery"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--%"
-            android:textColor="#8FA3BC"
-            android:textSize="10sp" />
-
-        <ImageView
-            android:id="@+id/widget_rr_indicator"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_marginTop="3dp"
-            android:contentDescription="@null"
-            android:src="@drawable/widget_indicator_empty" />
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/widget_unit"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:text="PSI"
-        android:textColor="#8FA3BC"
-        android:textSize="10sp" />
-
-</FrameLayout>
+</LinearLayout>
