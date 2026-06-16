@@ -16,6 +16,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -24,8 +26,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tpms.app.R
+import com.tpms.app.domain.model.WidgetThemeMode
 import com.tpms.app.ui.theme.TpmsColors
 
 @Composable
@@ -236,4 +241,46 @@ fun SettingsInfoBanner(
             .background(TpmsColors.surfaceVariant.copy(alpha = 0.45f))
             .padding(horizontal = 14.dp, vertical = 10.dp)
     )
+}
+
+@Composable
+fun WidgetThemeModePicker(
+    selected: WidgetThemeMode,
+    onSelect: (WidgetThemeMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.padding(vertical = 4.dp)) {
+        Text(
+            text = stringResource(R.string.settings_widget_theme),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        WidgetThemeMode.entries.forEachIndexed { index, mode ->
+            if (index > 0) SettingsGroupDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(mode) }
+                    .padding(start = 8.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = selected == mode,
+                    onClick = { onSelect(mode) },
+                    colors = RadioButtonDefaults.colors(
+                        selectedColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+                Text(
+                    text = when (mode) {
+                        WidgetThemeMode.AUTO -> stringResource(R.string.settings_widget_theme_auto)
+                        WidgetThemeMode.LIGHT -> stringResource(R.string.settings_widget_theme_light)
+                        WidgetThemeMode.DARK -> stringResource(R.string.settings_widget_theme_dark)
+                    },
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    }
 }

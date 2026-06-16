@@ -20,9 +20,9 @@ import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.domain.model.WidgetThemeMode
 import com.tpms.app.service.FloatingOverlayController
 import com.tpms.app.service.TpmsMonitorService
-import com.tpms.app.startup.TeyesDeviceDetector
-import com.tpms.app.startup.TeyesSetupStatus
-import com.tpms.app.startup.TeyesSetupStatusProvider
+import com.tpms.app.startup.HeadUnitSupport
+import com.tpms.app.startup.SetupStatus
+import com.tpms.app.startup.SetupStatusProvider
 import com.tpms.app.ui.widget.TpmsWidgetHelper
 import com.tpms.app.ui.widget.WidgetPinResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,12 +41,13 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsStore: SettingsStore,
     private val repository: TpmsRepository,
-    private val teyesSetupStatusProvider: TeyesSetupStatusProvider,
+    private val setupStatusProvider: SetupStatusProvider,
+    private val headUnitSupport: HeadUnitSupport,
     private val usbConnection: UsbConnection,
     private val floatingOverlayController: FloatingOverlayController
 ) : ViewModel() {
 
-    val isTeyesDevice: Boolean = TeyesDeviceDetector.isLikelyTeyesHeadUnit(context)
+    val isTeyesDevice: Boolean get() = headUnitSupport.isTeyesHeadUnit()
 
     private val _pressureUnit = MutableStateFlow(PressureUnit.KPA)
     val pressureUnit: StateFlow<PressureUnit> = _pressureUnit.asStateFlow()
@@ -120,10 +121,10 @@ class SettingsViewModel @Inject constructor(
     private val _serviceRunning = MutableStateFlow(false)
     val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
 
-    private val _teyesSetupStatus = MutableStateFlow(
-        teyesSetupStatusProvider.current(context)
+    private val _setupStatus = MutableStateFlow(
+        setupStatusProvider.current(context)
     )
-    val teyesSetupStatus: StateFlow<TeyesSetupStatus> = _teyesSetupStatus.asStateFlow()
+    val setupStatus: StateFlow<SetupStatus> = _setupStatus.asStateFlow()
 
     val knownSensorIds: StateFlow<List<String>> = repository.sensors
         .combine(_wheelMapping) { sensors, _ ->
@@ -177,8 +178,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun refreshRuntimeSetupStatus() {
-        val status = teyesSetupStatusProvider.current(context)
-        _teyesSetupStatus.value = status
+        val status = setupStatusProvider.current(context)
+        _setupStatus.value = status
         _batteryUnrestricted.value = status.batteryUnrestricted
         _notificationsEnabled.value = status.notificationsEnabled
         _widgetActive.value = status.widgetActive
@@ -205,24 +206,17 @@ class SettingsViewModel @Inject constructor(
     fun openFrontAppStore() = TeyesPermissionHelper.openFrontApp(context)
     fun openOverlaySettings() = TeyesPermissionHelper.openOverlaySettings(context)
 
-    fun pinWidgetToHome(): WidgetPinResult {
-        if (isTeyesDevice) {
-            TeyesPermissionHelper.openFrontApp(context)
-            return WidgetPinResult.NOT_SUPPORTED
-        }
-        val result = TpmsWidgetHelper.requestPinPanel(context)
-        TpmsWidgetHelper.showPinResultToast(context, result)
-        refreshRuntimeSetupStatus()
-        return result
-    }
+    fun pinWidgetToHome(): WidgetPinResult = pinWidget(TpmsWidgetHelper::requestPinPanel)
 
-    fun pinCompactWidget(): WidgetPinResult {
+    fun pinCompactWidget(): WidgetPinResult = pinWidget(TpmsWidgetHelper::requestPinCompact)
+
+    private fun pinWidget(requestPin: (Context) -> WidgetPinResult): WidgetPinResult {
         if (isTeyesDevice) {
             TeyesPermissionHelper.openFrontApp(context)
             return WidgetPinResult.NOT_SUPPORTED
         }
-        val result = TpmsWidgetHelper.requestPinCompact(context)
-        TpmsWidgetHelper.showPinResultToast(context, result)
+        val result = requestPin(context)
+        TpmsWidgetHelper.showPinResultToast(context, result, isTeyesDevice)
         refreshRuntimeSetupStatus()
         return result
     }

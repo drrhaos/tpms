@@ -86,10 +86,6 @@ object TeyesPermissionHelper {
         )
     }
 
-    fun openFrontAppPlayStore(context: Context) {
-        openFrontApp(context)
-    }
-
     /** FYT/Teyes system settings (autostart, apps, general). */
     fun openTeyesSettings(context: Context): Boolean {
         val candidates = buildList {

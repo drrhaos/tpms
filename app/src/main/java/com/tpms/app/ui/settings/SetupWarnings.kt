@@ -20,12 +20,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tpms.app.R
-import com.tpms.app.startup.TeyesSetupStatus
+import com.tpms.app.startup.SetupStatus
 import com.tpms.app.ui.theme.StatusColors
 
 @Composable
-fun TeyesSetupWarnings(
-    status: TeyesSetupStatus,
+fun SetupWarnings(
+    status: SetupStatus,
     modifier: Modifier = Modifier
 ) {
     val messages = buildList {

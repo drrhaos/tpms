@@ -6,7 +6,6 @@ import android.content.Context
 import android.os.Build
 import android.widget.Toast
 import com.tpms.app.R
-import com.tpms.app.startup.TeyesDeviceDetector
 
 enum class WidgetPinResult {
     PINNED,
@@ -20,15 +19,13 @@ object TpmsWidgetHelper {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             AppWidgetManager.getInstance(context).isRequestPinAppWidgetSupported
 
-    fun requestPinPanel(context: Context): WidgetPinResult {
-        return requestPin(context, TpmsWidget::class.java, R.string.widget_pin_failed)
-    }
+    fun requestPinPanel(context: Context): WidgetPinResult =
+        requestPin(context, TpmsWidget::class.java)
 
-    fun requestPinCompact(context: Context): WidgetPinResult {
-        return requestPin(context, TpmsWidgetCompact::class.java, R.string.widget_pin_compact_failed)
-    }
+    fun requestPinCompact(context: Context): WidgetPinResult =
+        requestPin(context, TpmsWidgetCompact::class.java)
 
-    private fun requestPin(context: Context, providerClass: Class<*>, failMessageId: Int): WidgetPinResult {
+    private fun requestPin(context: Context, providerClass: Class<*>): WidgetPinResult {
         if (!isPinSupported(context)) {
             return WidgetPinResult.NOT_SUPPORTED
         }
@@ -38,11 +35,11 @@ object TpmsWidgetHelper {
         return if (accepted) WidgetPinResult.PINNED else WidgetPinResult.DECLINED
     }
 
-    fun showPinResultToast(context: Context, result: WidgetPinResult) {
+    fun showPinResultToast(context: Context, result: WidgetPinResult, isTeyesDevice: Boolean) {
         val message = when (result) {
             WidgetPinResult.PINNED -> R.string.widget_pin_success
             WidgetPinResult.NOT_SUPPORTED -> {
-                if (TeyesDeviceDetector.isLikelyTeyesHeadUnit(context)) {
+                if (isTeyesDevice) {
                     R.string.settings_teyes_frontapp_hint
                 } else {
                     R.string.widget_pin_manual_hint
@@ -53,13 +50,6 @@ object TpmsWidgetHelper {
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
-    fun showTeyesFrontAppHint(context: Context) {
-        Toast.makeText(context, R.string.settings_teyes_frontapp_hint, Toast.LENGTH_LONG).show()
-    }
-
     fun hasActiveWidgets(context: Context): Boolean =
         TpmsWidgetUpdater.hasAnyActiveWidget(context)
-
-    /** @deprecated use [hasActiveWidgets] */
-    fun hasActiveWidgetsLegacy(context: Context): Boolean = hasActiveWidgets(context)
 }

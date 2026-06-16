@@ -5,11 +5,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class TeyesSetupStatusTest {
+class SetupStatusTest {
 
     @Test
     fun needsAttention_whenServiceStoppedOnAnyDevice() {
-        val status = TeyesSetupStatus(
+        val status = SetupStatus(
             isTeyesDevice = false,
             checklist = TeyesChecklist(),
             checklistComplete = true,
@@ -23,7 +23,7 @@ class TeyesSetupStatusTest {
 
     @Test
     fun needsAttention_whenServiceStoppedOnTeyes() {
-        val status = TeyesSetupStatus(
+        val status = SetupStatus(
             isTeyesDevice = true,
             checklist = TeyesChecklist(
                 autoStart = true,
@@ -44,7 +44,7 @@ class TeyesSetupStatusTest {
 
     @Test
     fun needsAttention_falseWhenOnlyTeyesChecklistIncompleteOnNonTeyes() {
-        val status = TeyesSetupStatus(
+        val status = SetupStatus(
             isTeyesDevice = false,
             checklist = TeyesChecklist(),
             checklistComplete = false,
@@ -58,7 +58,7 @@ class TeyesSetupStatusTest {
 
     @Test
     fun showFrontAppHint_whenNotAddedViaFrontAppOnTeyes() {
-        val status = TeyesSetupStatus(
+        val status = SetupStatus(
             isTeyesDevice = true,
             checklist = TeyesChecklist(
                 autoStart = true,

@@ -9,7 +9,7 @@ import com.tpms.app.ui.widget.TpmsWidgetUpdater
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class TeyesSetupStatus(
+data class SetupStatus(
     val isTeyesDevice: Boolean,
     val checklist: TeyesChecklist,
     val checklistComplete: Boolean,
@@ -28,20 +28,19 @@ data class TeyesSetupStatus(
 }
 
 @Singleton
-class TeyesSetupStatusProvider @Inject constructor(
-    private val settingsStore: SettingsStore
+class SetupStatusProvider @Inject constructor(
+    private val settingsStore: SettingsStore,
+    private val headUnitSupport: HeadUnitSupport
 ) {
-    fun current(context: Context): TeyesSetupStatus {
-        val isTeyes = TeyesDeviceDetector.isLikelyTeyesHeadUnit(context)
+    fun current(context: Context): SetupStatus {
         val checklist = settingsStore.teyesChecklist.value
-        val serviceRunning = ServiceRunningChecker.isRunning(context, TpmsMonitorService::class.java)
-        return TeyesSetupStatus(
-            isTeyesDevice = isTeyes,
+        return SetupStatus(
+            isTeyesDevice = headUnitSupport.isTeyesHeadUnit(),
             checklist = checklist,
             checklistComplete = settingsStore.isTeyesChecklistComplete(),
             batteryUnrestricted = isBatteryUnrestricted(context),
             notificationsEnabled = areNotificationsEnabled(context),
-            serviceRunning = serviceRunning,
+            serviceRunning = ServiceRunningChecker.isRunning(context, TpmsMonitorService::class.java),
             widgetActive = TpmsWidgetUpdater.hasAnyActiveWidget(context)
         )
     }

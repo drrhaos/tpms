@@ -14,7 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.tpms.app.di.UiBreadcrumbEntryPoint
 import com.tpms.app.ui.embedded.LocalEmbeddedWindow
 import com.tpms.app.ui.debug.DebugScreen
-import com.tpms.app.ui.onboarding.TeyesOnboardingScreen
+import com.tpms.app.ui.onboarding.OnboardingScreen
 import com.tpms.app.ui.settings.SettingsScreen
 import dagger.hilt.android.EntryPointAccessors
 
@@ -55,7 +55,7 @@ fun TpmsNavHost(navHostViewModel: NavHostViewModel = hiltViewModel()) {
 
     NavHost(navController = navController, startDestination = startDestination!!) {
         composable("onboarding") {
-            TeyesOnboardingScreen(
+            OnboardingScreen(
                 onComplete = {
                     navController.navigate("main") {
                         popUpTo("onboarding") { inclusive = true }

@@ -25,9 +25,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
 
 @Composable
-fun TeyesOnboardingScreen(
+fun OnboardingScreen(
     onComplete: () -> Unit,
-    viewModel: TeyesOnboardingViewModel = hiltViewModel()
+    viewModel: OnboardingViewModel = hiltViewModel()
 ) {
     val step by viewModel.step.collectAsState()
     val showTeyesSteps = viewModel.showTeyesSteps
@@ -50,45 +50,38 @@ fun TeyesOnboardingScreen(
             )
             Text(
                 text = when (step) {
-                    0 -> stringResource(R.string.onboarding_step_usb)
-                    1 -> stringResource(R.string.onboarding_step_notifications)
-                    2 -> stringResource(R.string.onboarding_step_teyes)
+                    OnboardingSteps.USB -> stringResource(R.string.onboarding_step_usb)
+                    OnboardingSteps.PERMISSIONS -> stringResource(R.string.onboarding_step_notifications)
+                    OnboardingSteps.TEYES_PERMISSIONS -> stringResource(R.string.onboarding_step_teyes)
                     else -> stringResource(R.string.onboarding_step_widget)
                 },
                 style = MaterialTheme.typography.bodyLarge
             )
             Spacer(modifier = Modifier.height(8.dp))
             when (step) {
-                0 -> OnboardingActions(
+                OnboardingSteps.USB -> OnboardingActions(
                     primary = stringResource(R.string.onboarding_grant_usb),
                     onPrimary = { viewModel.requestUsbPermission() },
                     secondary = stringResource(R.string.onboarding_next),
                     onSecondary = { viewModel.nextStep() }
                 )
-                1 -> if (showTeyesSteps) {
-                    OnboardingActions(
-                        primary = stringResource(R.string.onboarding_open_notifications),
-                        onPrimary = { viewModel.openNotifications() },
-                        secondary = stringResource(R.string.onboarding_open_battery),
-                        onSecondary = { viewModel.openBattery() },
-                        tertiary = stringResource(R.string.onboarding_next),
-                        onTertiary = { viewModel.nextStep() }
-                    )
-                } else {
-                    OnboardingActions(
-                        primary = stringResource(R.string.onboarding_open_notifications),
-                        onPrimary = { viewModel.openNotifications() },
-                        secondary = stringResource(R.string.onboarding_open_battery),
-                        onSecondary = { viewModel.openBattery() },
-                        tertiary = stringResource(R.string.onboarding_finish),
-                        onTertiary = { viewModel.complete(onComplete) }
-                    )
-                }
-                2 -> OnboardingActions(
+                OnboardingSteps.PERMISSIONS -> OnboardingActions(
+                    primary = stringResource(R.string.onboarding_open_notifications),
+                    onPrimary = { viewModel.openNotifications() },
+                    secondary = stringResource(R.string.onboarding_open_battery),
+                    onSecondary = { viewModel.openBattery() },
+                    tertiary = stringResource(
+                        if (showTeyesSteps) R.string.onboarding_next else R.string.onboarding_finish
+                    ),
+                    onTertiary = {
+                        if (showTeyesSteps) viewModel.nextStep() else viewModel.complete(onComplete)
+                    }
+                )
+                OnboardingSteps.TEYES_PERMISSIONS -> OnboardingActions(
                     primary = stringResource(R.string.onboarding_open_teyes_settings),
                     onPrimary = { viewModel.openTeyesSettings() },
-                    secondary = stringResource(R.string.onboarding_open_frontapp),
-                    onSecondary = { viewModel.openFrontApp() },
+                    secondary = stringResource(R.string.onboarding_open_battery),
+                    onSecondary = { viewModel.openBattery() },
                     tertiary = stringResource(R.string.onboarding_next),
                     onTertiary = { viewModel.nextStep() }
                 )
