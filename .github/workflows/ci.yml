@@ -28,6 +28,9 @@ jobs:
       - name: Install SDK components
         run: sdkmanager "platforms;android-35" "build-tools;34.0.0"
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
@@ -39,3 +42,11 @@ jobs:
 
       - name: Assemble release APK
         run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Upload debug APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7

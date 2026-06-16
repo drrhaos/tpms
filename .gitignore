@@ -12,6 +12,14 @@ local.properties
 *.aab
 *.jks
 *.keystore
+keystore.properties
+release.keystore
+
+# Cursor / AI agent (local dev context, not for the repo)
+AGENTS.md
+AGENT.md
+CLAUDE.md
+.cursor/
 
 # App
 /app/build
