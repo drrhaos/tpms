@@ -76,6 +76,7 @@ fun MainScreen(
                 label = label,
                 sensor = sensor,
                 pressureUnit = uiState.pressureUnit,
+                showTechnicalDetails = uiState.advancedMode,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             Spacer(modifier = Modifier.height(24.dp))
@@ -97,6 +98,7 @@ fun MainScreen(
             onRefresh = { viewModel.checkNow() },
             onNavigateToSettings = onNavigateToSettings,
             onNavigateToDebug = onNavigateToDebug,
+            showDebug = uiState.advancedMode && uiState.debugToolsEnabled,
             onWheelClick = { label, sensor -> selectedWheel = label to sensor }
         )
     }
@@ -119,6 +121,7 @@ private fun MainScreenScaffold(
     onRefresh: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToDebug: () -> Unit,
+    showDebug: Boolean,
     onWheelClick: (String, TireSensor?) -> Unit
 ) {
     Scaffold(
@@ -134,12 +137,14 @@ private fun MainScreenScaffold(
                 },
                 actions = {
                     val iconSize = if (compactToolbar) 36.dp else 40.dp
-                    IconButton(onClick = onNavigateToDebug, modifier = Modifier.size(iconSize)) {
-                        Icon(
-                            Icons.Default.BugReport,
-                            contentDescription = stringResource(R.string.cd_debug_log),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    if (showDebug) {
+                        IconButton(onClick = onNavigateToDebug, modifier = Modifier.size(iconSize)) {
+                            Icon(
+                                Icons.Default.BugReport,
+                                contentDescription = stringResource(R.string.cd_debug_log),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(iconSize)) {
                         Icon(
@@ -238,6 +243,7 @@ private fun WheelDetailSheet(
     label: String,
     sensor: TireSensor?,
     pressureUnit: PressureUnit,
+    showTechnicalDetails: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val emDash = stringResource(R.string.value_em_dash)
@@ -259,11 +265,15 @@ private fun WheelDetailSheet(
             return@Column
         }
 
-        DetailRow(stringResource(R.string.detail_sensor_id), sensor.id.ifBlank { emDash })
+        if (showTechnicalDetails) {
+            DetailRow(stringResource(R.string.detail_sensor_id), sensor.id.ifBlank { emDash })
+        }
         DetailRow(stringResource(R.string.detail_pressure), wheelDetailPressure(sensor, pressureUnit))
         DetailRow(stringResource(R.string.detail_temperature), wheelDetailTemperature(sensor))
         DetailRow(stringResource(R.string.detail_battery), "${sensor.batteryPercent}%")
-        DetailRow(stringResource(R.string.detail_last_update), formatTimestamp(sensor.timestamp, emDash))
+        if (showTechnicalDetails) {
+            DetailRow(stringResource(R.string.detail_last_update), formatTimestamp(sensor.timestamp, emDash))
+        }
         sensor.alertType?.let { alert ->
             DetailRow(
                 label = stringResource(R.string.detail_alert),

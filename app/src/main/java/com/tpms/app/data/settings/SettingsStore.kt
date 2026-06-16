@@ -99,6 +99,12 @@ class SettingsStore @Inject constructor(
     private val _widgetThemeMode = MutableStateFlow(WidgetThemeMode.AUTO)
     val widgetThemeMode = _widgetThemeMode.asStateFlow()
 
+    private val _diagnosticLogEnabled = MutableStateFlow(false)
+    val diagnosticLogEnabled = _diagnosticLogEnabled.asStateFlow()
+
+    private val _debugToolsEnabled = MutableStateFlow(false)
+    val debugToolsEnabled = _debugToolsEnabled.asStateFlow()
+
     init {
         scope.launch {
             context.settingsDataStore.data.collect { prefs ->
@@ -150,6 +156,8 @@ class SettingsStore @Inject constructor(
                 _criticalAlertsFullscreen.value = prefs[KEY_CRITICAL_ALERTS_FULLSCREEN] ?: true
                 _preferredUsbVidPid.value = prefs[KEY_PREFERRED_USB_VID_PID]?.takeIf { it.isNotBlank() }
                 _widgetThemeMode.value = WidgetThemeMode.fromName(prefs[KEY_WIDGET_THEME_MODE])
+                _diagnosticLogEnabled.value = prefs[KEY_DIAGNOSTIC_LOG] ?: false
+                _debugToolsEnabled.value = prefs[KEY_DEBUG_TOOLS] ?: false
             }
         }
     }
@@ -249,6 +257,14 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_WIDGET_THEME_MODE] = mode.name }
     }
 
+    suspend fun setDiagnosticLogEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_DIAGNOSTIC_LOG] = enabled }
+    }
+
+    suspend fun setDebugToolsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_DEBUG_TOOLS] = enabled }
+    }
+
     suspend fun applyImported(imported: ImportedSettings) {
         context.settingsDataStore.edit { prefs ->
             prefs[KEY_PRESSURE_UNIT] = imported.pressureUnit.name
@@ -274,6 +290,8 @@ class SettingsStore @Inject constructor(
             imported.preferredUsbVidPid?.let { prefs[KEY_PREFERRED_USB_VID_PID] = it }
                 ?: prefs.remove(KEY_PREFERRED_USB_VID_PID)
             prefs[KEY_WIDGET_THEME_MODE] = imported.widgetThemeMode.name
+            prefs[KEY_DIAGNOSTIC_LOG] = imported.diagnosticLogEnabled
+            prefs[KEY_DEBUG_TOOLS] = imported.debugToolsEnabled
             WheelLayout.allSlots(imported.showSpareWheel).forEach { slot ->
                 prefs[wheelMappingKey(slot)] = imported.wheelMapping[slot].orEmpty()
             }
@@ -316,6 +334,8 @@ class SettingsStore @Inject constructor(
         private val KEY_CRITICAL_ALERTS_FULLSCREEN = booleanPreferencesKey("critical_alerts_fullscreen")
         private val KEY_PREFERRED_USB_VID_PID = stringPreferencesKey("preferred_usb_vid_pid")
         private val KEY_WIDGET_THEME_MODE = stringPreferencesKey("widget_theme_mode")
+        private val KEY_DIAGNOSTIC_LOG = booleanPreferencesKey("diagnostic_log_enabled")
+        private val KEY_DEBUG_TOOLS = booleanPreferencesKey("debug_tools_enabled")
 
         private fun wheelMappingKey(slot: String) = stringPreferencesKey("wheel_map_$slot")
     }

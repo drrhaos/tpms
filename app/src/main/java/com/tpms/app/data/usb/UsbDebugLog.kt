@@ -2,6 +2,7 @@ package com.tpms.app.data.usb
 
 import com.tpms.app.data.diagnostics.CrashReportFormatter
 import com.tpms.app.data.diagnostics.SystemDiagnostics
+import com.tpms.app.data.settings.SettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +14,8 @@ import javax.inject.Singleton
 
 @Singleton
 class UsbDebugLog @Inject constructor(
-    private val systemDiagnostics: SystemDiagnostics
+    private val systemDiagnostics: SystemDiagnostics,
+    private val settingsStore: SettingsStore
 ) {
 
     enum class Level { INFO, WARN, ERROR, USB, RAW }
@@ -46,8 +48,23 @@ class UsbDebugLog @Inject constructor(
     }
 
     fun append(level: Level, tag: String, message: String) {
+        if (!shouldRecord(level)) return
         val entry = Entry(System.currentTimeMillis(), level, tag, message)
         _entries.value = (_entries.value + entry).takeLast(MAX_ENTRIES)
+    }
+
+    fun isLogRecordingEnabled(): Boolean = settingsStore.diagnosticLogEnabled.value
+
+    fun isDebugToolsEnabled(): Boolean = settingsStore.debugToolsEnabled.value
+
+    private fun shouldRecord(level: Level): Boolean {
+        val logOn = settingsStore.diagnosticLogEnabled.value
+        val debugOn = settingsStore.debugToolsEnabled.value
+        return when (level) {
+            Level.RAW -> debugOn && logOn
+            Level.USB -> debugOn || logOn
+            Level.INFO, Level.WARN, Level.ERROR -> logOn
+        }
     }
 
     fun clear() {

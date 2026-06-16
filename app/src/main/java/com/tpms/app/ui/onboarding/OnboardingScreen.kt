@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,39 +60,31 @@ fun OnboardingScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             when (step) {
-                OnboardingSteps.USB -> OnboardingActions(
-                    primary = stringResource(R.string.onboarding_grant_usb),
-                    onPrimary = { viewModel.requestUsbPermission() },
-                    secondary = stringResource(R.string.onboarding_next),
-                    onSecondary = { viewModel.nextStep() }
+                OnboardingSteps.USB -> OnboardingPrimaryAction(
+                    label = stringResource(R.string.onboarding_grant_usb),
+                    onClick = { viewModel.requestUsbPermission() }
                 )
-                OnboardingSteps.PERMISSIONS -> OnboardingActions(
-                    primary = stringResource(R.string.onboarding_open_notifications),
+                OnboardingSteps.PERMISSIONS -> OnboardingStepActions(
+                    primaryLabel = stringResource(R.string.onboarding_open_notifications),
                     onPrimary = { viewModel.openNotifications() },
-                    secondary = stringResource(R.string.onboarding_open_battery),
-                    onSecondary = { viewModel.openBattery() },
-                    tertiary = stringResource(
+                    secondaryLabel = stringResource(
                         if (showTeyesSteps) R.string.onboarding_next else R.string.onboarding_finish
                     ),
-                    onTertiary = {
+                    onSecondary = {
                         if (showTeyesSteps) viewModel.nextStep() else viewModel.complete(onComplete)
                     }
                 )
-                OnboardingSteps.TEYES_PERMISSIONS -> OnboardingActions(
-                    primary = stringResource(R.string.onboarding_open_teyes_settings),
+                OnboardingSteps.TEYES_PERMISSIONS -> OnboardingStepActions(
+                    primaryLabel = stringResource(R.string.onboarding_open_teyes_settings),
                     onPrimary = { viewModel.openTeyesSettings() },
-                    secondary = stringResource(R.string.onboarding_open_battery),
-                    onSecondary = { viewModel.openBattery() },
-                    tertiary = stringResource(R.string.onboarding_next),
-                    onTertiary = { viewModel.nextStep() }
+                    secondaryLabel = stringResource(R.string.onboarding_next),
+                    onSecondary = { viewModel.nextStep() }
                 )
-                else -> OnboardingActions(
-                    primary = stringResource(R.string.onboarding_open_frontapp),
+                else -> OnboardingStepActions(
+                    primaryLabel = stringResource(R.string.onboarding_open_frontapp),
                     onPrimary = { viewModel.openFrontApp() },
-                    secondary = stringResource(R.string.onboarding_frontapp_done),
-                    onSecondary = { viewModel.markFrontAppHome() },
-                    tertiary = stringResource(R.string.onboarding_finish),
-                    onTertiary = { viewModel.complete(onComplete) }
+                    secondaryLabel = stringResource(R.string.onboarding_finish),
+                    onSecondary = { viewModel.complete(onComplete) }
                 )
             }
             TextButton(
@@ -105,23 +98,26 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun OnboardingActions(
-    primary: String,
+private fun OnboardingPrimaryAction(
+    label: String,
+    onClick: () -> Unit
+) {
+    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Text(label)
+    }
+}
+
+@Composable
+private fun OnboardingStepActions(
+    primaryLabel: String,
     onPrimary: () -> Unit,
-    secondary: String,
-    onSecondary: () -> Unit,
-    tertiary: String? = null,
-    onTertiary: (() -> Unit)? = null
+    secondaryLabel: String,
+    onSecondary: () -> Unit
 ) {
     Button(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) {
-        Text(primary)
+        Text(primaryLabel)
     }
-    Button(onClick = onSecondary, modifier = Modifier.fillMaxWidth()) {
-        Text(secondary)
-    }
-    if (tertiary != null && onTertiary != null) {
-        Button(onClick = onTertiary, modifier = Modifier.fillMaxWidth()) {
-            Text(tertiary)
-        }
+    OutlinedButton(onClick = onSecondary, modifier = Modifier.fillMaxWidth()) {
+        Text(secondaryLabel)
     }
 }

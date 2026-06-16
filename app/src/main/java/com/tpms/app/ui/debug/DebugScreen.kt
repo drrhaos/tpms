@@ -59,6 +59,7 @@ fun DebugScreen(
     val context = LocalContext.current
     val usbScan by viewModel.usbScan.collectAsState()
     val entries by viewModel.logEntries.collectAsState()
+    val logRecordingEnabled by viewModel.logRecordingEnabled.collectAsState()
     val hasPersistedCrash = viewModel.hasPersistedCrash
     val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
@@ -90,6 +91,15 @@ fun DebugScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(12.dp))
+
+            if (!logRecordingEnabled) {
+                Text(
+                    text = stringResource(R.string.debug_log_recording_off),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = StatusColors.warning
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             if (hasPersistedCrash) {
                 Text(

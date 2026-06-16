@@ -94,6 +94,8 @@ fun SettingsScreen(
     val floatingOverlayEnabled by viewModel.floatingOverlayEnabled.collectAsState()
     val criticalAlertsFullscreen by viewModel.criticalAlertsFullscreen.collectAsState()
     val widgetThemeMode by viewModel.widgetThemeMode.collectAsState()
+    val diagnosticLogEnabled by viewModel.diagnosticLogEnabled.collectAsState()
+    val debugToolsEnabled by viewModel.debugToolsEnabled.collectAsState()
     val preferredUsbVidPid by viewModel.preferredUsbVidPid.collectAsState()
     val setupStatus by viewModel.setupStatus.collectAsState()
     val isTeyesDevice = viewModel.isTeyesDevice
@@ -226,55 +228,12 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsGroup {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = stringResource(R.string.settings_mode_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            SettingsUiMode.entries.forEachIndexed { index, mode ->
-                                SegmentedButton(
-                                    selected = settingsUiMode == mode,
-                                    onClick = { viewModel.setSettingsUiMode(mode) },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index,
-                                        SettingsUiMode.entries.size
-                                    ),
-                                    colors = SegmentedButtonDefaults.colors(
-                                        activeContainerColor = TpmsColors.primaryDim,
-                                        activeContentColor = TpmsColors.accent
-                                    )
-                                ) {
-                                    Text(
-                                        when (mode) {
-                                            SettingsUiMode.USER ->
-                                                stringResource(R.string.settings_mode_user)
-                                            SettingsUiMode.ADVANCED ->
-                                                stringResource(R.string.settings_mode_advanced)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        SettingsInfoBanner(
-                            text = if (advanced) {
-                                stringResource(R.string.settings_mode_advanced_hint)
-                            } else {
-                                stringResource(R.string.settings_mode_user_hint)
-                            }
-                        )
-                    }
-                }
-            }
-
-            item {
                 SettingsSectionHeader(
                     title = stringResource(R.string.settings_section_general),
-                    subtitle = stringResource(R.string.settings_section_general_hint)
+                    subtitle = stringResource(
+                        if (advanced) R.string.settings_section_general_hint
+                        else R.string.settings_section_general_hint_simple
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 SettingsGroup {
@@ -304,62 +263,62 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    SettingsGroupDivider()
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    if (advanced) {
+                        SettingsGroupDivider()
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            OutlinedTextField(
-                                value = pressureUnit.formatThresholdValue(lowPressure),
-                                onValueChange = {
-                                    it.toFloatOrNull()?.let { v -> viewModel.setLowPressure(v) }
-                                },
-                                label = {
-                                    Text(
-                                        stringResource(
-                                            R.string.settings_low_pressure_short,
-                                            pressureUnit.localizedLabel()
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = pressureUnit.formatThresholdValue(lowPressure),
+                                    onValueChange = {
+                                        it.toFloatOrNull()?.let { v -> viewModel.setLowPressure(v) }
+                                    },
+                                    label = {
+                                        Text(
+                                            stringResource(
+                                                R.string.settings_low_pressure_short,
+                                                pressureUnit.localizedLabel()
+                                            )
                                         )
-                                    )
-                                },
-                                modifier = Modifier.weight(1f),
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = fieldColors,
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                )
+                                OutlinedTextField(
+                                    value = pressureUnit.formatThresholdValue(highPressure),
+                                    onValueChange = {
+                                        it.toFloatOrNull()?.let { v -> viewModel.setHighPressure(v) }
+                                    },
+                                    label = {
+                                        Text(
+                                            stringResource(
+                                                R.string.settings_high_pressure_short,
+                                                pressureUnit.localizedLabel()
+                                            )
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = fieldColors,
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                )
+                            }
+                            OutlinedTextField(
+                                value = highTemp.toString(),
+                                onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighTemp(v) } },
+                                label = { Text(stringResource(R.string.settings_high_temp)) },
+                                modifier = Modifier.fillMaxWidth(),
                                 colors = fieldColors,
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                             )
-                            OutlinedTextField(
-                                value = pressureUnit.formatThresholdValue(highPressure),
-                                onValueChange = {
-                                    it.toFloatOrNull()?.let { v -> viewModel.setHighPressure(v) }
-                                },
-                                label = {
-                                    Text(
-                                        stringResource(
-                                            R.string.settings_high_pressure_short,
-                                            pressureUnit.localizedLabel()
-                                        )
-                                    )
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = fieldColors,
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                            )
-                        }
-                        OutlinedTextField(
-                            value = highTemp.toString(),
-                            onValueChange = { it.toFloatOrNull()?.let { v -> viewModel.setHighTemp(v) } },
-                            label = { Text(stringResource(R.string.settings_high_temp)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = fieldColors,
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                        )
-                        if (advanced) {
                             OutlinedTextField(
                                 value = sensorTimeoutSec.toString(),
                                 onValueChange = {
@@ -372,37 +331,45 @@ fun SettingsScreen(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
                         }
+                    } else {
+                        SettingsGroupDivider()
+                        Text(
+                            text = stringResource(R.string.settings_thresholds_simple_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
                     }
                 }
             }
 
-            item {
-                SettingsSectionHeader(
-                    title = stringResource(R.string.settings_section_wheels),
-                    subtitle = stringResource(R.string.settings_section_wheels_hint)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsGroup {
-                    if (!sensorsAvailable) {
-                        Text(
-                            text = stringResource(R.string.settings_no_sensors),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
-                        )
-                        SettingsGroupDivider()
-                    }
-                    wheelSlots.forEachIndexed { index, slot ->
-                        if (index > 0) SettingsGroupDivider()
-                        val selected = wheelMapping[slot].orEmpty()
-                        SettingsValueRow(
-                            label = slot,
-                            value = selected.ifBlank { stringResource(R.string.settings_auto) },
-                            onClick = { viewModel.cycleWheelMapping(slot, knownSensorIds) },
-                            enabled = sensorsAvailable || selected.isNotBlank()
-                        )
-                    }
-                    if (advanced) {
+            if (advanced) {
+                item {
+                    SettingsSectionHeader(
+                        title = stringResource(R.string.settings_section_wheels),
+                        subtitle = stringResource(R.string.settings_section_wheels_hint)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsGroup {
+                        if (!sensorsAvailable) {
+                            Text(
+                                text = stringResource(R.string.settings_no_sensors),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+                            )
+                            SettingsGroupDivider()
+                        }
+                        wheelSlots.forEachIndexed { index, slot ->
+                            if (index > 0) SettingsGroupDivider()
+                            val selected = wheelMapping[slot].orEmpty()
+                            SettingsValueRow(
+                                label = slot,
+                                value = selected.ifBlank { stringResource(R.string.settings_auto) },
+                                onClick = { viewModel.cycleWheelMapping(slot, knownSensorIds) },
+                                enabled = sensorsAvailable || selected.isNotBlank()
+                            )
+                        }
                         SettingsGroupDivider()
                         SettingsSwitchRow(
                             label = stringResource(R.string.settings_show_spare_wheel),
@@ -416,7 +383,10 @@ fun SettingsScreen(
             item {
                 SettingsSectionHeader(
                     title = stringResource(R.string.settings_section_background),
-                    subtitle = stringResource(R.string.settings_section_background_hint)
+                    subtitle = stringResource(
+                        if (advanced) R.string.settings_section_background_hint
+                        else R.string.settings_section_background_hint_simple
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 SettingsGroup {
@@ -446,49 +416,39 @@ fun SettingsScreen(
                         },
                         onClick = { viewModel.openNotificationSettings() }
                     )
-                    SettingsGroupDivider()
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_silent_startup),
-                        checked = silentStartup,
-                        onCheckedChange = { viewModel.setSilentStartup(it) }
-                    )
-                    SettingsGroupDivider()
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_floating_overlay),
-                        checked = floatingOverlayEnabled,
-                        onCheckedChange = { viewModel.setFloatingOverlayEnabled(it) }
-                    )
-                    SettingsGroupDivider()
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_critical_alerts_fullscreen),
-                        checked = criticalAlertsFullscreen,
-                        onCheckedChange = { viewModel.setCriticalAlertsFullscreen(it) }
-                    )
                 }
             }
 
             item {
                 SettingsSectionHeader(
                     title = stringResource(R.string.settings_section_widget),
-                    subtitle = stringResource(R.string.settings_section_widget_hint)
+                    subtitle = stringResource(
+                        if (advanced) R.string.settings_section_widget_hint
+                        else R.string.settings_section_widget_hint_simple
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 SettingsGroup {
                     SettingsNavigationRow(
-                        label = stringResource(R.string.widget_pin_to_panel),
+                        label = stringResource(
+                            if (advanced) R.string.widget_pin_to_panel
+                            else R.string.settings_widget_add_simple
+                        ),
                         onClick = { viewModel.pinWidgetToHome() }
                     )
-                    SettingsGroupDivider()
-                    SettingsNavigationRow(
-                        label = stringResource(R.string.widget_pin_compact),
-                        onClick = { viewModel.pinCompactWidget() }
-                    )
-                    if (widgetActive) {
+                    if (advanced) {
                         SettingsGroupDivider()
-                        WidgetThemeModePicker(
-                            selected = widgetThemeMode,
-                            onSelect = { viewModel.setWidgetThemeMode(it) }
+                        SettingsNavigationRow(
+                            label = stringResource(R.string.widget_pin_compact),
+                            onClick = { viewModel.pinCompactWidget() }
                         )
+                        if (widgetActive) {
+                            SettingsGroupDivider()
+                            WidgetThemeModePicker(
+                                selected = widgetThemeMode,
+                                onSelect = { viewModel.setWidgetThemeMode(it) }
+                            )
+                        }
                     }
                 }
             }
@@ -586,11 +546,27 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingsGroup {
-                        SettingsNavigationRow(
-                            label = stringResource(R.string.settings_usb_debug_title),
-                            description = stringResource(R.string.settings_usb_debug_hint),
-                            onClick = onNavigateToDebug
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_diagnostic_log),
+                            description = stringResource(R.string.settings_diagnostic_log_hint),
+                            checked = diagnosticLogEnabled,
+                            onCheckedChange = { viewModel.setDiagnosticLogEnabled(it) }
                         )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_debug_tools),
+                            description = stringResource(R.string.settings_debug_tools_hint),
+                            checked = debugToolsEnabled,
+                            onCheckedChange = { viewModel.setDebugToolsEnabled(it) }
+                        )
+                        if (debugToolsEnabled) {
+                            SettingsGroupDivider()
+                            SettingsNavigationRow(
+                                label = stringResource(R.string.settings_open_debug),
+                                description = stringResource(R.string.settings_usb_debug_hint),
+                                onClick = onNavigateToDebug
+                            )
+                        }
                         SettingsGroupDivider()
                         SettingsValueRow(
                             label = stringResource(R.string.settings_preferred_usb_dongle),
@@ -638,7 +614,38 @@ fun SettingsScreen(
                 }
 
                 item {
+                    SettingsSectionHeader(
+                        title = stringResource(R.string.settings_section_experimental),
+                        subtitle = stringResource(R.string.settings_section_experimental_hint)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     SettingsGroup {
+                        SettingsInfoBanner(
+                            text = stringResource(R.string.settings_experimental_warning),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_floating_overlay),
+                            description = stringResource(R.string.settings_floating_overlay_hint),
+                            checked = floatingOverlayEnabled,
+                            onCheckedChange = { viewModel.setFloatingOverlayEnabled(it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_silent_startup),
+                            description = stringResource(R.string.settings_silent_startup_hint),
+                            checked = silentStartup,
+                            onCheckedChange = { viewModel.setSilentStartup(it) }
+                        )
+                        SettingsGroupDivider()
+                        SettingsSwitchRow(
+                            label = stringResource(R.string.settings_critical_alerts_fullscreen),
+                            description = stringResource(R.string.settings_critical_alerts_fullscreen_hint),
+                            checked = criticalAlertsFullscreen,
+                            onCheckedChange = { viewModel.setCriticalAlertsFullscreen(it) }
+                        )
+                        SettingsGroupDivider()
                         Column(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -707,6 +714,52 @@ fun SettingsScreen(
                                 Text(stringResource(R.string.settings_import_apply))
                             }
                         }
+                    }
+                }
+            }
+
+            item {
+                SettingsGroup {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_mode_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SettingsUiMode.entries.forEachIndexed { index, mode ->
+                                SegmentedButton(
+                                    selected = settingsUiMode == mode,
+                                    onClick = { viewModel.setSettingsUiMode(mode) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index,
+                                        SettingsUiMode.entries.size
+                                    ),
+                                    colors = SegmentedButtonDefaults.colors(
+                                        activeContainerColor = TpmsColors.primaryDim,
+                                        activeContentColor = TpmsColors.accent
+                                    )
+                                ) {
+                                    Text(
+                                        when (mode) {
+                                            SettingsUiMode.USER ->
+                                                stringResource(R.string.settings_mode_user)
+                                            SettingsUiMode.ADVANCED ->
+                                                stringResource(R.string.settings_mode_advanced)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        SettingsInfoBanner(
+                            text = if (advanced) {
+                                stringResource(R.string.settings_mode_advanced_hint)
+                            } else {
+                                stringResource(R.string.settings_mode_user_hint)
+                            }
+                        )
                     }
                 }
             }

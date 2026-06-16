@@ -10,7 +10,7 @@ import org.json.JSONObject
 
 object SettingsExporter {
 
-    const val EXPORT_VERSION = 2
+    const val EXPORT_VERSION = 3
 
     fun export(
         pressureUnit: PressureUnit,
@@ -28,7 +28,9 @@ object SettingsExporter {
         floatingOverlayEnabled: Boolean = false,
         criticalAlertsFullscreen: Boolean = true,
         preferredUsbVidPid: String? = null,
-        widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO
+        widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO,
+        diagnosticLogEnabled: Boolean = false,
+        debugToolsEnabled: Boolean = false
     ): String = JSONObject().apply {
         put("version", EXPORT_VERSION)
         put("pressure_unit", pressureUnit.name)
@@ -53,6 +55,8 @@ object SettingsExporter {
         put("critical_alerts_fullscreen", criticalAlertsFullscreen)
         preferredUsbVidPid?.let { put("preferred_usb_vid_pid", it) }
         put("widget_theme_mode", widgetThemeMode.name)
+        put("diagnostic_log_enabled", diagnosticLogEnabled)
+        put("debug_tools_enabled", debugToolsEnabled)
         put("wheel_mapping", JSONObject().apply {
             WheelLayout.allSlots(showSpareWheel).forEach { slot ->
                 put(slot, wheelMapping[slot].orEmpty())
@@ -108,6 +112,8 @@ object SettingsExporter {
             criticalAlertsFullscreen = root.optBoolean("critical_alerts_fullscreen", true),
             preferredUsbVidPid = root.optString("preferred_usb_vid_pid", "").takeIf { it.isNotBlank() },
             widgetThemeMode = WidgetThemeMode.fromName(root.optString("widget_theme_mode", WidgetThemeMode.AUTO.name)),
+            diagnosticLogEnabled = root.optBoolean("diagnostic_log_enabled", false),
+            debugToolsEnabled = root.optBoolean("debug_tools_enabled", false),
             wheelMapping = slots.associateWith { slot ->
                 wheelMappingJson?.optString(slot, "").orEmpty()
             }
@@ -131,6 +137,8 @@ data class ImportedSettings(
     val criticalAlertsFullscreen: Boolean = true,
     val preferredUsbVidPid: String? = null,
     val widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO,
+    val diagnosticLogEnabled: Boolean = false,
+    val debugToolsEnabled: Boolean = false,
     val wheelMapping: Map<String, String>
 )
 

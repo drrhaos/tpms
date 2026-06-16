@@ -86,21 +86,21 @@
     <string name="widget_pin_compact">Add compact widget to home screen</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_title">Set up TPMS Monitor</string>
-    <string name="onboarding_title_teyes">Set up TPMS on Teyes</string>
-    <string name="onboarding_step_usb">Step 1: Connect the USB TPMS dongle. The monitor service will start in the background.</string>
-    <string name="onboarding_step_notifications">Step 2: Allow notifications so pressure alerts can reach you while driving.</string>
-    <string name="onboarding_step_teyes">Step 3: Disable battery restrictions and enable auto-start in Teyes app settings.</string>
-    <string name="onboarding_step_widget">Step 4: Install FrontApp for Teyes and add TPMS Monitor to the launcher home screen. The stock Teyes launcher cannot pin widgets.</string>
-    <string name="onboarding_grant_usb">Start monitoring</string>
-    <string name="onboarding_open_notifications">Open notification settings</string>
-    <string name="onboarding_open_battery">Open battery settings</string>
+    <string name="onboarding_title">Quick setup</string>
+    <string name="onboarding_title_teyes">Quick setup for Teyes</string>
+    <string name="onboarding_step_usb">Plug the USB adapter into the car, then tap Start.</string>
+    <string name="onboarding_step_notifications">Allow notifications so the app can warn you about tire problems.</string>
+    <string name="onboarding_step_teyes">On Teyes: turn off battery limits and allow auto-start for TPMS Monitor.</string>
+    <string name="onboarding_step_widget">Add TPMS to the home screen with FrontApp for Teyes.</string>
+    <string name="onboarding_grant_usb">Start</string>
+    <string name="onboarding_open_notifications">Allow notifications</string>
+    <string name="onboarding_open_battery">Fix battery limits</string>
     <string name="onboarding_open_teyes_settings">Open Teyes settings</string>
     <string name="onboarding_open_frontapp">Open FrontApp for Teyes</string>
     <string name="onboarding_frontapp_done">Added via FrontApp</string>
-    <string name="onboarding_next">Next</string>
-    <string name="onboarding_finish">Finish setup</string>
-    <string name="onboarding_skip">Skip for now</string>
+    <string name="onboarding_next">Continue</string>
+    <string name="onboarding_finish">Done</string>
+    <string name="onboarding_skip">Skip setup</string>
 
     <!-- Main screen -->
     <string name="title_main">TPMS Monitor</string>
@@ -117,9 +117,13 @@
 
     <!-- Settings -->
     <string name="title_settings">Settings</string>
-    <string name="settings_usb_debug_title">USB Debug Log</string>
-    <string name="settings_usb_debug_hint">If your dongle (e.g. 100-a1-xl-v01) is not detected, open the debug log, tap Scan USB, then Copy/Share the output.</string>
-    <string name="settings_open_debug">Open USB debug log</string>
+    <string name="settings_diagnostic_log">Record event log</string>
+    <string name="settings_diagnostic_log_hint">Save app and USB events for export. Off by default.</string>
+    <string name="settings_debug_tools">Debug tools</string>
+    <string name="settings_debug_tools_hint">USB scanner, probe read, and raw frame capture (requires event log).</string>
+    <string name="settings_open_debug">Open debug console</string>
+    <string name="debug_log_recording_off">Event log recording is off. Enable “Record event log” in Settings to capture new events.</string>
+    <string name="settings_usb_debug_hint">If your dongle (e.g. 100-a1-xl-v01) is not detected, open the debug console, tap Scan USB, then Copy/Share the output.</string>
     <string name="settings_teyes_home_title">Teyes Home Screen</string>
     <string name="settings_pressure_unit">Pressure Unit</string>
     <string name="settings_dongle_protocol">Dongle Protocol</string>
@@ -179,11 +183,16 @@
     <string name="settings_open_app_details">Open app settings (auto-start)</string>
     <string name="settings_open_battery_settings">Open battery optimization</string>
     <string name="settings_open_notification_settings">Open notification settings</string>
-    <string name="settings_mode_title">Settings mode</string>
-    <string name="settings_mode_user">User</string>
-    <string name="settings_mode_advanced">Advanced</string>
-    <string name="settings_mode_user_hint">Essential options for daily use: units, thresholds, wheels, and alerts.</string>
-    <string name="settings_mode_advanced_hint">Diagnostics, protocol, stability tuning, and config backup.</string>
+    <string name="settings_mode_title">Experience level</string>
+    <string name="settings_mode_user">Simple</string>
+    <string name="settings_mode_advanced">Expert</string>
+    <string name="settings_mode_user_hint">Only what you need day to day. Alert limits use safe defaults.</string>
+    <string name="settings_mode_advanced_hint">USB protocol, wheel mapping, thresholds, diagnostics, and backup.</string>
+    <string name="settings_section_general_hint_simple">Choose how pressure is shown on screen.</string>
+    <string name="settings_thresholds_simple_hint">Low and high pressure alerts use recommended defaults. Switch to Expert to change them.</string>
+    <string name="settings_section_background_hint_simple">Tap a red item to fix it. The app must keep running in the background.</string>
+    <string name="settings_section_widget_hint_simple">Put tire pressure on your home screen.</string>
+    <string name="settings_widget_add_simple">Add to home screen</string>
     <string name="settings_section_background">Background monitoring</string>
     <string name="settings_section_background_hint">Keep TPMS running reliably while the app is in the background.</string>
     <string name="settings_section_widget">Home screen widget</string>
@@ -193,7 +202,13 @@
     <string name="settings_section_wheels">Wheels</string>
     <string name="settings_section_wheels_hint">Map sensors to wheel positions</string>
     <string name="settings_section_alerts">Alerts</string>
-    <string name="settings_section_advanced">Advanced</string>
+    <string name="settings_section_advanced">Expert tools</string>
+    <string name="settings_section_experimental">Experimental</string>
+    <string name="settings_section_experimental_hint">Unstable extras — enable only if you know why.</string>
+    <string name="settings_experimental_warning">These features may behave differently on your device. Leave off unless you need them.</string>
+    <string name="settings_floating_overlay_hint">Small panel over navigation and other apps.</string>
+    <string name="settings_silent_startup_hint">Start in background without opening the app window.</string>
+    <string name="settings_critical_alerts_fullscreen_hint">Take over the screen for critical pressure alerts.</string>
     <string name="settings_section_advanced_hint">For dongle troubleshooting and power users</string>
     <string name="settings_low_pressure_short">Low (%1$s)</string>
     <string name="settings_high_pressure_short">High (%1$s)</string>

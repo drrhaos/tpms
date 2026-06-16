@@ -20,7 +20,9 @@ class SettingsExporterTest {
             showSpareWheel = true,
             minLiveWheelPressureKpa = 110f,
             alertNotificationPrefs = AlertNotificationPrefs(soundEnabled = false),
-            teyesChecklist = TeyesChecklist(autoStart = true, batteryUnrestricted = true, lockInRecents = false, bootCompleted = true, autoRunAwake = true)
+            teyesChecklist = TeyesChecklist(autoStart = true, batteryUnrestricted = true, lockInRecents = false, bootCompleted = true, autoRunAwake = true),
+            diagnosticLogEnabled = true,
+            debugToolsEnabled = true
         )
 
         val imported = SettingsExporter.import(exported)
@@ -33,5 +35,7 @@ class SettingsExporterTest {
         assertEquals("ABC", imported.wheelMapping["FL"])
         assertEquals(true, imported.showSpareWheel)
         assertEquals(110f, imported.minLiveWheelPressureKpa, 0.01f)
+        assertEquals(true, imported.diagnosticLogEnabled)
+        assertEquals(true, imported.debugToolsEnabled)
     }
 }

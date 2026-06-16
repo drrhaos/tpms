@@ -9,6 +9,7 @@ import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.service.TpmsMonitorService
@@ -31,6 +32,8 @@ data class MainUiState(
     val wheelSlotLabels: List<String> = WheelLayout.ORDER,
     val wheelMapping: Map<String, String> = emptyMap(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
+    val advancedMode: Boolean = false,
+    val debugToolsEnabled: Boolean = false,
     val lastError: String? = null,
     val dataStale: Boolean = false,
     val dataAgeMinutes: Long? = null
@@ -51,9 +54,17 @@ class MainViewModel @Inject constructor(
         combine(
             settingsStore.pressureUnit,
             settingsStore.wheelMapping,
-            settingsStore.showSpareWheel
-        ) { unit, mapping, spare ->
-            MainSettingsBundle(unit, mapping, spare)
+            settingsStore.showSpareWheel,
+            settingsStore.settingsUiMode,
+            settingsStore.debugToolsEnabled
+        ) { unit, mapping, spare, uiMode, debugTools ->
+            MainSettingsBundle(
+                unit,
+                mapping,
+                spare,
+                uiMode == SettingsUiMode.ADVANCED,
+                debugTools
+            )
         }
     ) { tpmsState, sensors, settings ->
         buildUiState(tpmsState, sensors, settings)
@@ -92,6 +103,8 @@ class MainViewModel @Inject constructor(
                 wheelSlotLabels = slots,
                 wheelMapping = settings.wheelMapping,
                 pressureUnit = settings.pressureUnit,
+                advancedMode = settings.advancedMode,
+                debugToolsEnabled = settings.debugToolsEnabled,
                 dataStale = stale,
                 dataAgeMinutes = ageSec?.let { (it / 60).coerceAtLeast(1) }
             )
@@ -120,5 +133,7 @@ class MainViewModel @Inject constructor(
 private data class MainSettingsBundle(
     val pressureUnit: PressureUnit,
     val wheelMapping: Map<String, String>,
-    val showSpareWheel: Boolean
+    val showSpareWheel: Boolean,
+    val advancedMode: Boolean,
+    val debugToolsEnabled: Boolean
 )

@@ -9,6 +9,7 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.AlertNotificationPrefs
 import com.tpms.app.data.settings.SettingsExporter
 import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDeviceInfo
@@ -43,6 +44,7 @@ class SettingsViewModel @Inject constructor(
     private val repository: TpmsRepository,
     private val setupStatusProvider: SetupStatusProvider,
     private val headUnitSupport: HeadUnitSupport,
+    private val usbDebugLog: UsbDebugLog,
     private val usbConnection: UsbConnection,
     private val floatingOverlayController: FloatingOverlayController
 ) : ViewModel() {
@@ -112,6 +114,12 @@ class SettingsViewModel @Inject constructor(
     private val _widgetThemeMode = MutableStateFlow(WidgetThemeMode.AUTO)
     val widgetThemeMode: StateFlow<WidgetThemeMode> = _widgetThemeMode.asStateFlow()
 
+    private val _diagnosticLogEnabled = MutableStateFlow(false)
+    val diagnosticLogEnabled: StateFlow<Boolean> = _diagnosticLogEnabled.asStateFlow()
+
+    private val _debugToolsEnabled = MutableStateFlow(false)
+    val debugToolsEnabled: StateFlow<Boolean> = _debugToolsEnabled.asStateFlow()
+
     private val _preferredUsbVidPid = MutableStateFlow<String?>(null)
     val preferredUsbVidPid: StateFlow<String?> = _preferredUsbVidPid.asStateFlow()
 
@@ -173,6 +181,12 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsStore.preferredUsbVidPid.collect { _preferredUsbVidPid.value = it }
+        }
+        viewModelScope.launch {
+            settingsStore.diagnosticLogEnabled.collect { _diagnosticLogEnabled.value = it }
+        }
+        viewModelScope.launch {
+            settingsStore.debugToolsEnabled.collect { _debugToolsEnabled.value = it }
         }
         refreshRuntimeSetupStatus()
     }
@@ -250,6 +264,23 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.setWidgetThemeMode(mode)
             TpmsMonitorService.wake(context)
+        }
+    }
+
+    fun setDiagnosticLogEnabled(enabled: Boolean) {
+        _diagnosticLogEnabled.value = enabled
+        viewModelScope.launch {
+            settingsStore.setDiagnosticLogEnabled(enabled)
+            if (!enabled) {
+                usbDebugLog.clear()
+            }
+        }
+    }
+
+    fun setDebugToolsEnabled(enabled: Boolean) {
+        _debugToolsEnabled.value = enabled
+        viewModelScope.launch {
+            settingsStore.setDebugToolsEnabled(enabled)
         }
     }
 
@@ -363,7 +394,9 @@ class SettingsViewModel @Inject constructor(
             floatingOverlayEnabled = _floatingOverlayEnabled.value,
             criticalAlertsFullscreen = _criticalAlertsFullscreen.value,
             preferredUsbVidPid = _preferredUsbVidPid.value,
-            widgetThemeMode = _widgetThemeMode.value
+            widgetThemeMode = _widgetThemeMode.value,
+            diagnosticLogEnabled = _diagnosticLogEnabled.value,
+            debugToolsEnabled = _debugToolsEnabled.value
         )
     }
 

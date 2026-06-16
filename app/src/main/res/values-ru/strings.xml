@@ -86,20 +86,20 @@
     <string name="widget_pin_compact">Добавить компактный виджет</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_title">Настройка TPMS Monitor</string>
-    <string name="onboarding_title_teyes">Настройка TPMS на Teyes</string>
-    <string name="onboarding_step_usb">Шаг 1: Подключите USB-донгл TPMS. Служба мониторинга запустится в фоне.</string>
-    <string name="onboarding_step_notifications">Шаг 2: Разрешите уведомления для оповещений о давлении за рулём.</string>
-    <string name="onboarding_step_teyes">Шаг 3: Отключите ограничения батареи и включите автозапуск в настройках Teyes.</string>
-    <string name="onboarding_step_widget">Шаг 4: Установите FrontApp for Teyes и добавьте TPMS Monitor на главный экран. Штатный лаунчер Teyes не поддерживает виджеты.</string>
-    <string name="onboarding_grant_usb">Запустить мониторинг</string>
-    <string name="onboarding_open_notifications">Открыть настройки уведомлений</string>
-    <string name="onboarding_open_battery">Открыть настройки батареи</string>
+    <string name="onboarding_title">Быстрая настройка</string>
+    <string name="onboarding_title_teyes">Быстрая настройка для Teyes</string>
+    <string name="onboarding_step_usb">Вставьте USB-адаптер в магнитолу и нажмите «Старт».</string>
+    <string name="onboarding_step_notifications">Разрешите уведомления — приложение предупредит о проблемах с шинами.</string>
+    <string name="onboarding_step_teyes">На Teyes: снимите ограничения батареи и разрешите автозапуск TPMS Monitor.</string>
+    <string name="onboarding_step_widget">Добавьте TPMS на главный экран через FrontApp for Teyes.</string>
+    <string name="onboarding_grant_usb">Старт</string>
+    <string name="onboarding_open_notifications">Разрешить уведомления</string>
+    <string name="onboarding_open_battery">Исправить батарею</string>
     <string name="onboarding_open_teyes_settings">Открыть настройки Teyes</string>
     <string name="onboarding_open_frontapp">Открыть FrontApp for Teyes</string>
     <string name="onboarding_frontapp_done">Добавлено через FrontApp</string>
-    <string name="onboarding_next">Далее</string>
-    <string name="onboarding_finish">Завершить</string>
+    <string name="onboarding_next">Дальше</string>
+    <string name="onboarding_finish">Готово</string>
     <string name="onboarding_skip">Пропустить</string>
 
     <!-- Main screen -->
@@ -117,9 +117,13 @@
 
     <!-- Settings -->
     <string name="title_settings">Настройки</string>
-    <string name="settings_usb_debug_title">Журнал USB</string>
-    <string name="settings_usb_debug_hint">Если донгл (напр. 100-a1-xl-v01) не определяется, откройте журнал, нажмите «Сканировать USB», затем «Копировать» или «Поделиться».</string>
-    <string name="settings_open_debug">Открыть журнал USB</string>
+    <string name="settings_diagnostic_log">Запись журнала</string>
+    <string name="settings_diagnostic_log_hint">Сохранять события приложения и USB для экспорта. По умолчанию выключено.</string>
+    <string name="settings_debug_tools">Инструменты отладки</string>
+    <string name="settings_debug_tools_hint">Сканер USB, пробное чтение и сырые кадры (нужна запись журнала).</string>
+    <string name="settings_open_debug">Открыть консоль отладки</string>
+    <string name="debug_log_recording_off">Запись журнала выключена. Включите «Запись журнала» в настройках, чтобы собирать новые события.</string>
+    <string name="settings_usb_debug_hint">Если донгл (напр. 100-a1-xl-v01) не определяется, откройте консоль отладки, нажмите «Сканировать USB», затем «Копировать» или «Поделиться».</string>
     <string name="settings_teyes_home_title">Главный экран Teyes</string>
     <string name="settings_pressure_unit">Единицы давления</string>
     <string name="settings_dongle_protocol">Протокол донгла</string>
@@ -179,11 +183,16 @@
     <string name="settings_open_app_details">Открыть настройки приложения (автозапуск)</string>
     <string name="settings_open_battery_settings">Открыть оптимизацию батареи</string>
     <string name="settings_open_notification_settings">Открыть настройки уведомлений</string>
-    <string name="settings_mode_title">Режим настроек</string>
-    <string name="settings_mode_user">Пользовательский</string>
-    <string name="settings_mode_advanced">Расширенный</string>
-    <string name="settings_mode_user_hint">Основное для ежедневного использования: единицы, пороги, колёса и оповещения.</string>
-    <string name="settings_mode_advanced_hint">Диагностика, протокол, стабильность и резервная копия настроек.</string>
+    <string name="settings_mode_title">Уровень</string>
+    <string name="settings_mode_user">Простой</string>
+    <string name="settings_mode_advanced">Для опытных</string>
+    <string name="settings_mode_user_hint">Только самое нужное. Пороги тревог — по умолчанию, безопасные.</string>
+    <string name="settings_mode_advanced_hint">Протокол USB, привязка колёс, пороги, диагностика и резервная копия.</string>
+    <string name="settings_section_general_hint_simple">Как показывать давление на экране.</string>
+    <string name="settings_thresholds_simple_hint">Пороги тревог уже настроены. В режиме «Для опытных» можно изменить.</string>
+    <string name="settings_section_background_hint_simple">Нажмите на красный пункт, чтобы исправить. Приложение должно работать в фоне.</string>
+    <string name="settings_section_widget_hint_simple">Вынести давление в шинах на главный экран.</string>
+    <string name="settings_widget_add_simple">Добавить на главный экран</string>
     <string name="settings_section_background">Фоновый мониторинг</string>
     <string name="settings_section_background_hint">Надёжная работа TPMS, когда приложение в фоне.</string>
     <string name="settings_section_widget">Виджет на главном экране</string>
@@ -193,8 +202,14 @@
     <string name="settings_section_wheels">Колёса</string>
     <string name="settings_section_wheels_hint">Привязка датчиков к позициям колёс</string>
     <string name="settings_section_alerts">Оповещения</string>
-    <string name="settings_section_advanced">Расширенное</string>
+    <string name="settings_section_advanced">Инструменты эксперта</string>
     <string name="settings_section_advanced_hint">Диагностика донгла и тонкая настройка</string>
+    <string name="settings_section_experimental">Экспериментальное</string>
+    <string name="settings_section_experimental_hint">Нестабильные функции — включайте, только если понимаете зачем.</string>
+    <string name="settings_experimental_warning">На вашем устройстве поведение может отличаться. Лучше оставить выключенным.</string>
+    <string name="settings_floating_overlay_hint">Маленькая панель поверх навигации и других приложений.</string>
+    <string name="settings_silent_startup_hint">Запуск в фоне без открытия окна приложения.</string>
+    <string name="settings_critical_alerts_fullscreen_hint">Занимать весь экран при критическом давлении.</string>
     <string name="settings_low_pressure_short">Низк. (%1$s)</string>
     <string name="settings_high_pressure_short">Выс. (%1$s)</string>
     <string name="action_save">Сохранить</string>
