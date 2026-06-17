@@ -107,9 +107,11 @@ class AlertNotifier @Inject constructor(
     fun clearSensor(sensorId: String) {
         lastAlerted.remove(sensorId)
         lastNotifiedAtMs.keys.removeAll { it.startsWith("$sensorId:") }
+        notificationManager.cancel(sensorId.hashCode())
     }
 
     fun clear() {
+        lastAlerted.keys.forEach { notificationManager.cancel(it.hashCode()) }
         lastAlerted.clear()
         lastNotifiedAtMs.clear()
     }

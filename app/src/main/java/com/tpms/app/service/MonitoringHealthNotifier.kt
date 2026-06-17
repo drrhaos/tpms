@@ -51,7 +51,10 @@ class MonitoringHealthNotifier @Inject constructor(
             blindNotified = false
             return
         }
-        offlineNotified = false
+        if (offlineNotified) {
+            offlineNotified = false
+            notificationManager.cancel(NOTIF_OFFLINE)
+        }
 
         if (blind) {
             if (!blindNotified) {
