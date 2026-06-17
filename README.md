@@ -2,6 +2,8 @@
 
 Android app for continuous tire pressure monitoring via generic USB TPMS dongles. Runs as a foreground service, supports home-screen widgets, and includes optional integration for [Teyes](https://teyes.cc/) car head units (CC3 and similar).
 
+![TPMS Monitor dashboard](screenshot/Screenshot_1.png)
+
 [![CI](https://github.com/drrhaos/tpms/actions/workflows/ci.yml/badge.svg)](https://github.com/drrhaos/tpms/actions/workflows/ci.yml)
 
 > Replace `drrhaos/tpms` in the badge URL after creating the GitHub repository.
