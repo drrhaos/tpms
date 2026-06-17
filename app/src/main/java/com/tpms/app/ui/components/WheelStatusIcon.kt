@@ -20,7 +20,9 @@ import com.tpms.app.R
 import com.tpms.app.domain.AlertSeverity
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.toSeverity
-import com.tpms.app.ui.theme.StatusColors = Color(0xFF1A1F26)
+import com.tpms.app.ui.theme.StatusColors
+
+private val TireOuter = Color(0xFF1A1F26)
 private val TireInner = Color(0xFF0D1117)
 private val RimLight = Color(0xFF8B95A8)
 private val RimMid = Color(0xFF4A5568)
