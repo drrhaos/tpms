@@ -1,7 +1,6 @@
 package com.tpms.app.ui.main
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,10 +82,7 @@ fun MainScreen(
         }
     }
 
-    val (statusText, statusColor) = mainStatusPresentation(
-        state = uiState.tpmsState,
-        wheelMapping = uiState.wheelMapping
-    )
+    val (statusText, statusColor) = mainStatusPresentation(uiState)
 
     val screenContent: @Composable () -> Unit = {
         MainScreenScaffold(
@@ -193,19 +189,12 @@ private fun MainDashboardBody(
             sensors = uiState.wheelSlots,
             wheelLabels = uiState.wheelSlotLabels,
             pressureUnit = uiState.pressureUnit,
+            highlightMalfunction = MainUiHealth.hasMalfunction(uiState),
             onWheelClick = onWheelClick,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
         )
-
-        uiState.lastError?.let { message ->
-            UiErrorBanner(message = message)
-        }
-        if (uiState.dataStale) {
-            val minutes = uiState.dataAgeMinutes ?: 1
-            DataStaleBanner(minutes = minutes)
-        }
     }
 }
 
@@ -334,42 +323,4 @@ private fun wheelDetailTemperature(sensor: TireSensor): String {
 private fun formatTimestamp(timestamp: Long, emDash: String): String {
     if (timestamp <= 0L) return emDash
     return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
-}
-
-@Composable
-private fun DataStaleBanner(minutes: Long) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(StatusColors.warning.copy(alpha = 0.12f))
-            .border(1.dp, StatusColors.warning.copy(alpha = 0.35f), MaterialTheme.shapes.medium)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(R.string.main_data_stale_warning, minutes),
-            style = MaterialTheme.typography.bodySmall,
-            color = StatusColors.warning
-        )
-    }
-}
-
-@Composable
-private fun UiErrorBanner(message: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(StatusColors.alert.copy(alpha = 0.12f))
-            .border(1.dp, StatusColors.alert.copy(alpha = 0.35f), MaterialTheme.shapes.medium)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(R.string.ui_error_logged, message),
-            style = MaterialTheme.typography.bodySmall,
-            color = StatusColors.alert
-        )
-    }
 }

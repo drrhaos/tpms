@@ -40,6 +40,8 @@
 
     <!-- Status -->
     <string name="status_alert_format">%1$s — %2$s</string>
+    <string name="status_no_sensor_format">%1$s — нет связи с датчиком</string>
+    <string name="main_status_stale_format">Данные устарели (%1$d мин назад)</string>
     <string name="label_disconnected">Нет связи</string>
     <string name="label_connecting">Подключение…</string>
     <string name="label_monitoring">Мониторинг</string>

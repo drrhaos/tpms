@@ -2,19 +2,17 @@ package com.tpms.app.service
 
 import android.app.ActivityManager
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import androidx.core.app.NotificationCompat
-import com.tpms.app.R
-import com.tpms.app.TpmsApplication
 import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.domain.MonitoringHealthPolicy
-import com.tpms.app.ui.main.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Evaluates monitoring health and dismisses legacy shade notifications.
+ * Status is surfaced in the main screen header instead of posting alerts.
+ */
 @Singleton
 class MonitoringHealthNotifier @Inject constructor(
     @ApplicationContext private val context: Context
@@ -30,8 +28,6 @@ class MonitoringHealthNotifier @Inject constructor(
         lastValidFrameAtMs: Long,
         now: Long = System.currentTimeMillis()
     ) {
-        if (!NotificationHelper.canPostAlerts(context)) return
-
         val offline = MonitoringHealthPolicy.shouldAlertMonitoringOffline(disconnectedSinceMs, now)
         val blind = !offline && MonitoringHealthPolicy.shouldAlertMonitoringBlind(
             dongleOpenedAtMs = dongleOpenedAtMs,
@@ -40,14 +36,7 @@ class MonitoringHealthNotifier @Inject constructor(
         )
 
         if (offline) {
-            if (!offlineNotified) {
-                post(
-                    NOTIF_OFFLINE,
-                    context.getString(R.string.notification_monitoring_offline_title),
-                    context.getString(R.string.notification_monitoring_offline_body)
-                )
-                offlineNotified = true
-            }
+            offlineNotified = true
             blindNotified = false
             return
         }
@@ -57,15 +46,8 @@ class MonitoringHealthNotifier @Inject constructor(
         }
 
         if (blind) {
-            if (!blindNotified) {
-                post(
-                    NOTIF_BLIND,
-                    context.getString(R.string.notification_monitoring_blind_title),
-                    context.getString(R.string.notification_monitoring_blind_body)
-                )
-                blindNotified = true
-            }
-        } else {
+            blindNotified = true
+        } else if (blindNotified) {
             blindNotified = false
             notificationManager.cancel(NOTIF_BLIND)
         }
@@ -76,25 +58,6 @@ class MonitoringHealthNotifier @Inject constructor(
         offlineNotified = false
         notificationManager.cancel(NOTIF_BLIND)
         notificationManager.cancel(NOTIF_OFFLINE)
-    }
-
-    private fun post(id: Int, title: String, body: String) {
-        val notification = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_ALERT)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    context,
-                    id,
-                    MainActivity.newIntent(context),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-            )
-            .build()
-        notificationManager.notify(id, notification)
     }
 
     companion object {

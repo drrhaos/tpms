@@ -117,6 +117,8 @@ class TpmsMonitorService : Service() {
         promoteToForeground(buildPersistentNotification())
         ServiceStoppedNotifier.dismiss(this)
         UsbPermissionNotifier.dismiss(this)
+        alertNotifier.clear()
+        monitoringHealthNotifier.clear()
         BootStartScheduler.cancel(this)
         ServiceLivenessScheduler.schedule(this)
         _isRunning.value = true

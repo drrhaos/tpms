@@ -7,6 +7,7 @@ import com.tpms.app.data.diagnostics.UiBreadcrumbs
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
+import com.tpms.app.domain.MonitoringHealthPolicy
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
@@ -36,7 +37,9 @@ data class MainUiState(
     val debugToolsEnabled: Boolean = false,
     val lastError: String? = null,
     val dataStale: Boolean = false,
-    val dataAgeMinutes: Long? = null
+    val dataAgeMinutes: Long? = null,
+    val protocolUnhealthy: Boolean = false,
+    val monitoringOffline: Boolean = false
 )
 
 @HiltViewModel
@@ -96,6 +99,10 @@ class MainViewModel @Inject constructor(
             val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
             val ageSec = repository.newestSensorAgeSec()
             val stale = repository.isDataStale()
+            val protocolUnhealthy = repository.isProtocolUnhealthy()
+            val monitoringOffline = MonitoringHealthPolicy.shouldAlertMonitoringOffline(
+                repository.disconnectedSinceMs()
+            )
             MainUiState(
                 tpmsState = tpmsState,
                 sensors = sensors,
@@ -106,7 +113,9 @@ class MainViewModel @Inject constructor(
                 advancedMode = settings.advancedMode,
                 debugToolsEnabled = settings.debugToolsEnabled,
                 dataStale = stale,
-                dataAgeMinutes = ageSec?.let { (it / 60).coerceAtLeast(1) }
+                dataAgeMinutes = ageSec?.let { (it / 60).coerceAtLeast(1) },
+                protocolUnhealthy = protocolUnhealthy,
+                monitoringOffline = monitoringOffline
             )
         } catch (error: Exception) {
             debugLog.error("MainScreen", uiBreadcrumbs.describe())

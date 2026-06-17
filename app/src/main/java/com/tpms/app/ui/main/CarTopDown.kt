@@ -40,6 +40,7 @@ import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.ui.components.SensorBatteryIcon
 import com.tpms.app.ui.components.wheelStatusColor
 import com.tpms.app.ui.localizedLabel
+import com.tpms.app.ui.theme.StatusColors
 import com.tpms.app.ui.theme.TpmsColors
 
 private const val SIDE_COLUMN_WEIGHT = 0.30f
@@ -50,18 +51,33 @@ fun CarTopDown(
     sensors: List<TireSensor?>,
     wheelLabels: List<String> = listOf("FL", "FR", "RL", "RR"),
     pressureUnit: PressureUnit = PressureUnit.PSI,
+    highlightMalfunction: Boolean = false,
     onWheelClick: (label: String, sensor: TireSensor?) -> Unit = { _, _ -> },
     dense: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val margin = if (dense) 2.dp else 6.dp
     val columnGap = if (dense) 2.dp else 4.dp
+    val panelBorder = if (highlightMalfunction) {
+        StatusColors.alert.copy(alpha = 0.65f)
+    } else {
+        TpmsColors.outline.copy(alpha = 0.35f)
+    }
+    val panelBackground = if (highlightMalfunction) {
+        StatusColors.alert.copy(alpha = 0.10f)
+    } else {
+        TpmsColors.surfaceElevated
+    }
 
     BoxWithConstraints(
         modifier = modifier
             .clip(MaterialTheme.shapes.large)
-            .background(TpmsColors.surfaceElevated)
-            .border(1.dp, TpmsColors.outline.copy(alpha = 0.35f), MaterialTheme.shapes.large)
+            .background(panelBackground)
+            .border(
+                width = if (highlightMalfunction) 2.dp else 1.dp,
+                color = panelBorder,
+                shape = MaterialTheme.shapes.large
+            )
     ) {
         if (maxWidth <= 0.dp || maxHeight <= 0.dp) return@BoxWithConstraints
 
