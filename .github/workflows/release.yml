@@ -64,22 +64,29 @@ jobs:
           -PversionName=${{ steps.version.outputs.version }}
           --stacktrace
 
-      - name: Resolve APK path
+      - name: Prepare release APK
         id: apk
         run: |
-          SIGNED="app/build/outputs/apk/release/app-release.apk"
-          UNSIGNED="app/build/outputs/apk/release/app-release-unsigned.apk"
-          if [ -f "$SIGNED" ]; then
-            echo "path=$SIGNED" >> "$GITHUB_OUTPUT"
-            echo "name=tpms-monitor-${{ steps.version.outputs.version }}.apk" >> "$GITHUB_OUTPUT"
-          elif [ -f "$UNSIGNED" ]; then
-            echo "path=$UNSIGNED" >> "$GITHUB_OUTPUT"
-            echo "name=tpms-monitor-${{ steps.version.outputs.version }}-unsigned.apk" >> "$GITHUB_OUTPUT"
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_DIR="app/build/outputs/apk/release"
+          DIST_DIR="dist"
+          mkdir -p "$DIST_DIR"
+
+          if [ -f "$RELEASE_DIR/app-release.apk" ]; then
+            SRC="$RELEASE_DIR/app-release.apk"
+            NAME="tpms_v.${VERSION}.apk"
+          elif [ -f "$RELEASE_DIR/app-release-unsigned.apk" ]; then
+            SRC="$RELEASE_DIR/app-release-unsigned.apk"
+            NAME="tpms_v.${VERSION}-unsigned.apk"
           else
             echo "Release APK not found" >&2
-            ls -la app/build/outputs/apk/release/ || true
+            ls -la "$RELEASE_DIR" || true
             exit 1
           fi
+
+          DEST="$DIST_DIR/$NAME"
+          cp "$SRC" "$DEST"
+          echo "path=$DEST" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

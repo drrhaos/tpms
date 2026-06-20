@@ -40,7 +40,7 @@ If you have multiple USB devices connected, set the preferred dongle VID:PID in 
 
 ### From GitHub Releases
 
-1. Download `app-release.apk` (or `app-release-unsigned.apk` if the release was built without signing secrets) from [Releases](https://github.com/drrhaos/tpms/releases).
+1. Download `tpms_v.X.Y.Z.apk` (or `tpms_v.X.Y.Z-unsigned.apk` if the release was built without signing secrets) from [Releases](https://github.com/drrhaos/tpms/releases).
 2. Enable **Install unknown apps** for your file manager or browser.
 3. Open the APK and install.
 4. Connect the TPMS dongle via USB OTG and complete the in-app onboarding.
