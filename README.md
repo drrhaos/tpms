@@ -6,8 +6,6 @@ Android app for continuous tire pressure monitoring via generic USB TPMS dongles
 
 [![CI](https://github.com/drrhaos/tpms/actions/workflows/ci.yml/badge.svg)](https://github.com/drrhaos/tpms/actions/workflows/ci.yml)
 
-> Replace `drrhaos/tpms` in the badge URL after creating the GitHub repository.
-
 ## Features
 
 - **USB dongle support** — HID, Serial `0x55AA`, and Deelife / MU7J protocols (auto-detected)
@@ -40,7 +38,7 @@ If you have multiple USB devices connected, set the preferred dongle VID:PID in 
 
 ### From GitHub Releases
 
-1. Download `tpms_v.X.Y.Z.apk` (or `tpms_v.X.Y.Z-unsigned.apk` if the release was built without signing secrets) from [Releases](https://github.com/drrhaos/tpms/releases).
+1. Download `tpms_vX.Y.Z.apk` (or `tpms_vX.Y.Z-unsigned.apk` if the release was built without signing secrets) from [Releases](https://github.com/drrhaos/tpms/releases).
 2. Enable **Install unknown apps** for your file manager or browser.
 3. Open the APK and install.
 4. Connect the TPMS dongle via USB OTG and complete the in-app onboarding.
@@ -100,11 +98,11 @@ Without secrets, the release workflow still publishes an **unsigned** APK suitab
 3. Tag and push:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
-The [Release workflow](.github/workflows/release.yml) builds the APK and attaches it to the GitHub Release.
+Tag format: `vX.Y.Z` (e.g. `v1.2.0`, not `v.1.2.0`). The [Release workflow](.github/workflows/release.yml) builds `tpms_vX.Y.Z.apk` and attaches it to the GitHub Release.
 
 ## Development
 

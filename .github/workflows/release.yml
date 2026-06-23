@@ -35,6 +35,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
+          VERSION="${VERSION#.}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -74,10 +75,10 @@ jobs:
 
           if [ -f "$RELEASE_DIR/app-release.apk" ]; then
             SRC="$RELEASE_DIR/app-release.apk"
-            NAME="tpms_v.${VERSION}.apk"
+            NAME="tpms_v${VERSION}.apk"
           elif [ -f "$RELEASE_DIR/app-release-unsigned.apk" ]; then
             SRC="$RELEASE_DIR/app-release-unsigned.apk"
-            NAME="tpms_v.${VERSION}-unsigned.apk"
+            NAME="tpms_v${VERSION}-unsigned.apk"
           else
             echo "Release APK not found" >&2
             ls -la "$RELEASE_DIR" || true

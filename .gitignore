@@ -15,6 +15,9 @@ local.properties
 keystore.properties
 release.keystore
 
+# IDE (local editor settings)
+.vscode/
+
 # Cursor / AI agent (local dev context, not for the repo)
 AGENTS.md
 AGENT.md
