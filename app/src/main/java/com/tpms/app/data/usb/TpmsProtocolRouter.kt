@@ -59,7 +59,8 @@ class TpmsProtocolRouter @Inject constructor(
         raw: ByteArray,
         timestamp: Long,
         alertChecker: (TireSensor) -> AlertType?,
-        minLiveWheelPressureKpa: Float = SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA
+        minLiveWheelPressureKpa: Float = SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA,
+        showSpareWheel: Boolean = false
     ): List<TireSensor> {
         if (raw.isEmpty()) return emptyList()
         val protocol = activeProtocol ?: return emptyList()
@@ -72,7 +73,9 @@ class TpmsProtocolRouter @Inject constructor(
                 DongleProtocol.SERIAL_AA55 -> aa55Protocol.feed(raw, timestamp, alertChecker)
                 DongleProtocol.DEELIFE -> deelifeProtocol.feed(raw, timestamp, alertChecker)
             }
-            parsed.mapNotNull { SensorValidator.sanitize(it, minLiveWheelPressureKpa) }
+            parsed.mapNotNull {
+                SensorValidator.sanitize(it, minLiveWheelPressureKpa, showSpareWheel)
+            }
         } catch (e: Exception) {
             debugLog.warn(TAG, "Parse error (${protocol.displayName}): ${e.message}")
             emptyList()

@@ -77,4 +77,37 @@ class WheelLayoutTest {
         assertEquals(5, WheelLayout.allSlots(showSpareWheel = true).size)
         assertEquals(WheelLayout.SPARE_SLOT, WheelLayout.allSlots(true).last())
     }
+
+    @Test
+    fun orderedSlots_ignoresSpareWhenDisabled() {
+        val sensors = linkedMapOf(
+            "SP" to sensor("SP"),
+            "FL" to sensor("FL"),
+            "FR" to sensor("FR"),
+            "RL" to sensor("RL"),
+            "RR" to sensor("RR")
+        )
+
+        val slots = WheelLayout.orderedSlots(sensors, showSpareWheel = false)
+
+        assertEquals(4, slots.size)
+        assertEquals(listOf("FL", "FR", "RL", "RR"), slots.map { it?.id })
+    }
+
+    @Test
+    fun orderedSlots_doesNotFillMissingWheelWithSpare() {
+        val sensors = linkedMapOf(
+            "FL" to sensor("FL"),
+            "FR" to sensor("FR"),
+            "RL" to sensor("RL"),
+            "SP" to sensor("SP")
+        )
+
+        val slots = WheelLayout.orderedSlots(sensors, showSpareWheel = false)
+
+        assertEquals("FL", slots[0]?.id)
+        assertEquals("FR", slots[1]?.id)
+        assertEquals("RL", slots[2]?.id)
+        assertNull(slots[3])
+    }
 }

@@ -8,6 +8,7 @@ import com.tpms.app.data.diagnostics.ServiceHealth
 import com.tpms.app.data.diagnostics.UiBreadcrumbs
 import com.tpms.app.data.persistence.LastKnownSnapshotStore
 import com.tpms.app.data.usb.DongleDetector
+import com.tpms.app.data.usb.SensorValidator
 import com.tpms.app.data.usb.TpmsProtocolRouter
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDebugLog
@@ -16,6 +17,7 @@ import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.AlertEvaluator
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.MonitoringHealthPolicy
+import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
@@ -29,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -82,15 +85,26 @@ class TpmsRepository @Inject constructor(
             settingsStore.awaitLoaded()
             restoreLastKnownIfNeeded()
         }
+        repoScope.launch {
+            settingsStore.showSpareWheel
+                .distinctUntilChanged()
+                .collect { showSpare ->
+                    if (!showSpare) {
+                        removeSpareSensors()
+                    }
+                }
+        }
     }
 
     private suspend fun restoreLastKnownIfNeeded() {
         if (_sensors.value.isNotEmpty()) return
         val restored = lastKnownSnapshotStore.load() ?: return
-        _sensors.value = restored
+        val filtered = filterSensorsForSpareSetting(restored)
+        if (filtered.isEmpty()) return
+        _sensors.value = filtered
         restoredFromSnapshot = true
         _state.value = TpmsState.Disconnected
-        debugLog.info("Repository", "Restored ${restored.size} sensors from last-known snapshot")
+        debugLog.info("Repository", "Restored ${filtered.size} sensors from last-known snapshot")
     }
 
     fun onAlert(callback: (TireSensor) -> Unit) {
@@ -263,9 +277,10 @@ class TpmsRepository @Inject constructor(
             val timestamp = lastFrameAtMs
             val thresholds = settingsStore.thresholds.value
             val minLivePressure = settingsStore.minLiveWheelPressureKpa.value
+            val showSpareWheel = settingsStore.showSpareWheel.value
             val parsed = protocolRouter.parse(raw, timestamp, {
                 AlertEvaluator.evaluate(it, thresholds)
-            }, minLivePressure)
+            }, minLivePressure, showSpareWheel)
             if (parsed.isNotEmpty()) {
                 lastValidFrameAtMs = timestamp
                 debugLog.info(
@@ -292,8 +307,10 @@ class TpmsRepository @Inject constructor(
         val lostSensors = mutableListOf<TireSensor>()
         val updated = _sensors.value.toMutableMap()
         var changed = false
+        val showSpareWheel = settingsStore.showSpareWheel.value
 
         for ((id, sensor) in _sensors.value) {
+            if (!showSpareWheel && SensorValidator.isSpareSensor(sensor)) continue
             val seen = lastSeen[id] ?: continue
             if (now - seen > settingsStore.sensorTimeoutMs.value && sensor.alertType != AlertType.SENSOR_LOST) {
                 val lost = sensor.copy(alertType = AlertType.SENSOR_LOST)
@@ -364,6 +381,9 @@ class TpmsRepository @Inject constructor(
 
     private suspend fun applySensorUpdate(sensor: TireSensor) {
         try {
+            if (!settingsStore.showSpareWheel.value && SensorValidator.isSpareSensor(sensor)) {
+                return
+            }
             lastSeen[sensor.id] = sensor.timestamp
             val updated = _sensors.value.toMutableMap()
             updated[sensor.id] = sensor
@@ -385,7 +405,10 @@ class TpmsRepository @Inject constructor(
 
     private fun refreshConnectionState(timestamp: Long) {
         try {
-            val sensorList = _sensors.value.values.toList()
+            val showSpareWheel = settingsStore.showSpareWheel.value
+            val sensorList = _sensors.value.values
+                .filter { showSpareWheel || !SensorValidator.isSpareSensor(it) }
+                .toList()
             if (sensorList.isEmpty()) return
 
             val alerting = sensorList.firstOrNull { it.isAlert }
@@ -403,8 +426,31 @@ class TpmsRepository @Inject constructor(
         }
     }
 
+    private fun removeSpareSensors() {
+        val current = _sensors.value
+        val filtered = filterSensorsForSpareSetting(current)
+        if (filtered.size == current.size) return
+        filtered.keys.let { keep ->
+            lastSeen.keys.toList().forEach { id ->
+                if (id !in keep) lastSeen.remove(id)
+            }
+        }
+        _sensors.value = filtered
+        onSensorNormalCallback?.invoke(WheelLayout.SPARE_SLOT)
+        refreshConnectionState(System.currentTimeMillis())
+        persistLastKnown()
+        debugLog.info("Repository", "Removed spare sensor(s); spare wheel display disabled")
+    }
+
+    private fun filterSensorsForSpareSetting(
+        sensors: Map<String, TireSensor>
+    ): Map<String, TireSensor> {
+        if (settingsStore.showSpareWheel.value) return sensors
+        return sensors.filterValues { !SensorValidator.isSpareSensor(it) }
+    }
+
     private fun persistLastKnown() {
-        val snapshot = _sensors.value
+        val snapshot = filterSensorsForSpareSetting(_sensors.value)
         if (snapshot.isEmpty()) return
         repoScope.launch {
             runCatching { lastKnownSnapshotStore.save(snapshot) }

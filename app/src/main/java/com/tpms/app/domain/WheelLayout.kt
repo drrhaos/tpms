@@ -17,13 +17,19 @@ object WheelLayout {
     ): List<TireSensor?> {
         val slots = allSlots(showSpareWheel)
         val hasCustomMapping = wheelMapping.values.any { it.isNotBlank() }
+        val usableSensors = if (showSpareWheel) {
+            sensors
+        } else {
+            sensors.filterKeys { it != SPARE_SLOT }
+                .filterValues { it.label != SPARE_SLOT }
+        }
         return slots.mapIndexed { index, label ->
             if (hasCustomMapping) {
-                wheelMapping[label]?.takeIf { it.isNotBlank() }?.let { sensors[it] }
+                wheelMapping[label]?.takeIf { it.isNotBlank() }?.let { usableSensors[it] }
             } else {
-                sensors[label]
-                    ?: sensors[FALLBACK_IDS.getOrNull(index)]
-                    ?: sensors.values.elementAtOrNull(index)
+                usableSensors[label]
+                    ?: usableSensors[FALLBACK_IDS.getOrNull(index)]
+                    ?: usableSensors.values.elementAtOrNull(index)
             }
         }
     }
@@ -32,12 +38,19 @@ object WheelLayout {
         sensors: Map<String, TireSensor>,
         wheelMapping: Map<String, String> = emptyMap(),
         showSpareWheel: Boolean = false
-    ): List<TireSensor> =
-        orderedSlots(sensors, wheelMapping, showSpareWheel).filterNotNull().ifEmpty {
-            allSlots(showSpareWheel).mapNotNull { label ->
-                sensors[label] ?: sensors.values.firstOrNull { it.label == label }
-            }.ifEmpty { sensors.values.sortedBy { it.id }.take(allSlots(showSpareWheel).size) }
+    ): List<TireSensor> {
+        val usable = if (showSpareWheel) {
+            sensors
+        } else {
+            sensors.filterKeys { it != SPARE_SLOT }
+                .filterValues { it.label != SPARE_SLOT }
         }
+        return orderedSlots(usable, wheelMapping, showSpareWheel).filterNotNull().ifEmpty {
+            allSlots(showSpareWheel).mapNotNull { label ->
+                usable[label] ?: usable.values.firstOrNull { it.label == label }
+            }.ifEmpty { usable.values.sortedBy { it.id }.take(allSlots(showSpareWheel).size) }
+        }
+    }
 
     fun resolveWheelLabel(sensor: TireSensor, wheelMapping: Map<String, String>): String {
         wheelMapping.entries

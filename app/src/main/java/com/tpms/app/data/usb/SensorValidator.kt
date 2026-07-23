@@ -1,6 +1,7 @@
 package com.tpms.app.data.usb
 
 import com.tpms.app.data.settings.SensorValidatorDefaults
+import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.TireSensor
 
 object SensorValidator {
@@ -12,14 +13,19 @@ object SensorValidator {
 
     fun sanitize(
         sensor: TireSensor,
-        minLiveWheelPressureKpa: Float = SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA
+        minLiveWheelPressureKpa: Float = SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA,
+        showSpareWheel: Boolean = false
     ): TireSensor? {
         if (sensor.id.isBlank()) return null
+        if (isSpareSensor(sensor) && !showSpareWheel) return null
         if (!sensor.pressureKpa.isFinite() || !sensor.temperatureCelsius.isFinite()) return null
         if (sensor.pressureKpa !in MIN_PRESSURE_KPA..MAX_PRESSURE_KPA) return null
         if (sensor.temperatureCelsius !in MIN_TEMP_C..MAX_TEMP_C) return null
-        if (sensor.id == "SP" && sensor.pressureKpa < minLiveWheelPressureKpa) return null
+        if (isSpareSensor(sensor) && sensor.pressureKpa < minLiveWheelPressureKpa) return null
         val battery = sensor.batteryPercent.coerceIn(0, 100)
         return if (battery == sensor.batteryPercent) sensor else sensor.copy(batteryPercent = battery)
     }
+
+    fun isSpareSensor(sensor: TireSensor): Boolean =
+        sensor.id == WheelLayout.SPARE_SLOT || sensor.label == WheelLayout.SPARE_SLOT
 }
