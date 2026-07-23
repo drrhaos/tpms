@@ -31,7 +31,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -86,13 +85,11 @@ class TpmsRepository @Inject constructor(
             restoreLastKnownIfNeeded()
         }
         repoScope.launch {
-            settingsStore.showSpareWheel
-                .distinctUntilChanged()
-                .collect { showSpare ->
-                    if (!showSpare) {
-                        removeSpareSensors()
-                    }
+            settingsStore.showSpareWheel.collect { showSpare ->
+                if (!showSpare) {
+                    removeSpareSensors()
                 }
+            }
         }
     }
 
