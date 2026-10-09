@@ -193,6 +193,7 @@ class TpmsRepository @Inject constructor(
         sensors = _sensors.value,
         wheelMapping = settingsStore.wheelMapping.value,
         showSpareWheel = settingsStore.showSpareWheel.value,
+        settingsUiMode = settingsStore.settingsUiMode.value,
         pressureUnit = settingsStore.pressureUnit.value,
         usbScan = scanUsbDevices(),
         serviceStatusLine = serviceStatusLine(),

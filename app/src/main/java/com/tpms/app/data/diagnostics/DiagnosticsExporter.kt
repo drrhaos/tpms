@@ -3,6 +3,7 @@ package com.tpms.app.data.diagnostics
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import java.text.SimpleDateFormat
@@ -24,6 +25,7 @@ class DiagnosticsExporter @Inject constructor(
         sensors: Map<String, TireSensor>,
         wheelMapping: Map<String, String>,
         showSpareWheel: Boolean,
+        settingsUiMode: SettingsUiMode,
         pressureUnit: PressureUnit,
         usbScan: String,
         serviceStatusLine: String,
@@ -39,6 +41,11 @@ class DiagnosticsExporter @Inject constructor(
         appendLine("TPMS state: ${formatState(tpmsState)}")
         appendLine()
         serviceHealth.reportBlock()
+        appendLine()
+        appendLine("--- Settings ---")
+        appendLine("show_spare_wheel: $showSpareWheel")
+        appendLine("settings_ui_mode: $settingsUiMode")
+        appendLine("sensor_ids: ${sensors.keys.sorted().joinToString().ifEmpty { "none" }}")
         appendLine()
         appendLine("--- Wheel mapping ---")
         val slots = WheelLayout.allSlots(showSpareWheel)

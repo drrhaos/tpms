@@ -7,6 +7,7 @@ import com.tpms.app.R
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
+import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 
 fun PressureUnit.localizedLabel(context: Context): String = when (this) {
@@ -37,6 +38,19 @@ fun AlertType.shortLabel(): String = when (this) {
     AlertType.SENSOR_LOST -> stringResource(R.string.alert_short_lost)
     AlertType.HIGH_TEMP -> stringResource(R.string.alert_short_high_temp)
     AlertType.BATTERY_LOW -> stringResource(R.string.alert_short_low_battery)
+}
+
+fun TireSensor.batteryLabel(context: Context): String = when {
+    batteryPercent != null -> "$batteryPercent%"
+    isLowBattery -> context.getString(R.string.alert_short_low_battery)
+    else -> context.getString(R.string.value_no_data_battery)
+}
+
+@Composable
+fun TireSensor.batteryLabel(): String = when {
+    batteryPercent != null -> "$batteryPercent%"
+    isLowBattery -> stringResource(R.string.alert_short_low_battery)
+    else -> stringResource(R.string.value_no_data_battery)
 }
 
 fun TpmsState.statusLabel(context: Context): String = when (this) {

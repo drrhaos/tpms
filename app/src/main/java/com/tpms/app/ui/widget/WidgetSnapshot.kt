@@ -11,6 +11,7 @@ import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.domain.model.WidgetThemeMode
+import com.tpms.app.ui.batteryLabel
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.widgetStatusLabel
 
@@ -131,12 +132,7 @@ data class WidgetSnapshot(
                 label = label,
                 pressureText = pressureText,
                 temperatureText = temperatureText,
-                batteryText = sensor.batteryPercent?.let { "$it%" }
-                    ?: if (sensor.isLowBattery) {
-                        context.getString(R.string.alert_short_low_battery)
-                    } else {
-                        context.getString(R.string.value_no_data_battery)
-                    },
+                batteryText = sensor.batteryLabel(context),
                 batteryPercent = sensor.batteryPercent,
                 isLowBattery = sensor.isLowBattery,
                 status = sensor.toSeverity().toWidgetStatus()

@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.tpms.app.R
@@ -67,6 +68,7 @@ class TpmsMonitorService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var muteUntil: Long = 0
     private var intentionalStop = false
+    private var foregroundRefused = false
     private var lastHeartbeatAtMs = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -118,7 +120,12 @@ class TpmsMonitorService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Every start may come from startForegroundService(): promote before anything else.
-        promoteToForeground(buildPersistentNotification())
+        if (!promoteToForeground(buildPersistentNotification())) {
+            foregroundRefused = true
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        foregroundRefused = false
 
         when (intent?.action) {
             ACTION_MUTE -> {
@@ -157,7 +164,8 @@ class TpmsMonitorService : Service() {
         if (uiJob?.isActive != true) startUiUpdates()
     }
 
-    private fun promoteToForeground(notification: Notification) {
+    /** False when the system refuses a foreground start (API 31+ background-start restrictions). */
+    private fun promoteToForeground(notification: Notification): Boolean = try {
         when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
                 startForeground(
@@ -176,6 +184,19 @@ class TpmsMonitorService : Service() {
             }
             else -> startForeground(NOTIF_ID, notification)
         }
+        true
+    } catch (e: IllegalStateException) {
+        // ForegroundServiceStartNotAllowedException extends IllegalStateException.
+        onForegroundRefused(e)
+    } catch (e: SecurityException) {
+        // API 34+: connectedDevice type prerequisites not met.
+        onForegroundRefused(e)
+    }
+
+    private fun onForegroundRefused(error: Exception): Boolean {
+        debugLog.error("Service", "startForeground refused: ${error.message}")
+        serviceHealth.recordError("startForeground: ${error.message}")
+        return false
     }
 
     override fun onDestroy() {
@@ -199,7 +220,8 @@ class TpmsMonitorService : Service() {
             ServiceStoppedNotifier.show(this)
         }
         floatingOverlayController.hide(this)
-        ServiceLivenessScheduler.cancel(this)
+        // After a refused foreground start the liveness alarm is what retries later.
+        if (!foregroundRefused) ServiceLivenessScheduler.cancel(this)
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -407,6 +429,7 @@ class TpmsMonitorService : Service() {
     }
 
     companion object {
+        private const val TAG = "TpmsMonitorService"
         private const val NOTIF_ID = 1001
         private const val SEARCH_MIN_INTERVAL_MS = 1_000L
         private const val SEARCH_MAX_INTERVAL_MS = 5_000L
@@ -427,7 +450,7 @@ class TpmsMonitorService : Service() {
         const val EXTRA_DEVICE_NAME = "com.tpms.app.extra.DEVICE_NAME"
 
         fun start(context: Context) {
-            context.startForegroundService(Intent(context, TpmsMonitorService::class.java))
+            startForegroundSafely(context, Intent(context, TpmsMonitorService::class.java))
         }
 
         /** Wake an already-running service: search for the dongle now and refresh outputs. */
@@ -435,7 +458,7 @@ class TpmsMonitorService : Service() {
             val intent = Intent(context, TpmsMonitorService::class.java).apply {
                 action = ACTION_CHECK_NOW
             }
-            context.startForegroundService(intent)
+            startForegroundSafely(context, intent)
         }
 
         /** Reopen the dongle if it stopped sending data; [force] reopens it unconditionally. */
@@ -444,7 +467,16 @@ class TpmsMonitorService : Service() {
                 action = ACTION_PROBE_USB
                 putExtra(EXTRA_FORCE, force)
             }
-            context.startForegroundService(intent)
+            startForegroundSafely(context, intent)
+        }
+
+        /** Background starts can be refused on API 31+; the liveness alarm retries later. */
+        private fun startForegroundSafely(context: Context, intent: Intent) {
+            try {
+                context.startForegroundService(intent)
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "Foreground start refused: ${e.message}")
+            }
         }
 
         fun stop(context: Context) {
