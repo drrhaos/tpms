@@ -4,45 +4,48 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
-import android.util.Log
-import com.tpms.app.data.usb.UsbDeviceInfo
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.tpms.app.R
 import com.tpms.app.TpmsApplication
 import com.tpms.app.data.diagnostics.ServiceHealth
 import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
-import com.tpms.app.data.usb.UsbConnection
-import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.data.usb.DongleSession
+import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.main.MainActivity
 import com.tpms.app.ui.widget.TpmsWidget
 import com.tpms.app.ui.widget.WidgetRemoteViews
-import com.tpms.app.ui.widget.WidgetSnapshot
 import com.tpms.app.ui.widget.WidgetSnapshotBuilder
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -56,22 +59,43 @@ class TpmsMonitorService : Service() {
     @Inject lateinit var widgetSnapshotBuilder: WidgetSnapshotBuilder
     @Inject lateinit var serviceHealth: ServiceHealth
     @Inject lateinit var floatingOverlayController: FloatingOverlayController
+    @Inject lateinit var debugLog: UsbDebugLog
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var pollingJob: Job? = null
-    private var watchdogJob: Job? = null
+    private var sessionJob: Job? = null
+    private var uiJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var muteUntil: Long = 0
     private var intentionalStop = false
+    private var lastHeartbeatAtMs = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    private val _isRunning = MutableStateFlow(false)
-    val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
+    /** Wakes the dongle search early (CHECK_NOW, attach, permission granted). */
+    private val searchWake = Channel<Unit>(Channel.CONFLATED)
+
+    /** Forces an immediate UI/widget/notification refresh. */
+    private val uiRefresh = Channel<Unit>(Channel.CONFLATED)
+
+    // SCREEN_ON/OFF are only delivered to runtime-registered receivers.
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_ON -> {
+                    debugLog.info("Power", "SCREEN_ON — wake escalation")
+                    WakeEscalationScheduler.onScreenOn(context)
+                }
+                Intent.ACTION_SCREEN_OFF -> debugLog.info("Power", "SCREEN_OFF")
+            }
+        }
+    }
+    private var screenReceiverRegistered = false
 
     override fun onCreate() {
         super.onCreate()
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tpms:poll")
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tpms:session").apply {
+            setReferenceCounted(false)
+        }
 
         repository.onAlert { sensor ->
             mainHandler.post {
@@ -82,9 +106,20 @@ class TpmsMonitorService : Service() {
         repository.onSensorNormal { sensorId ->
             mainHandler.post { alertNotifier.clearSensor(sensorId) }
         }
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        screenReceiverRegistered = runCatching {
+            ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }.isSuccess
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Every start may come from startForegroundService(): promote before anything else.
+        promoteToForeground(buildPersistentNotification())
+
         when (intent?.action) {
             ACTION_MUTE -> {
                 muteUntil = System.currentTimeMillis() + MUTE_DURATION_MS
@@ -96,43 +131,31 @@ class TpmsMonitorService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_CHECK_NOW -> {
-                serviceScope.launch { pollOnce() }
-                return START_STICKY
+                searchWake.trySend(Unit)
+                uiRefresh.trySend(Unit)
             }
-            ACTION_PROBE_USB -> {
-                serviceScope.launch {
-                    runCatching { repository.closeUsbForReconnect() }
-                    pollOnce()
-                }
-                return START_STICKY
-            }
-            ACTION_USB_DETACHED -> {
-                serviceScope.launch {
-                    runCatching { repository.closeUsbForReconnect() }
-                }
-                return START_STICKY
+            ACTION_PROBE_USB -> probeUsb(force = intent.getBooleanExtra(EXTRA_FORCE, false))
+            ACTION_USB_DETACHED -> onUsbDetached(intent.getStringExtra(EXTRA_DEVICE_NAME))
+            else -> {
+                ServiceStoppedNotifier.dismiss(this)
+                UsbPermissionNotifier.dismiss(this)
+                alertNotifier.clear()
+                monitoringHealthNotifier.clear()
+                BootStartScheduler.cancel(this)
+                ServiceLivenessScheduler.schedule(this)
             }
         }
 
-        promoteToForeground(buildPersistentNotification())
-        ServiceStoppedNotifier.dismiss(this)
-        UsbPermissionNotifier.dismiss(this)
-        alertNotifier.clear()
-        monitoringHealthNotifier.clear()
-        BootStartScheduler.cancel(this)
-        ServiceLivenessScheduler.schedule(this)
-        _isRunning.value = true
-        if (pollingJob?.isActive != true) {
-            startPolling()
-        }
-        if (watchdogJob?.isActive != true) {
-            startWatchdog()
-        }
-        refreshPersistentNotification()
+        ensureMonitoring()
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun ensureMonitoring() {
+        if (sessionJob?.isActive != true) startSessionLoop()
+        if (uiJob?.isActive != true) startUiUpdates()
+    }
 
     private fun promoteToForeground(notification: Notification) {
         when {
@@ -156,15 +179,22 @@ class TpmsMonitorService : Service() {
     }
 
     override fun onDestroy() {
-        pollingJob?.cancel()
-        pollingJob = null
-        watchdogJob?.cancel()
-        watchdogJob = null
-        repository.closeUsb()
+        sessionJob?.cancel()
+        sessionJob = null
+        uiJob?.cancel()
+        uiJob = null
+        repository.activeSession()?.let { session ->
+            // Stopping the reader may wait on thread joins; keep it off the main thread.
+            Thread({ repository.closeSession(session, "service stopped", keepSensors = false) }, "tpms-usb-close")
+                .start()
+        }
+        if (screenReceiverRegistered) {
+            runCatching { unregisterReceiver(screenReceiver) }
+            screenReceiverRegistered = false
+        }
         wakeLock?.let {
             if (it.isHeld) it.release()
         }
-        _isRunning.value = false
         if (!intentionalStop) {
             ServiceStoppedNotifier.show(this)
         }
@@ -174,114 +204,113 @@ class TpmsMonitorService : Service() {
         super.onDestroy()
     }
 
-    private fun startPolling() {
-        pollingJob?.cancel()
-        pollingJob = serviceScope.launch {
-            if (!repository.isUsbConnected()) {
-                repository.updateState(TpmsState.Disconnected)
-                delay(500)
-            }
-
+    /**
+     * Finds the dongle, opens a [DongleSession] and consumes it until it dies, then starts over.
+     * The search interval grows while no dongle is found and resets once one opens.
+     */
+    private fun startSessionLoop() {
+        sessionJob?.cancel()
+        sessionJob = serviceScope.launch {
+            var searchIntervalMs = SEARCH_MIN_INTERVAL_MS
             while (isActive) {
                 val dongle = repository.findDongle()
-                if (dongle == null) {
+                val session = if (dongle != null && repository.hasUsbPermission(dongle)) {
+                    repository.openSession(dongle)
+                } else {
+                    null
+                }
+                if (session == null) {
                     repository.updateState(TpmsState.Disconnected)
-                    delay(USB_CHECK_INTERVAL_MS)
+                    awaitSearchWake(searchIntervalMs)
+                    searchIntervalMs = (searchIntervalMs * 2).coerceAtMost(SEARCH_MAX_INTERVAL_MS)
                     continue
                 }
+                searchIntervalMs = SEARCH_MIN_INTERVAL_MS
 
-                if (!repository.hasUsbPermission(dongle)) {
-                    repository.updateState(TpmsState.Disconnected)
-                    delay(USB_CHECK_INTERVAL_MS)
-                    continue
+                val reason = repository.consume(session) { keepCpuAwake() }
+                if (!repository.closeSession(session, reason)) {
+                    serviceHealth.recordError("reader stuck after: $reason")
                 }
-
-                if (!repository.openDongle(dongle)) {
-                    repository.updateState(TpmsState.Disconnected)
-                    delay(USB_CHECK_INTERVAL_MS)
-                    continue
-                }
-
-                repository.updateState(TpmsState.Connecting(attempt = 0))
-                Log.d(TAG, "USB dongle opened: ${dongle.deviceName} (${UsbDeviceInfo.vidPid(dongle)})")
-
-                var absentPolls = 0
-                while (isActive && repository.isUsbConnected()) {
-                    try {
-                        if (repository.shouldReconnectStaleFrame()) {
-                            Log.w(TAG, "Stale frame detected — reconnecting USB")
-                            repository.reconnectStaleFrame()
-                            break
-                        }
-
-                        pollOnce()
-
-                        val present = repository.isOpenDevicePresent()
-                        if (present) {
-                            absentPolls = 0
-                        } else {
-                            absentPolls++
-                            if (absentPolls >= DETACH_ABSENT_POLLS) {
-                                if (repository.probeUsbConnection()) {
-                                    absentPolls = DETACH_ABSENT_POLLS - 1
-                                } else {
-                                    Log.d(TAG, "Dongle lost (absent from USB list, probe failed)")
-                                    break
-                                }
-                            }
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Poll iteration failed", e)
-                        serviceHealth.recordError("poll: ${e.message}")
-                    }
-                    delay(POLL_INTERVAL_MS)
-                }
-
-                Log.d(TAG, "USB dongle detached, reconnecting...")
-                runCatching { repository.closeUsbForReconnect() }
-                delay(RECONNECT_DEBOUNCE_MS)
+                awaitSearchWake(RECONNECT_DELAY_MS)
             }
         }
     }
 
-    private fun startWatchdog() {
-        watchdogJob?.cancel()
-        watchdogJob = serviceScope.launch {
-            while (isActive) {
-                delay(WATCHDOG_INTERVAL_MS)
-                val lastCompleted = repository.lastPollCompletedAtMs()
-                if (lastCompleted <= 0L) continue
-                val stuckFor = System.currentTimeMillis() - lastCompleted
-                if (stuckFor > ConnectionHealthPolicy.POLL_STUCK_MS) {
-                    Log.w(TAG, "Watchdog: polling stuck for ${stuckFor}ms — restarting loop")
-                    serviceHealth.recordWatchdogRestart()
-                    pollingJob?.cancel()
-                    pollingJob = null
-                    startPolling()
-                }
-            }
+    private suspend fun awaitSearchWake(timeoutMs: Long) {
+        withTimeoutOrNull(timeoutMs) { searchWake.receive() }
+    }
+
+    /**
+     * Reopens the session only if a continuously streaming dongle has gone quiet, so wake
+     * escalation never tears down a healthy connection; [force] reopens unconditionally.
+     */
+    private fun probeUsb(force: Boolean) {
+        val session = repository.activeSession()
+        if (session == null || session.isClosed) {
+            searchWake.trySend(Unit)
+            return
+        }
+        val quiet = session.streamsContinuously && session.silentForMs() > PROBE_QUIET_MS
+        if (force || quiet) {
+            closeSessionAsync(session, if (force) "forced reconnect" else "probe: no data")
         }
     }
 
-    private suspend fun pollOnce() {
-        serviceHealth.recordPollStart()
-        acquireWakeLock()
-        try {
-            runCatching { repository.readSensor() }
-            runCatching { repository.checkSensorTimeouts() }
-            runCatching { updateWidget() }
-            runCatching { updateFloatingOverlay() }
-            runCatching { evaluateMonitoringHealth() }
-            serviceScope.launch { heartbeatStore.recordBeat() }
-            withContext(Dispatchers.Main) {
-                refreshPersistentNotification()
-            }
-        } finally {
-            serviceHealth.recordPollCompleted()
-            releaseWakeLock()
+    private fun onUsbDetached(deviceName: String?) {
+        val session = repository.activeSession() ?: return
+        if (deviceName == null || deviceName == session.deviceName) {
+            closeSessionAsync(session, "detached")
         }
+    }
+
+    /** Makes the consumer loop end; the loop itself finishes the cleanup via closeSession(). */
+    private fun closeSessionAsync(session: DongleSession, reason: String) {
+        serviceScope.launch { session.close(reason) }
+    }
+
+    private fun keepCpuAwake() {
+        wakeLock?.acquire(WAKE_LOCK_HOLD_MS)
+    }
+
+    private fun startUiUpdates() {
+        uiJob?.cancel()
+        uiJob = serviceScope.launch {
+            val ticker = flow {
+                while (true) {
+                    emit(Unit)
+                    delay(UI_TICK_MS)
+                }
+            }
+            merge(
+                repository.sensors.map { },
+                repository.state.map { },
+                ticker,
+                uiRefresh.receiveAsFlow()
+            )
+                .conflate()
+                .collect {
+                    refreshOutputs()
+                    delay(UI_MIN_INTERVAL_MS)
+                }
+        }
+    }
+
+    private suspend fun refreshOutputs() {
+        runCatching { repository.checkSensorTimeouts() }
+        runCatching { updateWidget() }
+        runCatching { updateFloatingOverlay() }
+        runCatching { evaluateMonitoringHealth() }
+        recordHeartbeatIfDue()
+        withContext(Dispatchers.Main) {
+            runCatching { refreshPersistentNotification() }
+        }
+    }
+
+    private suspend fun recordHeartbeatIfDue() {
+        val now = System.currentTimeMillis()
+        if (now - lastHeartbeatAtMs < HEARTBEAT_INTERVAL_MS) return
+        lastHeartbeatAtMs = now
+        runCatching { heartbeatStore.recordBeat() }
     }
 
     private fun refreshPersistentNotification() {
@@ -314,7 +343,7 @@ class TpmsMonitorService : Service() {
 
     private suspend fun updateFloatingOverlay() {
         if (!settingsStore.floatingOverlayEnabled.value) {
-            floatingOverlayController.hide(this)
+            withContext(Dispatchers.Main) { floatingOverlayController.hide(this@TpmsMonitorService) }
             return
         }
         val snapshot = widgetSnapshotBuilder.build(this)
@@ -323,17 +352,7 @@ class TpmsMonitorService : Service() {
         }
     }
 
-    private fun acquireWakeLock() {
-        wakeLock?.acquire(UsbConnection.READ_TIMEOUT_MS + 500)
-    }
-
-    private fun releaseWakeLock() {
-        wakeLock?.let {
-            if (it.isHeld) it.release()
-        }
-    }
-
-    private fun buildPersistentNotification(): android.app.Notification {
+    private fun buildPersistentNotification(): Notification {
         val statusLine = repository.serviceStatusLine()
         val protocolUnhealthy = repository.isProtocolUnhealthy()
         val snapshot = widgetSnapshotBuilder.buildNow(this)
@@ -388,26 +407,30 @@ class TpmsMonitorService : Service() {
     }
 
     companion object {
-        private const val TAG = "TpmsMonitorService"
         private const val NOTIF_ID = 1001
-        private const val POLL_INTERVAL_MS = 2000L
-        private const val USB_CHECK_INTERVAL_MS = 5000L
-        private const val RECONNECT_DEBOUNCE_MS = 5000L
-        private const val DETACH_ABSENT_POLLS = 3
+        private const val SEARCH_MIN_INTERVAL_MS = 1_000L
+        private const val SEARCH_MAX_INTERVAL_MS = 5_000L
+        private const val RECONNECT_DELAY_MS = 1_000L
+        private const val PROBE_QUIET_MS = 5_000L
+        private const val UI_MIN_INTERVAL_MS = 1_000L
+        private const val UI_TICK_MS = 30_000L
+        private const val HEARTBEAT_INTERVAL_MS = 10_000L
+        private const val WAKE_LOCK_HOLD_MS = 5_000L
         private const val MUTE_DURATION_MS = 30 * 60 * 1000L
-        private const val WATCHDOG_INTERVAL_MS = 5000L
 
         const val ACTION_MUTE = "com.tpms.app.action.MUTE"
         const val ACTION_STOP = "com.tpms.app.action.STOP"
         const val ACTION_CHECK_NOW = "com.tpms.app.action.CHECK_NOW"
         const val ACTION_PROBE_USB = "com.tpms.app.action.PROBE_USB"
         const val ACTION_USB_DETACHED = "com.tpms.app.action.USB_DETACHED"
+        const val EXTRA_FORCE = "com.tpms.app.extra.FORCE"
+        const val EXTRA_DEVICE_NAME = "com.tpms.app.extra.DEVICE_NAME"
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, TpmsMonitorService::class.java))
         }
 
-        /** Wake an already-running service without restarting the USB polling loop. */
+        /** Wake an already-running service: search for the dongle now and refresh outputs. */
         fun wake(context: Context) {
             val intent = Intent(context, TpmsMonitorService::class.java).apply {
                 action = ACTION_CHECK_NOW
@@ -415,9 +438,11 @@ class TpmsMonitorService : Service() {
             context.startForegroundService(intent)
         }
 
-        fun probeUsb(context: Context) {
+        /** Reopen the dongle if it stopped sending data; [force] reopens it unconditionally. */
+        fun probeUsb(context: Context, force: Boolean = false) {
             val intent = Intent(context, TpmsMonitorService::class.java).apply {
                 action = ACTION_PROBE_USB
+                putExtra(EXTRA_FORCE, force)
             }
             context.startForegroundService(intent)
         }

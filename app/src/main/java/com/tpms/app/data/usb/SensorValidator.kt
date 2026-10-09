@@ -22,10 +22,9 @@ object SensorValidator {
         if (sensor.pressureKpa !in MIN_PRESSURE_KPA..MAX_PRESSURE_KPA) return null
         if (sensor.temperatureCelsius !in MIN_TEMP_C..MAX_TEMP_C) return null
         if (isSpareSensor(sensor) && sensor.pressureKpa < minLiveWheelPressureKpa) return null
-        val battery = sensor.batteryPercent.coerceIn(0, 100)
+        val battery = sensor.batteryPercent?.coerceIn(0, 100)
         return if (battery == sensor.batteryPercent) sensor else sensor.copy(batteryPercent = battery)
     }
 
-    fun isSpareSensor(sensor: TireSensor): Boolean =
-        sensor.id == WheelLayout.SPARE_SLOT || sensor.label == WheelLayout.SPARE_SLOT
+    fun isSpareSensor(sensor: TireSensor): Boolean = WheelLayout.isSpare(sensor)
 }

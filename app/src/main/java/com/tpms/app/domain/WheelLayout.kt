@@ -7,6 +7,9 @@ object WheelLayout {
     const val SPARE_SLOT = "SP"
     val FALLBACK_IDS = listOf("SENSOR_01", "SENSOR_02", "SENSOR_03", "SENSOR_04")
 
+    fun isSpare(sensor: TireSensor): Boolean =
+        sensor.id == SPARE_SLOT || sensor.label == SPARE_SLOT
+
     fun allSlots(showSpareWheel: Boolean = false): List<String> =
         if (showSpareWheel) ORDER + SPARE_SLOT else ORDER
 
@@ -23,15 +26,26 @@ object WheelLayout {
             sensors.filterKeys { it != SPARE_SLOT }
                 .filterValues { it.label != SPARE_SLOT }
         }
-        return slots.mapIndexed { index, label ->
-            if (hasCustomMapping) {
+        if (hasCustomMapping) {
+            return slots.map { label ->
                 wheelMapping[label]?.takeIf { it.isNotBlank() }?.let { usableSensors[it] }
-            } else {
-                usableSensors[label]
-                    ?: usableSensors[FALLBACK_IDS.getOrNull(index)]
-                    ?: usableSensors.values.elementAtOrNull(index)
             }
         }
+        val placed = slots.mapIndexed { index, label ->
+            usableSensors[label] ?: usableSensors[FALLBACK_IDS.getOrNull(index)]
+        }.toMutableList()
+        // Only sensors without a wheel label (HID) may fill a free slot by order. A sensor labelled
+        // for another position must not be shown on a wheel it does not belong to.
+        val usedIds = placed.mapNotNull { it?.id }.toSet()
+        val unlabelled = usableSensors.values
+            .filter { it.label.isBlank() && it.id !in usedIds }
+            .iterator()
+        for (index in placed.indices) {
+            if (placed[index] == null && unlabelled.hasNext()) {
+                placed[index] = unlabelled.next()
+            }
+        }
+        return placed
     }
 
     fun orderedValues(

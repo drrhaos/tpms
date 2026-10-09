@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import javax.inject.Inject
 import javax.inject.Singleton
 
-@Database(entities = [SensorReading::class], version = 1, exportSchema = false)
+@Database(entities = [SensorReading::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun sensorDao(): SensorDao

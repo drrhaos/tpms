@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.model.SensorFlags
 import com.tpms.app.domain.model.TireSensor
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
@@ -48,7 +49,10 @@ class LastKnownSnapshotStore @Inject constructor(
                     put("label", sensor.label)
                     put("pressureKpa", sensor.pressureKpa.toDouble())
                     put("temperatureCelsius", sensor.temperatureCelsius.toDouble())
-                    put("batteryPercent", sensor.batteryPercent)
+                    sensor.batteryPercent?.let { put("batteryPercent", it) }
+                    put("noSignal", sensor.flags.noSignal)
+                    put("leak", sensor.flags.leak)
+                    put("lowBattery", sensor.flags.lowBattery)
                     put("alertType", sensor.alertType?.name)
                     put("timestamp", sensor.timestamp)
                 }
@@ -68,9 +72,14 @@ class LastKnownSnapshotStore @Inject constructor(
                     label = obj.optString("label", ""),
                     pressureKpa = obj.getDouble("pressureKpa").toFloat(),
                     temperatureCelsius = obj.getDouble("temperatureCelsius").toFloat(),
-                    batteryPercent = obj.getInt("batteryPercent"),
+                    batteryPercent = if (obj.isNull("batteryPercent")) null else obj.getInt("batteryPercent"),
                     alertType = alertName?.let { runCatching { AlertType.valueOf(it) }.getOrNull() },
-                    timestamp = obj.getLong("timestamp")
+                    timestamp = obj.getLong("timestamp"),
+                    flags = SensorFlags(
+                        noSignal = obj.optBoolean("noSignal"),
+                        leak = obj.optBoolean("leak"),
+                        lowBattery = obj.optBoolean("lowBattery")
+                    )
                 )
                 put(sensor.id, sensor)
             }

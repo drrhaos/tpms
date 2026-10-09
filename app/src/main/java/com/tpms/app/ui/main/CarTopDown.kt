@@ -274,7 +274,7 @@ private fun RotatedBatteryIcon(
         ) {
             SensorBatteryIcon(
                 batteryPercent = sensor?.batteryPercent,
-                isLowBattery = sensor?.alertType == AlertType.BATTERY_LOW,
+                isLowBattery = sensor?.isLowBattery == true,
                 width = longSide,
                 height = shortSide,
                 modifier = Modifier.graphicsLayer { rotationZ = 270f }

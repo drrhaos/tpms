@@ -259,7 +259,7 @@ private fun WheelDetailSheet(
         }
         DetailRow(stringResource(R.string.detail_pressure), wheelDetailPressure(sensor, pressureUnit))
         DetailRow(stringResource(R.string.detail_temperature), wheelDetailTemperature(sensor))
-        DetailRow(stringResource(R.string.detail_battery), "${sensor.batteryPercent}%")
+        DetailRow(stringResource(R.string.detail_battery), batteryLabel(sensor))
         if (showTechnicalDetails) {
             DetailRow(stringResource(R.string.detail_last_update), formatTimestamp(sensor.timestamp, emDash))
         }
@@ -323,4 +323,14 @@ private fun wheelDetailTemperature(sensor: TireSensor): String {
 private fun formatTimestamp(timestamp: Long, emDash: String): String {
     if (timestamp <= 0L) return emDash
     return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
+}
+
+@Composable
+private fun batteryLabel(sensor: TireSensor): String {
+    val percent = sensor.batteryPercent
+    return when {
+        percent != null -> "$percent%"
+        sensor.isLowBattery -> stringResource(R.string.alert_short_low_battery)
+        else -> stringResource(R.string.value_no_data_battery)
+    }
 }

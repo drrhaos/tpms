@@ -3,8 +3,8 @@ package com.tpms.app.domain
 object ConnectionHealthPolicy {
 
   const val DEFAULT_STALE_FRAME_MS = 90_000L
+  const val DEFAULT_SILENCE_MS = 15_000L
   const val DEFAULT_PROTOCOL_UNHEALTHY_MS = 120_000L
-  const val POLL_STUCK_MS = 15_000L
 
   fun shouldReconnectStaleFrame(
       isUsbConnected: Boolean,

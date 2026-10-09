@@ -3,6 +3,7 @@ package com.tpms.app.data.usb
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import com.tpms.app.service.UsbPermissionReceiver
@@ -36,11 +37,13 @@ class UsbPermissionHelper @Inject constructor(
         val intent = Intent(context, UsbPermissionReceiver::class.java).apply {
             action = UsbPermissionReceiver.ACTION_USB_PERMISSION
         }
+        // Must be mutable: the system adds EXTRA_PERMISSION_GRANTED to it. The intent is explicit.
+        val mutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             0,
             intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            mutable or PendingIntent.FLAG_UPDATE_CURRENT
         )
         usbManager.requestPermission(device, pendingIntent)
     }

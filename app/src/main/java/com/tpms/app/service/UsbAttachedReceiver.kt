@@ -71,6 +71,7 @@ class UsbAttachedReceiver : BroadcastReceiver() {
 
         val serviceIntent = Intent(context, TpmsMonitorService::class.java).apply {
             action = TpmsMonitorService.ACTION_USB_DETACHED
+            putExtra(TpmsMonitorService.EXTRA_DEVICE_NAME, device.deviceName)
         }
         context.startService(serviceIntent)
     }

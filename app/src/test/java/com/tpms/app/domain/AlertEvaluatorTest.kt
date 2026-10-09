@@ -2,6 +2,7 @@ package com.tpms.app.domain
 
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.model.SensorFlags
 import com.tpms.app.domain.model.TireSensor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -18,14 +19,18 @@ class AlertEvaluatorTest {
     private fun sensor(
         pressureKpa: Float = 240f,
         temperatureCelsius: Float = 25f,
-        batteryPercent: Int = 80
+        batteryPercent: Int? = 80,
+        id: String = "FL",
+        flags: SensorFlags = SensorFlags.NONE
     ) = TireSensor(
-        id = "FL",
+        id = id,
+        label = id,
         pressureKpa = pressureKpa,
         temperatureCelsius = temperatureCelsius,
         batteryPercent = batteryPercent,
         alertType = null,
-        timestamp = 1L
+        timestamp = 1L,
+        flags = flags
     )
 
     @Test
@@ -62,6 +67,48 @@ class AlertEvaluatorTest {
         assertEquals(
             AlertType.BATTERY_LOW,
             AlertEvaluator.evaluate(sensor(batteryPercent = 5), thresholds)
+        )
+    }
+
+    @Test
+    fun evaluate_mapsHardwareFlagsBeforeThresholds() {
+        assertEquals(
+            AlertType.SENSOR_LOST,
+            AlertEvaluator.evaluate(sensor(pressureKpa = 100f, flags = SensorFlags(noSignal = true)), thresholds)
+        )
+        assertEquals(
+            AlertType.LOW_PRESSURE,
+            AlertEvaluator.evaluate(sensor(flags = SensorFlags(leak = true)), thresholds)
+        )
+        assertEquals(
+            AlertType.BATTERY_LOW,
+            AlertEvaluator.evaluate(sensor(batteryPercent = null, flags = SensorFlags(lowBattery = true)), thresholds)
+        )
+    }
+
+    @Test
+    fun evaluate_thresholdAlertOutranksLowBatteryWarning() {
+        assertEquals(
+            AlertType.HIGH_TEMP,
+            AlertEvaluator.evaluate(
+                sensor(temperatureCelsius = 120f, flags = SensorFlags(lowBattery = true)),
+                thresholds
+            )
+        )
+    }
+
+    @Test
+    fun evaluate_unknownBatteryIsNotLow() {
+        assertNull(AlertEvaluator.evaluate(sensor(batteryPercent = null), thresholds))
+    }
+
+    @Test
+    fun evaluate_spareIgnoresThresholdsButNotFlags() {
+        // Without a fifth sensor the receiver reports a dummy value for the spare slot.
+        assertNull(AlertEvaluator.evaluate(sensor(pressureKpa = 20f, id = "SP"), thresholds))
+        assertEquals(
+            AlertType.LOW_PRESSURE,
+            AlertEvaluator.evaluate(sensor(id = "SP", flags = SensorFlags(leak = true)), thresholds)
         )
     }
 }

@@ -96,7 +96,7 @@ class DiagnosticsExporter @Inject constructor(
             "—"
         }
         val alert = sensor.alertType?.name ?: "OK"
-        return "${sensor.id} label=${sensor.label} $pressure $temp batt=${sensor.batteryPercent}% $alert"
+        return "${sensor.id} label=${sensor.label} $pressure $temp batt=${sensor.batteryPercent?.let { "$it%" } ?: "?"} flags=${sensor.flags} $alert"
     }
 
     private fun timestamp(): String =

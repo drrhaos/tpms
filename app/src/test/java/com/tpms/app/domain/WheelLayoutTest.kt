@@ -110,4 +110,39 @@ class WheelLayoutTest {
         assertEquals("RL", slots[2]?.id)
         assertNull(slots[3])
     }
+
+    @Test
+    fun orderedSlots_doesNotPlaceForeignLabelledSensorInEmptySlot() {
+        val sensors = linkedMapOf(
+            "FL" to sensor("FL"),
+            "FR" to sensor("FR"),
+            "RL" to sensor("RL"),
+            "SENSOR_07" to sensor("SENSOR_07")
+        )
+
+        val slots = WheelLayout.orderedSlots(sensors)
+
+        assertNull(slots[3])
+    }
+
+    @Test
+    fun orderedSlots_doesNotShowOneSensorInTwoSlots() {
+        val sensors = mapOf("RR" to sensor("RR"))
+
+        val slots = WheelLayout.orderedSlots(sensors)
+
+        assertEquals(listOf(null, null, null, "RR"), slots.map { it?.id })
+    }
+
+    @Test
+    fun orderedSlots_fillsEmptySlotsWithUnlabelledSensorsInOrder() {
+        val sensors = linkedMapOf(
+            "SENSOR_0A" to sensor("SENSOR_0A", label = ""),
+            "SENSOR_0B" to sensor("SENSOR_0B", label = "")
+        )
+
+        val slots = WheelLayout.orderedSlots(sensors)
+
+        assertEquals(listOf("SENSOR_0A", "SENSOR_0B", null, null), slots.map { it?.id })
+    }
 }

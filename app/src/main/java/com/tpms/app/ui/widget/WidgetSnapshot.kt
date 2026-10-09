@@ -131,9 +131,14 @@ data class WidgetSnapshot(
                 label = label,
                 pressureText = pressureText,
                 temperatureText = temperatureText,
-                batteryText = "${sensor.batteryPercent}%",
+                batteryText = sensor.batteryPercent?.let { "$it%" }
+                    ?: if (sensor.isLowBattery) {
+                        context.getString(R.string.alert_short_low_battery)
+                    } else {
+                        context.getString(R.string.value_no_data_battery)
+                    },
                 batteryPercent = sensor.batteryPercent,
-                isLowBattery = sensor.alertType == AlertType.BATTERY_LOW,
+                isLowBattery = sensor.isLowBattery,
                 status = sensor.toSeverity().toWidgetStatus()
             )
         }

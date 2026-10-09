@@ -259,8 +259,8 @@ internal object WidgetRemoteViews {
     private fun batteryDrawable(tire: WidgetTireSlot): Int {
         val percent = tire.batteryPercent
         return when {
-            percent == null -> R.drawable.widget_battery_unknown
             tire.isLowBattery -> R.drawable.widget_battery_low
+            percent == null -> R.drawable.widget_battery_unknown
             percent <= 20 -> R.drawable.widget_battery_warning
             else -> R.drawable.widget_battery_ok
         }

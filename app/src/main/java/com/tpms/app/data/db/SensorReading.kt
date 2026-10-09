@@ -13,7 +13,7 @@ data class SensorReading(
     val sensorId: String,
     val pressureKpa: Float,
     val temperatureCelsius: Float,
-    val batteryPercent: Int,
+    val batteryPercent: Int?,
     val alertType: String?,
     val timestamp: Long
 )

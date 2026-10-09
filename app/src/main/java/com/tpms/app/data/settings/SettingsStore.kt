@@ -63,6 +63,10 @@ class SettingsStore @Inject constructor(
     private val _staleFrameTimeoutMs = MutableStateFlow(ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS)
     val staleFrameTimeoutMs = _staleFrameTimeoutMs.asStateFlow()
 
+    private val _silenceTimeoutMs = MutableStateFlow(ConnectionHealthPolicy.DEFAULT_SILENCE_MS)
+    /** No bytes at all for this long means the dongle session is dead. */
+    val silenceTimeoutMs = _silenceTimeoutMs.asStateFlow()
+
     private val _wheelMapping = MutableStateFlow<Map<String, String>>(emptyMap())
     val wheelMapping = _wheelMapping.asStateFlow()
 
@@ -125,6 +129,8 @@ class SettingsStore @Inject constructor(
                 _sensorTimeoutMs.value = prefs[KEY_SENSOR_TIMEOUT_MS] ?: DEFAULT_SENSOR_TIMEOUT_MS
                 _staleFrameTimeoutMs.value =
                     prefs[KEY_STALE_FRAME_TIMEOUT_MS] ?: ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS
+                _silenceTimeoutMs.value =
+                    prefs[KEY_SILENCE_TIMEOUT_MS] ?: ConnectionHealthPolicy.DEFAULT_SILENCE_MS
 
                 val showSpare = prefs[KEY_SHOW_SPARE_WHEEL] ?: false
                 _showSpareWheel.value = showSpare
@@ -188,6 +194,10 @@ class SettingsStore @Inject constructor(
 
     suspend fun setStaleFrameTimeoutMs(timeoutMs: Long) {
         context.settingsDataStore.edit { it[KEY_STALE_FRAME_TIMEOUT_MS] = timeoutMs }
+    }
+
+    suspend fun setSilenceTimeoutMs(timeoutMs: Long) {
+        context.settingsDataStore.edit { it[KEY_SILENCE_TIMEOUT_MS] = timeoutMs }
     }
 
     suspend fun setShowSpareWheel(enabled: Boolean) {
@@ -319,6 +329,7 @@ class SettingsStore @Inject constructor(
         private val KEY_DONGLE_PROTOCOL = stringPreferencesKey("dongle_protocol")
         private val KEY_SENSOR_TIMEOUT_MS = longPreferencesKey("sensor_timeout_ms")
         private val KEY_STALE_FRAME_TIMEOUT_MS = longPreferencesKey("stale_frame_timeout_ms")
+        private val KEY_SILENCE_TIMEOUT_MS = longPreferencesKey("silence_timeout_ms")
         private val KEY_SHOW_SPARE_WHEEL = booleanPreferencesKey("show_spare_wheel")
         private val KEY_MIN_LIVE_WHEEL_PRESSURE = floatPreferencesKey("min_live_wheel_pressure_kpa")
         private val KEY_TEYES_AUTO_START = booleanPreferencesKey("teyes_auto_start")

@@ -1,11 +1,14 @@
 package com.tpms.app.ui.debug
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tpms.app.data.diagnostics.CrashLogStore
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
+import com.tpms.app.service.TpmsMonitorService
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,6 +20,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DebugViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: TpmsRepository,
     private val crashLogStore: CrashLogStore,
     settingsStore: SettingsStore
@@ -52,9 +56,10 @@ class DebugViewModel @Inject constructor(
 
     fun exportFullReport(): String = repository.exportFullReport()
 
+    /** Reopens the dongle; reading itself is owned by the monitoring service. */
     fun probeRead() {
         viewModelScope.launch {
-            runCatching { repository.readSensor() }
+            runCatching { TpmsMonitorService.probeUsb(context, force = true) }
             refreshUsbScan()
         }
     }

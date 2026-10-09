@@ -7,14 +7,17 @@ import com.tpms.app.data.diagnostics.DiagnosticsExporter
 import com.tpms.app.data.diagnostics.ServiceHealth
 import com.tpms.app.data.diagnostics.UiBreadcrumbs
 import com.tpms.app.data.persistence.LastKnownSnapshotStore
+import com.tpms.app.data.usb.DecodeSettings
 import com.tpms.app.data.usb.DongleDetector
+import com.tpms.app.data.usb.DongleSession
+import com.tpms.app.data.usb.FrameDecoder
 import com.tpms.app.data.usb.SensorValidator
-import com.tpms.app.data.usb.TpmsProtocolRouter
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
+import com.tpms.app.data.usb.protocol.Aa55AuxFrame
+import com.tpms.app.data.usb.toHexPreview
 import com.tpms.app.data.settings.SettingsStore
-import com.tpms.app.domain.AlertEvaluator
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.MonitoringHealthPolicy
 import com.tpms.app.domain.WheelLayout
@@ -31,6 +34,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,7 +43,6 @@ import javax.inject.Singleton
 class TpmsRepository @Inject constructor(
     private val usbConnection: UsbConnection,
     private val dongleDetector: DongleDetector,
-    private val protocolRouter: TpmsProtocolRouter,
     private val sensorDao: SensorDao,
     private val settingsStore: SettingsStore,
     private val debugLog: UsbDebugLog,
@@ -54,9 +58,12 @@ class TpmsRepository @Inject constructor(
     private val _sensors = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
     val sensors = _sensors.asStateFlow()
 
-    private val lastSeen = mutableMapOf<String, Long>()
+    private val lastSeen = ConcurrentHashMap<String, Long>()
     private var onAlertCallback: ((TireSensor) -> Unit)? = null
     private var onSensorNormalCallback: ((String) -> Unit)? = null
+
+    @Volatile
+    private var activeSession: DongleSession? = null
 
     @Volatile
     private var lastFrameAtMs: Long = 0L
@@ -77,9 +84,6 @@ class TpmsRepository @Inject constructor(
     private var restoredFromSnapshot: Boolean = false
 
     init {
-        usbConnection.onReadTimeout = {
-            serviceHealth.recordReadTimeout()
-        }
         repoScope.launch {
             settingsStore.awaitLoaded()
             restoreLastKnownIfNeeded()
@@ -96,9 +100,12 @@ class TpmsRepository @Inject constructor(
     private suspend fun restoreLastKnownIfNeeded() {
         if (_sensors.value.isNotEmpty()) return
         val restored = lastKnownSnapshotStore.load() ?: return
+        // Snapshots from older versions may hold sensors from corrupted frames (SENSOR_XX).
+        val wheelLabels = WheelLayout.allSlots(showSpareWheel = true)
         val filtered = filterSensorsForSpareSetting(restored)
+            .filterValues { it.label.isBlank() || it.label in wheelLabels }
         if (filtered.isEmpty()) return
-        _sensors.value = filtered
+        _sensors.update { current -> current.ifEmpty { filtered } }
         restoredFromSnapshot = true
         _state.value = TpmsState.Disconnected
         debugLog.info("Repository", "Restored ${filtered.size} sensors from last-known snapshot")
@@ -114,13 +121,7 @@ class TpmsRepository @Inject constructor(
 
     fun findDongle(): UsbDevice? = usbConnection.findDongle(dongleDetector)
 
-    fun isUsbConnected(): Boolean = usbConnection.isConnected
-
-    fun isOpenDevicePresent(): Boolean =
-        runCatching { usbConnection.isOpenDevicePresent() }.getOrDefault(false)
-
-    fun probeUsbConnection(): Boolean =
-        runCatching { usbConnection.probe() }.getOrDefault(false)
+    fun isUsbConnected(): Boolean = activeSession?.isClosed == false
 
     fun isReconnecting(): Boolean = isReconnecting
 
@@ -174,6 +175,7 @@ class TpmsRepository @Inject constructor(
         val selected = findDongle()
         appendLine("Selected dongle: ${selected?.let { UsbDeviceInfo.shortLabel(it) } ?: "none"}")
         appendLine("Active protocol: ${activeProtocol()?.displayName ?: "none"}")
+        appendLine("Open session: ${activeSession?.let { "${it.deviceName} (${it.vidPid})" } ?: "none"}")
     }
 
     fun debugLogEntries() = debugLog.entries
@@ -199,10 +201,10 @@ class TpmsRepository @Inject constructor(
 
     fun serviceStatusLine(): String {
         val protocol = activeProtocol()?.displayName ?: "no protocol"
-        val dongle = usbConnection.connectedVidPid() ?: "no dongle"
+        val dongle = activeSession?.vidPid ?: "no dongle"
         val frameAge = lastFrameAgeSeconds()?.let { "${it}s ago" } ?: "never"
         val validAge = lastValidFrameAgeSeconds()?.let { "${it}s ago" } ?: "never"
-        val stateLabel = when (val s = _state.value) {
+        val stateLabel = when (_state.value) {
             is TpmsState.Disconnected -> if (isReconnecting) "reconnecting" else "disconnected"
             is TpmsState.Connecting -> "connecting"
             is TpmsState.Connected -> "connected"
@@ -223,8 +225,6 @@ class TpmsRepository @Inject constructor(
 
     fun dongleOpenedAtMs(): Long = dongleOpenedAtMs
 
-    fun lastPollCompletedAtMs(): Long = serviceHealth.lastPollCompletedAtMs
-
     fun lastFrameAgeSeconds(): Long? {
         if (lastFrameAtMs <= 0L) return null
         return (System.currentTimeMillis() - lastFrameAtMs) / 1000
@@ -239,87 +239,122 @@ class TpmsRepository @Inject constructor(
 
     fun hasUsbPermission(device: UsbDevice): Boolean = usbConnection.hasPermission(device)
 
-    fun activeProtocol(): DongleProtocol? = protocolRouter.activeProtocol()
+    fun activeProtocol(): DongleProtocol? = activeSession?.protocol
 
-    suspend fun openDongle(device: UsbDevice): Boolean {
+    fun activeSession(): DongleSession? = activeSession
+
+    /** Opens [device] and starts its reader. Returns null if it could not be opened. */
+    fun openSession(device: UsbDevice): DongleSession? {
         return try {
-            if (usbConnection.isSameDevice(device)) {
-                isReconnecting = false
-                return true
-            }
             val protocol = dongleDetector.resolve(device, settingsStore.dongleProtocolMode.value)
-            val opened = usbConnection.open(device, protocol)
-            if (opened) {
-                protocolRouter.onDongleOpened(protocol, usbConnection)
-                dongleOpenedAtMs = System.currentTimeMillis()
-                lastFrameAtMs = 0L
-                lastValidFrameAtMs = 0L
-                isReconnecting = false
-                debugLog.info("Repository", "Dongle opened with ${protocol.displayName}")
-            } else {
+            val link = usbConnection.open(device, protocol) ?: run {
                 debugLog.error("Repository", "Failed to open dongle ${UsbDeviceInfo.vidPid(device)}")
+                return null
             }
-            opened
+            val session = DongleSession(link, FrameDecoder(protocol), debugLog)
+            dongleOpenedAtMs = session.openedAtMs
+            lastFrameAtMs = 0L
+            lastValidFrameAtMs = 0L
+            activeSession = session
+            session.start()
+            isReconnecting = false
+            updateState(TpmsState.Connecting(attempt = 0))
+            debugLog.info("Repository", "Session opened: ${link.deviceName} (${link.vidPid}) as ${protocol.displayName}")
+            session
         } catch (e: Exception) {
-            debugLog.error("Repository", "openDongle crashed: ${e.message}")
-            serviceHealth.recordError("openDongle: ${e.message}")
-            false
-        }
-    }
-
-    suspend fun readSensor(): TireSensor? {
-        return try {
-            val raw = usbConnection.read() ?: return null
-            lastFrameAtMs = System.currentTimeMillis()
-            val timestamp = lastFrameAtMs
-            val thresholds = settingsStore.thresholds.value
-            val minLivePressure = settingsStore.minLiveWheelPressureKpa.value
-            val showSpareWheel = settingsStore.showSpareWheel.value
-            val parsed = protocolRouter.parse(raw, timestamp, {
-                AlertEvaluator.evaluate(it, thresholds)
-            }, minLivePressure, showSpareWheel)
-            if (parsed.isNotEmpty()) {
-                lastValidFrameAtMs = timestamp
-                debugLog.info(
-                    "Repository",
-                    parsed.distinctBy { it.id }.joinToString { sensorSummary(it) }
-                )
-            }
-            var last: TireSensor? = null
-            for (sensor in parsed) {
-                applySensorUpdate(sensor)
-                last = sensor
-            }
-            last
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            debugLog.warn("Repository", "readSensor failed: ${e.message}")
-            serviceHealth.recordError("readSensor: ${e.message}")
+            debugLog.error("Repository", "openSession crashed: ${e.message}")
+            serviceHealth.recordError("openSession: ${e.message}")
             null
         }
     }
 
-    fun checkSensorTimeouts(now: Long = System.currentTimeMillis()): List<TireSensor> {
-        val lostSensors = mutableListOf<TireSensor>()
-        val updated = _sensors.value.toMutableMap()
-        var changed = false
-        val showSpareWheel = settingsStore.showSpareWheel.value
+    /**
+     * Single consumer of [session]: decodes its chunks into sensor updates until the session dies.
+     * Returns why it ended (reader stopped, silence, stale frames or device gone).
+     */
+    suspend fun consume(session: DongleSession, onIteration: () -> Unit = {}): String {
+        var presenceCheckedAtMs = 0L
+        while (true) {
+            val chunk = session.receive(RECEIVE_TICK_MS)
+            serviceHealth.recordPollStart()
+            try {
+                if (chunk != null) handleChunk(session, chunk)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                debugLog.warn("Repository", "handleChunk failed: ${e.message}")
+                serviceHealth.recordError("handleChunk: ${e.message}")
+            } finally {
+                serviceHealth.recordPollCompleted()
+            }
+            onIteration()
 
-        for ((id, sensor) in _sensors.value) {
-            if (!showSpareWheel && SensorValidator.isSpareSensor(sensor)) continue
-            val seen = lastSeen[id] ?: continue
-            if (now - seen > settingsStore.sensorTimeoutMs.value && sensor.alertType != AlertType.SENSOR_LOST) {
-                val lost = sensor.copy(alertType = AlertType.SENSOR_LOST)
-                updated[id] = lost
-                lostSensors.add(lost)
-                changed = true
-                emitAlert(lost)
+            session.closeReason?.let { return it }
+            if (session.streamsContinuously &&
+                session.silentForMs() > settingsStore.silenceTimeoutMs.value
+            ) {
+                return "silence ${session.silentForMs() / 1000}s"
+            }
+            if (shouldReconnectStaleFrame()) {
+                serviceHealth.recordStaleReconnect()
+                return "no valid frame"
+            }
+            val now = System.currentTimeMillis()
+            if (now - presenceCheckedAtMs >= RECEIVE_TICK_MS) {
+                presenceCheckedAtMs = now
+                if (!usbConnection.isDevicePresent(session.deviceName)) return "device gone"
             }
         }
+    }
 
-        if (changed) {
-            _sensors.value = updated
+    /**
+     * Closes [session]; with [keepSensors] the last readings stay visible while reconnecting.
+     * Returns false if its reader thread could not be stopped.
+     */
+    fun closeSession(session: DongleSession, reason: String, keepSensors: Boolean = true): Boolean {
+        debugLog.info("Repository", "Closing session ${session.deviceName}: $reason")
+        val stopped = session.close(reason)
+        if (activeSession === session) {
+            activeSession = null
+            dongleOpenedAtMs = 0L
+            lastFrameAtMs = 0L
+            lastValidFrameAtMs = 0L
+        }
+        if (keepSensors) {
+            isReconnecting = true
+            updateState(TpmsState.Connecting(attempt = 0))
+            serviceHealth.recordReconnect()
+        } else {
+            lastSeen.clear()
+            _sensors.value = emptyMap()
+            isReconnecting = false
+            updateState(TpmsState.Disconnected)
+        }
+        return stopped
+    }
+
+    fun checkSensorTimeouts(now: Long = System.currentTimeMillis()): List<TireSensor> {
+        val lostSensors = mutableListOf<TireSensor>()
+        val showSpareWheel = settingsStore.showSpareWheel.value
+        val timeoutMs = settingsStore.sensorTimeoutMs.value
+
+        _sensors.update { current ->
+            lostSensors.clear()
+            val updated = current.toMutableMap()
+            for ((id, sensor) in current) {
+                if (!showSpareWheel && SensorValidator.isSpareSensor(sensor)) continue
+                val seen = lastSeen[id] ?: continue
+                if (now - seen > timeoutMs && sensor.alertType != AlertType.SENSOR_LOST) {
+                    val lost = sensor.copy(alertType = AlertType.SENSOR_LOST)
+                    updated[id] = lost
+                    lostSensors.add(lost)
+                }
+            }
+            if (lostSensors.isEmpty()) current else updated
+        }
+
+        if (lostSensors.isNotEmpty()) {
+            lostSensors.forEach { emitAlert(it) }
             refreshConnectionState(now)
         }
         return lostSensors
@@ -338,43 +373,41 @@ class TpmsRepository @Inject constructor(
 
     fun getThresholds(): AlertThresholds = settingsStore.thresholds.value
 
-    fun closeUsb(clearSensorState: Boolean = true) {
-        try {
-            usbConnection.close()
-            protocolRouter.onDongleClosed()
-            dongleOpenedAtMs = 0L
-            if (clearSensorState) {
-                lastSeen.clear()
-                lastFrameAtMs = 0L
-                lastValidFrameAtMs = 0L
-                _sensors.value = emptyMap()
-                _state.value = TpmsState.Disconnected
-                isReconnecting = false
-            } else {
-                isReconnecting = true
-                _state.value = TpmsState.Connecting(attempt = 0)
-            }
-        } catch (e: Exception) {
-            debugLog.warn("Repository", "closeUsb failed: ${e.message}")
-            _state.value = if (clearSensorState) TpmsState.Disconnected else TpmsState.Connecting(attempt = 0)
-        }
-    }
-
-    fun closeUsbForReconnect() {
-        lastFrameAtMs = 0L
-        lastValidFrameAtMs = 0L
-        closeUsb(clearSensorState = false)
-        serviceHealth.recordReconnect()
-    }
-
-    fun reconnectStaleFrame() {
-        debugLog.warn("Repository", "Stale frame — forcing USB reconnect")
-        closeUsbForReconnect()
-        serviceHealth.recordStaleReconnect()
-    }
-
     fun recentHistory(limit: Int = 20): Flow<List<SensorReading>> =
         sensorDao.recentReadings(limit)
+
+    private suspend fun handleChunk(session: DongleSession, raw: ByteArray) {
+        val timestamp = System.currentTimeMillis()
+        lastFrameAtMs = timestamp
+        debugLog.raw(RAW_TAG, "${session.protocol.displayName} ${raw.toHexPreview()}")
+        val result = session.decoder.decode(
+            raw,
+            timestamp,
+            DecodeSettings(
+                thresholds = settingsStore.thresholds.value,
+                minLiveWheelPressureKpa = settingsStore.minLiveWheelPressureKpa.value,
+                showSpareWheel = settingsStore.showSpareWheel.value
+            )
+        )
+        result.auxFrames.forEach { logAuxFrame(it) }
+        if (result.sensors.isNotEmpty()) {
+            lastValidFrameAtMs = timestamp
+            debugLog.info(
+                "Repository",
+                result.sensors.distinctBy { it.id }.joinToString { sensorSummary(it) }
+            )
+        }
+        result.sensors.forEach { applySensorUpdate(it) }
+    }
+
+    private fun logAuxFrame(frame: Aa55AuxFrame) {
+        when (frame) {
+            is Aa55AuxFrame.SensorId ->
+                debugLog.usb(RAW_TAG, "Sensor ID ${frame.slot}: ${frame.sensorId ?: "empty slot"}")
+            is Aa55AuxFrame.Other ->
+                debugLog.raw(RAW_TAG, "Receiver frame ${frame.kind}: ${frame.hex}")
+        }
+    }
 
     private suspend fun applySensorUpdate(sensor: TireSensor) {
         try {
@@ -382,9 +415,7 @@ class TpmsRepository @Inject constructor(
                 return
             }
             lastSeen[sensor.id] = sensor.timestamp
-            val updated = _sensors.value.toMutableMap()
-            updated[sensor.id] = sensor
-            _sensors.value = updated
+            _sensors.update { it + (sensor.id to sensor) }
             runCatching { sensorDao.insert(sensor.toReading()) }
                 .onFailure { debugLog.warn("Repository", "DB insert failed: ${it.message}") }
             if (sensor.isAlert) {
@@ -409,7 +440,7 @@ class TpmsRepository @Inject constructor(
             if (sensorList.isEmpty()) return
 
             val alerting = sensorList.firstOrNull { it.isAlert }
-            _state.value = if (alerting != null && alerting.alertType != null) {
+            val newState = if (alerting != null && alerting.alertType != null) {
                 TpmsState.Alert(
                     sensor = alerting,
                     type = alerting.alertType,
@@ -418,21 +449,22 @@ class TpmsRepository @Inject constructor(
             } else {
                 TpmsState.Connected(sensorList, timestamp)
             }
+            updateState(newState)
         } catch (e: Exception) {
             debugLog.warn("Repository", "refreshConnectionState failed: ${e.message}")
         }
     }
 
     private fun removeSpareSensors() {
-        val current = _sensors.value
-        val filtered = filterSensorsForSpareSetting(current)
-        if (filtered.size == current.size) return
-        filtered.keys.let { keep ->
-            lastSeen.keys.toList().forEach { id ->
-                if (id !in keep) lastSeen.remove(id)
-            }
+        var removed = false
+        _sensors.update { current ->
+            val filtered = filterSensorsForSpareSetting(current)
+            removed = filtered.size != current.size
+            filtered
         }
-        _sensors.value = filtered
+        if (!removed) return
+        val keep = _sensors.value.keys
+        lastSeen.keys.retainAll(keep)
         onSensorNormalCallback?.invoke(WheelLayout.SPARE_SLOT)
         refreshConnectionState(System.currentTimeMillis())
         persistLastKnown()
@@ -479,4 +511,10 @@ class TpmsRepository @Inject constructor(
         alertType = alertType?.name,
         timestamp = timestamp
     )
+
+    companion object {
+        private const val RAW_TAG = "TPMS_RAW"
+        /** Upper bound on how long one consumer iteration waits for data. */
+        private const val RECEIVE_TICK_MS = 1_000L
+    }
 }
