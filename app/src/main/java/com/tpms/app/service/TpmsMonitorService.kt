@@ -318,7 +318,6 @@ class TpmsMonitorService : Service() {
     }
 
     private suspend fun refreshOutputs() {
-        runCatching { repository.checkSensorTimeouts() }
         runCatching { updateWidget() }
         runCatching { updateFloatingOverlay() }
         runCatching { evaluateMonitoringHealth() }

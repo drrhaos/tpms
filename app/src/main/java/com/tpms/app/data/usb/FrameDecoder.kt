@@ -4,13 +4,10 @@ import com.tpms.app.data.settings.SensorValidatorDefaults
 import com.tpms.app.data.usb.protocol.Aa55AuxFrame
 import com.tpms.app.data.usb.protocol.Aa55SerialProtocol
 import com.tpms.app.data.usb.protocol.HidGenericProtocol
-import com.tpms.app.domain.AlertEvaluator
-import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 
 data class DecodeSettings(
-    val thresholds: AlertThresholds = AlertThresholds(),
     val minLiveWheelPressureKpa: Float = SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA,
     val showSpareWheel: Boolean = false
 )
@@ -25,7 +22,8 @@ data class DecodeResult(
 }
 
 /**
- * Turns raw USB chunks into validated, confirmed readings with alerts applied.
+ * Turns raw USB chunks into validated, confirmed readings. Alerts are applied later, by the
+ * repository, because they need history that outlives a connection.
  * Holds per-connection state (reassembly buffer, confirmation history): create one per open dongle.
  */
 class FrameDecoder(
@@ -54,7 +52,6 @@ class FrameDecoder(
                 SensorValidator.sanitize(it, settings.minLiveWheelPressureKpa, settings.showSpareWheel)
             }
             .mapNotNull { confirmation.offer(it) }
-            .map { it.copy(alertType = AlertEvaluator.evaluate(it, settings.thresholds)) }
         return DecodeResult(sensors, aux)
     }
 

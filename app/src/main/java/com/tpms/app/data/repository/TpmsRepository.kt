@@ -18,11 +18,11 @@ import com.tpms.app.data.usb.UsbDeviceInfo
 import com.tpms.app.data.usb.protocol.Aa55AuxFrame
 import com.tpms.app.data.usb.toHexPreview
 import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.domain.AlertTracker
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.MonitoringHealthPolicy
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
-import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -35,7 +35,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -58,7 +57,8 @@ class TpmsRepository @Inject constructor(
     private val _sensors = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
     val sensors = _sensors.asStateFlow()
 
-    private val lastSeen = ConcurrentHashMap<String, Long>()
+    /** Alert history per sensor id: survives session reopen, dropped with the sensor. */
+    private val alertTracker = AlertTracker()
     private var onAlertCallback: ((TireSensor) -> Unit)? = null
     private var onSensorNormalCallback: ((String) -> Unit)? = null
 
@@ -326,39 +326,12 @@ class TpmsRepository @Inject constructor(
             updateState(TpmsState.Connecting(attempt = 0))
             serviceHealth.recordReconnect()
         } else {
-            lastSeen.clear()
+            alertTracker.clear()
             _sensors.value = emptyMap()
             isReconnecting = false
             updateState(TpmsState.Disconnected)
         }
         return stopped
-    }
-
-    fun checkSensorTimeouts(now: Long = System.currentTimeMillis()): List<TireSensor> {
-        val lostSensors = mutableListOf<TireSensor>()
-        val showSpareWheel = settingsStore.showSpareWheel.value
-        val timeoutMs = settingsStore.sensorTimeoutMs.value
-
-        _sensors.update { current ->
-            lostSensors.clear()
-            val updated = current.toMutableMap()
-            for ((id, sensor) in current) {
-                if (!showSpareWheel && SensorValidator.isSpareSensor(sensor)) continue
-                val seen = lastSeen[id] ?: continue
-                if (now - seen > timeoutMs && sensor.alertType != AlertType.SENSOR_LOST) {
-                    val lost = sensor.copy(alertType = AlertType.SENSOR_LOST)
-                    updated[id] = lost
-                    lostSensors.add(lost)
-                }
-            }
-            if (lostSensors.isEmpty()) current else updated
-        }
-
-        if (lostSensors.isNotEmpty()) {
-            lostSensors.forEach { emitAlert(it) }
-            refreshConnectionState(now)
-        }
-        return lostSensors
     }
 
     fun updateState(state: TpmsState) {
@@ -385,7 +358,6 @@ class TpmsRepository @Inject constructor(
             raw,
             timestamp,
             DecodeSettings(
-                thresholds = settingsStore.thresholds.value,
                 minLiveWheelPressureKpa = settingsStore.minLiveWheelPressureKpa.value,
                 showSpareWheel = settingsStore.showSpareWheel.value
             )
@@ -410,12 +382,12 @@ class TpmsRepository @Inject constructor(
         }
     }
 
-    private suspend fun applySensorUpdate(sensor: TireSensor) {
+    private suspend fun applySensorUpdate(reading: TireSensor) {
         try {
-            if (!settingsStore.showSpareWheel.value && SensorValidator.isSpareSensor(sensor)) {
+            if (!settingsStore.showSpareWheel.value && SensorValidator.isSpareSensor(reading)) {
                 return
             }
-            lastSeen[sensor.id] = sensor.timestamp
+            val sensor = alertTracker.apply(reading, settingsStore.thresholds.value)
             _sensors.update { it + (sensor.id to sensor) }
             runCatching { sensorDao.insert(sensor.toReading()) }
                 .onFailure { debugLog.warn("Repository", "DB insert failed: ${it.message}") }
@@ -465,7 +437,7 @@ class TpmsRepository @Inject constructor(
         }
         if (!removed) return
         val keep = _sensors.value.keys
-        lastSeen.keys.retainAll(keep)
+        alertTracker.retain(keep)
         onSensorNormalCallback?.invoke(WheelLayout.SPARE_SLOT)
         refreshConnectionState(System.currentTimeMillis())
         persistLastKnown()

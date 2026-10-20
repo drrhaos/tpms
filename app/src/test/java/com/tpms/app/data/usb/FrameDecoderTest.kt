@@ -2,9 +2,9 @@ package com.tpms.app.data.usb
 
 import com.tpms.app.data.usb.protocol.Aa55AuxFrame
 import com.tpms.app.data.usb.protocol.Aa55SerialProtocol
-import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -23,24 +23,24 @@ class FrameDecoderTest {
     }
 
     @Test
-    fun aa55_appliesThresholdAlerts() {
+    fun aa55_leavesAlertsToTheRepository() {
         val decoder = FrameDecoder(DongleProtocol.SERIAL_AA55)
-        // 30 * 3.44 = 103 kPa < 150 kPa default low threshold
+        // 30 * 3.44 = 103 kPa, well below any low-pressure threshold
         val frame = frames.buildTireStateFrame(tireId = 0x01, pressureRaw = 30, tempRaw = 70)
 
         decoder.decode(frame, 0L, settings)
         val sensor = decoder.decode(frame, 500L, settings).sensors.single()
 
-        assertEquals(AlertType.LOW_PRESSURE, sensor.alertType)
+        assertNull(sensor.alertType)
     }
 
     @Test
-    fun aa55_mapsNoSignalFlagToSensorLost() {
+    fun aa55_keepsNoSignalFlag() {
         val decoder = FrameDecoder(DongleProtocol.SERIAL_AA55)
         val frame = frames.buildTireStateFrame(tireId = 0x10, pressureRaw = 70, tempRaw = 70, status = 0x20)
 
         decoder.decode(frame, 0L, settings)
-        assertEquals(AlertType.SENSOR_LOST, decoder.decode(frame, 500L, settings).sensors.single().alertType)
+        assertTrue(decoder.decode(frame, 500L, settings).sensors.single().flags.noSignal)
     }
 
     @Test
