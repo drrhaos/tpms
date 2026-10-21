@@ -8,6 +8,7 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.MonitoringHealthPolicy
+import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
@@ -39,7 +40,8 @@ data class MainUiState(
     val dataStale: Boolean = false,
     val dataAgeMinutes: Long? = null,
     val protocolUnhealthy: Boolean = false,
-    val monitoringOffline: Boolean = false
+    val monitoringOffline: Boolean = false,
+    val usbFault: UsbFault? = null
 )
 
 @HiltViewModel
@@ -54,6 +56,7 @@ class MainViewModel @Inject constructor(
     val uiState: StateFlow<MainUiState> = combine(
         repository.state,
         repository.sensors,
+        repository.usbFault,
         combine(
             settingsStore.pressureUnit,
             settingsStore.wheelMapping,
@@ -69,8 +72,8 @@ class MainViewModel @Inject constructor(
                 debugTools
             )
         }
-    ) { tpmsState, sensors, settings ->
-        buildUiState(tpmsState, sensors, settings)
+    ) { tpmsState, sensors, usbFault, settings ->
+        buildUiState(tpmsState, sensors, usbFault, settings)
     }.catch { error ->
         debugLog.error("MainScreen", uiBreadcrumbs.describe())
         debugLog.exception("MainScreen", error, "ui state flow")
@@ -92,6 +95,7 @@ class MainViewModel @Inject constructor(
     private fun buildUiState(
         tpmsState: TpmsState,
         sensors: Map<String, TireSensor>,
+        usbFault: UsbFault?,
         settings: MainSettingsBundle
     ): MainUiState {
         return try {
@@ -115,7 +119,8 @@ class MainViewModel @Inject constructor(
                 dataStale = stale,
                 dataAgeMinutes = ageSec?.let { (it / 60).coerceAtLeast(1) },
                 protocolUnhealthy = protocolUnhealthy,
-                monitoringOffline = monitoringOffline
+                monitoringOffline = monitoringOffline,
+                usbFault = usbFault
             )
         } catch (error: Exception) {
             debugLog.error("MainScreen", uiBreadcrumbs.describe())

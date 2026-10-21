@@ -17,6 +17,8 @@
     <string name="notification_action_restart">Перезапустить</string>
     <string name="notification_service_stopped_title">Мониторинг TPMS остановлен</string>
     <string name="notification_service_stopped_body">Мониторинг выключен — нажмите, чтобы перезапустить</string>
+    <string name="usb_fault_dongle_silent">Донгл не отвечает — переподключите</string>
+    <string name="usb_fault_stuck">USB завис — нужна перезагрузка магнитолы</string>
     <string name="notification_protocol_warn">Нет валидных данных датчиков</string>
     <string name="notification_usb_permission_title">Нужно разрешение USB</string>
     <string name="notification_usb_permission_body">Откройте TPMS Монитор, чтобы разрешить доступ к донглу</string>

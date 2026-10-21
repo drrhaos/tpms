@@ -21,6 +21,8 @@ import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.AlertTracker
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.MonitoringHealthPolicy
+import com.tpms.app.domain.RecoveryState
+import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocol
@@ -53,6 +55,15 @@ class TpmsRepository @Inject constructor(
     private val repoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow<TpmsState>(TpmsState.Disconnected)
     val state = _state.asStateFlow()
+
+    /** USB problem reopening is not fixing, shown in the header and the persistent notification. */
+    private val _usbFault = MutableStateFlow<UsbFault?>(null)
+    val usbFault = _usbFault.asStateFlow()
+
+    /** Stuck readers and silent sessions seen by this process; outlives a service instance. */
+    @Volatile
+    var recovery = RecoveryState()
+        private set
 
     private val _sensors = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
     val sensors = _sensors.asStateFlow()
@@ -148,6 +159,7 @@ class TpmsRepository @Inject constructor(
             dongleOpenedAtMs = dongleOpenedAtMs,
             lastValidFrameAtMs = lastValidFrameAtMs,
             staleThresholdMs = settingsStore.staleFrameTimeoutMs.value,
+            lastBytesAtMs = lastFrameAtMs,
             now = now
         )
 
@@ -218,6 +230,14 @@ class TpmsRepository @Inject constructor(
             protocolUnhealthy = isProtocolUnhealthy()
         )
         return "$stateLabel · $protocol · $dongle · frame $frameAge · valid $validAge$protocolWarn · screen ${uiBreadcrumbs.lastScreen} · $health"
+    }
+
+    /** Stores [state] and publishes its fault; returns true if the shown fault changed. */
+    fun updateRecovery(state: RecoveryState): Boolean {
+        recovery = state
+        if (_usbFault.value == state.fault) return false
+        _usbFault.value = state.fault
+        return true
     }
 
     fun lastFrameAtMs(): Long = lastFrameAtMs

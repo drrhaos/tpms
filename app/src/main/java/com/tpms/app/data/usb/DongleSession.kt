@@ -30,6 +30,11 @@ class DongleSession(
     var lastBytesAtMs: Long = openedAtMs
         private set
 
+    /** At least one byte arrived; a session that dies without any counts as silent. */
+    @Volatile
+    var hasReceivedBytes: Boolean = false
+        private set
+
     @Volatile
     var closeReason: String? = null
         private set
@@ -128,6 +133,7 @@ class DongleSession(
                     buffer.flip()
                     buffer.get(data)
                     lastBytesAtMs = clock()
+                    hasReceivedBytes = true
                     chunks.trySend(data)
                 }
             }

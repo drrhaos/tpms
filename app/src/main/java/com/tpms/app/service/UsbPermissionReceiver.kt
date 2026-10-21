@@ -15,7 +15,8 @@ class UsbPermissionReceiver : BroadcastReceiver() {
         if (granted) {
             Log.d(TAG, "USB permission granted — waking service")
             UsbPermissionNotifier.dismiss(context)
-            TpmsMonitorService.wake(context)
+            // Granted right after an attach of a dongle without permission: treat it as that attach.
+            TpmsMonitorService.wake(context, deviceAttached = true)
         } else {
             Log.w(TAG, "USB permission denied")
         }

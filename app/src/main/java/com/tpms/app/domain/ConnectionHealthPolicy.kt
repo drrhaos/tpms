@@ -6,11 +6,16 @@ object ConnectionHealthPolicy {
   const val DEFAULT_SILENCE_MS = 15_000L
   const val DEFAULT_PROTOCOL_UNHEALTHY_MS = 120_000L
 
+  /**
+   * Bytes keep arriving but none of them made a valid frame for [staleThresholdMs]: a garbage stream.
+   * Full silence is not stale here — the silence timeout handles it, and for HID it is normal.
+   */
   fun shouldReconnectStaleFrame(
       isUsbConnected: Boolean,
       dongleOpenedAtMs: Long,
       lastValidFrameAtMs: Long,
       staleThresholdMs: Long,
+      lastBytesAtMs: Long,
       now: Long = System.currentTimeMillis()
   ): Boolean {
     if (!isUsbConnected || dongleOpenedAtMs <= 0L) return false
@@ -19,7 +24,7 @@ object ConnectionHealthPolicy {
     } else {
       dongleOpenedAtMs
     }
-    return now - referenceMs > staleThresholdMs
+    return now - referenceMs > staleThresholdMs && lastBytesAtMs > referenceMs
   }
 
   fun isProtocolUnhealthy(

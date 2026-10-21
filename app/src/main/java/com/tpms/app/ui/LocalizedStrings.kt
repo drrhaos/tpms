@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.tpms.app.R
+import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
@@ -21,6 +22,16 @@ fun PressureUnit.localizedLabel(): String = when (this) {
     PressureUnit.PSI -> stringResource(R.string.unit_psi)
     PressureUnit.KPA -> stringResource(R.string.unit_kpa)
     PressureUnit.BAR -> stringResource(R.string.unit_bar)
+}
+
+fun UsbFault.label(context: Context): String = context.getString(labelRes())
+
+@Composable
+fun UsbFault.label(): String = stringResource(labelRes())
+
+private fun UsbFault.labelRes(): Int = when (this) {
+    UsbFault.DONGLE_SILENT -> R.string.usb_fault_dongle_silent
+    UsbFault.USB_STUCK -> R.string.usb_fault_stuck
 }
 
 fun AlertType.shortLabel(context: Context): String = when (this) {

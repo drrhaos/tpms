@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.Process
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -25,7 +26,14 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.DongleSession
 import com.tpms.app.data.usb.UsbDebugLog
+import com.tpms.app.domain.RecoveryAction
+import com.tpms.app.domain.RecoveryDecision
+import com.tpms.app.domain.RecoveryState
+import com.tpms.app.domain.SessionOutcome
+import com.tpms.app.domain.SessionRecoveryPolicy
+import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.model.TpmsState
+import com.tpms.app.ui.label
 import com.tpms.app.ui.main.MainActivity
 import com.tpms.app.ui.widget.TpmsWidget
 import com.tpms.app.ui.widget.WidgetRemoteViews
@@ -84,6 +92,7 @@ class TpmsMonitorService : Service() {
             when (intent.action) {
                 Intent.ACTION_SCREEN_ON -> {
                     debugLog.info("Power", "SCREEN_ON — wake escalation")
+                    onHeadUnitWake()
                     WakeEscalationScheduler.onScreenOn(context)
                 }
                 Intent.ACTION_SCREEN_OFF -> debugLog.info("Power", "SCREEN_OFF")
@@ -113,6 +122,7 @@ class TpmsMonitorService : Service() {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
         }
+        reportPreviousRestart()
         screenReceiverRegistered = runCatching {
             ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         }.isSuccess
@@ -138,6 +148,7 @@ class TpmsMonitorService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_CHECK_NOW -> {
+                if (intent.getBooleanExtra(EXTRA_DEVICE_ATTACHED, false)) onHeadUnitWake()
                 searchWake.trySend(Unit)
                 uiRefresh.trySend(Unit)
             }
@@ -237,7 +248,10 @@ class TpmsMonitorService : Service() {
             while (isActive) {
                 val dongle = repository.findDongle()
                 val session = if (dongle != null && repository.hasUsbPermission(dongle)) {
-                    repository.openSession(dongle)
+                    repository.openSession(dongle) ?: run {
+                        onOpenFailed()
+                        null
+                    }
                 } else {
                     null
                 }
@@ -249,12 +263,86 @@ class TpmsMonitorService : Service() {
                 }
                 searchIntervalMs = SEARCH_MIN_INTERVAL_MS
 
-                val reason = repository.consume(session) { keepCpuAwake() }
-                if (!repository.closeSession(session, reason)) {
-                    serviceHealth.recordError("reader stuck after: $reason")
+                val reason = repository.consume(session) {
+                    keepCpuAwake()
+                    if (session.hasReceivedBytes) onBytes()
                 }
-                awaitSearchWake(RECONNECT_DELAY_MS)
+                val stopped = repository.closeSession(session, reason)
+                if (!stopped) serviceHealth.recordError("reader stuck after: $reason")
+                val decision = SessionRecoveryPolicy.afterSession(
+                    SessionOutcome(receivedBytes = session.hasReceivedBytes, readerStopped = stopped),
+                    repository.recovery,
+                    heartbeatStore.lastProcessRestartMs(),
+                    System.currentTimeMillis()
+                )
+                when (val action = applyRecovery(decision)) {
+                    RecoveryAction.RestartProcess -> restartProcess("reader stuck after: $reason")
+                    is RecoveryAction.Reopen -> awaitSearchWake(action.delayMs)
+                    null -> awaitSearchWake(SessionRecoveryPolicy.REOPEN_DELAY_MS)
+                }
             }
+        }
+    }
+
+    private suspend fun onOpenFailed() {
+        val decision = SessionRecoveryPolicy.afterOpenFailed(
+            repository.recovery,
+            heartbeatStore.lastProcessRestartMs(),
+            System.currentTimeMillis()
+        )
+        if (applyRecovery(decision) == RecoveryAction.RestartProcess) {
+            restartProcess("open failed while a reader is stuck")
+        }
+    }
+
+    private fun onBytes() {
+        val current = repository.recovery
+        val next = SessionRecoveryPolicy.onBytes(current)
+        if (next != current) applyRecoveryState(next)
+    }
+
+    /** SCREEN_ON or a dongle attach: forget the silent streak and search at full speed. */
+    private fun onHeadUnitWake() {
+        applyRecoveryState(SessionRecoveryPolicy.onWake(repository.recovery))
+        searchWake.trySend(Unit)
+    }
+
+    private fun applyRecovery(decision: RecoveryDecision): RecoveryAction? {
+        applyRecoveryState(decision.state)
+        return decision.action
+    }
+
+    private fun applyRecoveryState(state: RecoveryState) {
+        if (repository.updateRecovery(state)) {
+            state.fault?.let { debugLog.warn("Service", "USB fault: $it") }
+            uiRefresh.trySend(Unit)
+        }
+    }
+
+    /**
+     * Kills this process so a stuck reader thread and its connection go with it; START_STICKY
+     * brings the service back (the liveness alarm is the fallback). The policy limits how often.
+     */
+    private suspend fun restartProcess(reason: String) {
+        val saved = runCatching { heartbeatStore.recordProcessRestart(reason) }
+        if (saved.isFailure) {
+            // Without the saved time the 30 min limit is gone and kills could loop: show the fault instead.
+            debugLog.error("Service", "Restart time not saved (${saved.exceptionOrNull()?.message}) — not restarting")
+            applyRecoveryState(repository.recovery.copy(fault = UsbFault.USB_STUCK))
+            return
+        }
+        debugLog.error("Service", "Restarting process: $reason")
+        Process.killProcess(Process.myPid())
+    }
+
+    /** The in-memory diagnostics died with the old process; carry over why it was restarted. */
+    private fun reportPreviousRestart() {
+        serviceScope.launch {
+            val atMs = heartbeatStore.lastProcessRestartMs() ?: return@launch
+            if (System.currentTimeMillis() - atMs > RESTART_REPORT_WINDOW_MS) return@launch
+            val reason = heartbeatStore.lastProcessRestartReason() ?: "unknown"
+            debugLog.warn("Service", "Process was restarted ${(System.currentTimeMillis() - atMs) / 1000}s ago: $reason")
+            serviceHealth.recordError("process restart: $reason")
         }
     }
 
@@ -379,8 +467,11 @@ class TpmsMonitorService : Service() {
         val snapshot = widgetSnapshotBuilder.buildNow(this)
         val collapsed = WidgetRemoteViews.forNotificationCollapsed(this, snapshot)
         val expanded = WidgetRemoteViews.forNotificationExpanded(this, snapshot, statusLine)
+        // Custom views hide the content text; the sub text stays visible in the notification header.
+        val faultLabel = repository.usbFault.value?.label(this)
         val summary = buildString {
             append(WidgetRemoteViews.summaryLine(snapshot))
+            faultLabel?.let { append(" · ").append(it) }
             if (protocolUnhealthy) {
                 append(" · ")
                 append(getString(R.string.notification_protocol_warn))
@@ -390,6 +481,7 @@ class TpmsMonitorService : Service() {
         return NotificationCompat.Builder(this, TpmsApplication.CHANNEL_STATUS)
             .setContentTitle(getString(R.string.notification_service_running))
             .setContentText(summary)
+            .setSubText(faultLabel)
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
@@ -432,8 +524,8 @@ class TpmsMonitorService : Service() {
         private const val NOTIF_ID = 1001
         private const val SEARCH_MIN_INTERVAL_MS = 1_000L
         private const val SEARCH_MAX_INTERVAL_MS = 5_000L
-        private const val RECONNECT_DELAY_MS = 1_000L
         private const val PROBE_QUIET_MS = 5_000L
+        private const val RESTART_REPORT_WINDOW_MS = 10 * 60_000L
         private const val UI_MIN_INTERVAL_MS = 1_000L
         private const val UI_TICK_MS = 30_000L
         private const val HEARTBEAT_INTERVAL_MS = 10_000L
@@ -447,15 +539,18 @@ class TpmsMonitorService : Service() {
         const val ACTION_USB_DETACHED = "com.tpms.app.action.USB_DETACHED"
         const val EXTRA_FORCE = "com.tpms.app.extra.FORCE"
         const val EXTRA_DEVICE_NAME = "com.tpms.app.extra.DEVICE_NAME"
+        const val EXTRA_DEVICE_ATTACHED = "com.tpms.app.extra.DEVICE_ATTACHED"
 
         fun start(context: Context) {
             startForegroundSafely(context, Intent(context, TpmsMonitorService::class.java))
         }
 
         /** Wake an already-running service: search for the dongle now and refresh outputs. */
-        fun wake(context: Context) {
+        /** [deviceAttached] also resets the silent-dongle streak (see SessionRecoveryPolicy). */
+        fun wake(context: Context, deviceAttached: Boolean = false) {
             val intent = Intent(context, TpmsMonitorService::class.java).apply {
                 action = ACTION_CHECK_NOW
+                putExtra(EXTRA_DEVICE_ATTACHED, deviceAttached)
             }
             startForegroundSafely(context, intent)
         }

@@ -49,7 +49,7 @@ class UsbAttachedReceiver : BroadcastReceiver() {
         val helper = entryPoint.usbPermissionHelper()
         if (helper.hasPermission(device)) {
             UsbPermissionNotifier.dismiss(context)
-            TpmsMonitorService.wake(context)
+            TpmsMonitorService.wake(context, deviceAttached = true)
         } else {
             UsbPermissionNotifier.show(context)
             helper.requestPermission(context, device)
