@@ -63,6 +63,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -88,8 +89,17 @@ class TpmsMonitorService : Service() {
     private var lastHeartbeatAtMs = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    /** Wakes the dongle search early (CHECK_NOW, attach, permission granted). */
-    private val searchWake = Channel<Unit>(Channel.CONFLATED)
+    /**
+     * Wake counters, bumped before [wakeBell] rings. A wait honours only bumps newer than its
+     * start, so a wake sent while a session was live does not cut the next wait short.
+     * - [searchWakes]: every wake (user start, CHECK_NOW, SCREEN_ON, attach, permission) — cuts
+     *   the no-dongle search wait.
+     * - [pauseBreaks]: only wakes that reset recovery (SCREEN_ON, attach, permission) — may also
+     *   cut a recovery pause (the reopen delay, incl. the 30 s silent-dongle pause).
+     */
+    private val searchWakes = AtomicLong()
+    private val pauseBreaks = AtomicLong()
+    private val wakeBell = Channel<Unit>(Channel.CONFLATED)
 
     /** Forces an immediate UI/widget/notification refresh. */
     private val uiRefresh = Channel<Unit>(Channel.CONFLATED)
@@ -186,8 +196,8 @@ class TpmsMonitorService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_CHECK_NOW -> {
-                if (intent.getBooleanExtra(EXTRA_DEVICE_ATTACHED, false)) onHeadUnitWake()
-                searchWake.trySend(Unit)
+                // A manual check / settings change only wakes the search; attach also resets recovery.
+                if (intent.getBooleanExtra(EXTRA_DEVICE_ATTACHED, false)) onHeadUnitWake() else wakeSearch()
                 uiRefresh.trySend(Unit)
             }
             ACTION_RECONNECT_USB -> reconnectUsb()
@@ -199,9 +209,9 @@ class TpmsMonitorService : Service() {
                 monitoringHealthNotifier.clear()
                 BootStartScheduler.cancel(this)
                 ServiceLivenessScheduler.schedule(this)
-                // App / FrontApp / widget tap: search now, but keep recovery (like a manual check).
-                // Periodic starts (START_STICKY, boot, liveness alarm, widget refresh) must not cut
-                // the silent-dongle pause short.
+                // App / FrontApp / widget tap: wake the search, but keep recovery and any running
+                // recovery pause (like a manual check). Periodic starts (START_STICKY, boot,
+                // liveness alarm, widget refresh) don't wake anything.
                 if (intent?.getBooleanExtra(EXTRA_USER_START, false) == true) wakeSearch()
             }
         }
@@ -304,7 +314,7 @@ class TpmsMonitorService : Service() {
                 }
                 if (session == null) {
                     repository.updateState(TpmsState.Disconnected)
-                    awaitSearchWake(searchIntervalMs)
+                    awaitWake(searchIntervalMs, searchWakes)
                     searchIntervalMs = if (searchIntervalReset.getAndSet(false)) {
                         SEARCH_MIN_INTERVAL_MS
                     } else {
@@ -335,8 +345,9 @@ class TpmsMonitorService : Service() {
                 )
                 when (val action = applyRecovery(decision)) {
                     RecoveryAction.RestartProcess -> restartProcess("reader stuck after: $reason")
-                    is RecoveryAction.Reopen -> awaitSearchWake(action.delayMs)
-                    null -> awaitSearchWake(SessionRecoveryPolicy.REOPEN_DELAY_MS)
+                    // Closed by a screen-on reopen: that wake is the reason, reopen right away.
+                    is RecoveryAction.Reopen -> if (!closedByWake) awaitWake(action.delayMs, pauseBreaks)
+                    null -> awaitWake(SessionRecoveryPolicy.REOPEN_DELAY_MS, pauseBreaks)
                 }
             }
         }
@@ -362,7 +373,7 @@ class TpmsMonitorService : Service() {
     /** Dongle attach or USB permission granted: forget the silent streak and search at full speed. */
     private fun onHeadUnitWake() {
         applyRecoveryState(SessionRecoveryPolicy.onWake(repository.recovery))
-        wakeSearch()
+        wakeSearch(breakPause = true)
     }
 
     /**
@@ -381,16 +392,22 @@ class TpmsMonitorService : Service() {
         )
         debugLog.info("Power", "SCREEN_ON — suspended=$suspended action=${decision.action}")
         applyRecoveryState(decision.state)
-        wakeSearch()
+        wakeSearch(breakPause = true)
         if (decision.action == WakeAction.Reopen && session != null) {
             wakeClosedSession = session
             closeSessionAsync(session, if (suspended) "wake after suspend" else "wake: no data")
         }
     }
 
-    private fun wakeSearch() {
+    /**
+     * Wakes the dongle search at minimum backoff. [breakPause] (only where recovery was reset:
+     * SCREEN_ON, attach, permission granted) also ends a running recovery pause.
+     */
+    private fun wakeSearch(breakPause: Boolean = false) {
         searchIntervalReset.set(true)
-        searchWake.trySend(Unit)
+        searchWakes.incrementAndGet()
+        if (breakPause) pauseBreaks.incrementAndGet()
+        wakeBell.trySend(Unit)
     }
 
     private fun applyRecovery(decision: RecoveryDecision): RecoveryAction? {
@@ -450,15 +467,20 @@ class TpmsMonitorService : Service() {
     private fun currentBootCount(): Int? =
         runCatching { Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT) }.getOrNull()
 
-    private suspend fun awaitSearchWake(timeoutMs: Long) {
-        withTimeoutOrNull(timeoutMs) { searchWake.receive() }
+    /** Waits [timeoutMs] or until [wakes] is bumped after this call; earlier (stale) wakes are ignored. */
+    private suspend fun awaitWake(timeoutMs: Long, wakes: AtomicLong) {
+        val since = wakes.get()
+        wakeBell.tryReceive() // a stale ring; a bump after `since` is still seen by the check below
+        withTimeoutOrNull(timeoutMs) {
+            while (wakes.get() == since) wakeBell.receive()
+        }
     }
 
     /** Debug / settings: close the session and reopen the dongle unconditionally (or search now if none). */
     private fun reconnectUsb() {
         val session = repository.activeSession()
         if (session == null || session.isClosed) {
-            searchWake.trySend(Unit)
+            wakeSearch()
             return
         }
         closeSessionAsync(session, "forced reconnect")
@@ -640,7 +662,7 @@ class TpmsMonitorService : Service() {
 
         /**
          * Ensure the service runs. [userInitiated] (app opened, FrontApp, widget tap, onboarding)
-         * also wakes the dongle search at full speed; recovery is kept either way.
+         * also wakes the dongle search at full speed; recovery and a running recovery pause are kept.
          */
         fun start(context: Context, userInitiated: Boolean = false) {
             val intent = Intent(context, TpmsMonitorService::class.java)
@@ -648,8 +670,11 @@ class TpmsMonitorService : Service() {
             startForegroundSafely(context, intent)
         }
 
-        /** Wake an already-running service: search for the dongle now and refresh outputs. */
-        /** [deviceAttached] also resets the silent-dongle streak (see SessionRecoveryPolicy). */
+        /**
+         * Wake an already-running service: search for the dongle now and refresh outputs.
+         * [deviceAttached] (attach, permission granted) also resets the silent-dongle streak and
+         * ends a running recovery pause (see SessionRecoveryPolicy); without it the pause is kept.
+         */
         fun wake(context: Context, deviceAttached: Boolean = false) {
             val intent = Intent(context, TpmsMonitorService::class.java).apply {
                 action = ACTION_CHECK_NOW
