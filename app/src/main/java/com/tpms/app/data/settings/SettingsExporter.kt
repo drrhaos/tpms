@@ -16,7 +16,6 @@ object SettingsExporter {
         pressureUnit: PressureUnit,
         thresholds: AlertThresholds,
         dongleProtocolMode: DongleProtocolMode,
-        sensorTimeoutMs: Long,
         staleFrameTimeoutMs: Long,
         wheelMapping: Map<String, String>,
         showSpareWheel: Boolean,
@@ -38,7 +37,6 @@ object SettingsExporter {
         put("high_pressure_kpa", thresholds.highPressureKpa.toDouble())
         put("high_temp_celsius", thresholds.highTempCelsius.toDouble())
         put("dongle_protocol", dongleProtocolMode.name)
-        put("sensor_timeout_ms", sensorTimeoutMs)
         put("stale_frame_timeout_ms", staleFrameTimeoutMs)
         put("show_spare_wheel", showSpareWheel)
         put("min_live_wheel_pressure_kpa", minLiveWheelPressureKpa.toDouble())
@@ -85,7 +83,6 @@ object SettingsExporter {
             ),
             dongleProtocolMode = DongleProtocolMode.entries.find { it.name == protocolName }
                 ?: DongleProtocolMode.AUTO,
-            sensorTimeoutMs = root.optLong("sensor_timeout_ms", SettingsStore.DEFAULT_SENSOR_TIMEOUT_MS),
             staleFrameTimeoutMs = root.optLong(
                 "stale_frame_timeout_ms",
                 ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS
@@ -125,7 +122,6 @@ data class ImportedSettings(
     val pressureUnit: PressureUnit,
     val thresholds: AlertThresholds,
     val dongleProtocolMode: DongleProtocolMode,
-    val sensorTimeoutMs: Long,
     val staleFrameTimeoutMs: Long,
     val showSpareWheel: Boolean,
     val minLiveWheelPressureKpa: Float,

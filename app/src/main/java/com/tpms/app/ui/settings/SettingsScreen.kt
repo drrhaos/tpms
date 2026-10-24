@@ -80,7 +80,6 @@ fun SettingsScreen(
     val highPressure by viewModel.highPressure.collectAsState()
     val highTemp by viewModel.highTemp.collectAsState()
     val dongleProtocolMode by viewModel.dongleProtocolMode.collectAsState()
-    val sensorTimeoutSec by viewModel.sensorTimeoutSec.collectAsState()
     val wheelMapping by viewModel.wheelMapping.collectAsState()
     val knownSensorIds by viewModel.knownSensorIds.collectAsState()
     val alertSoundEnabled by viewModel.alertSoundEnabled.collectAsState()
@@ -319,17 +318,6 @@ fun SettingsScreen(
                                 colors = fieldColors,
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                            )
-                            OutlinedTextField(
-                                value = sensorTimeoutSec.toString(),
-                                onValueChange = {
-                                    it.toIntOrNull()?.let { v -> viewModel.setSensorTimeoutSec(v) }
-                                },
-                                label = { Text(stringResource(R.string.settings_sensor_timeout)) },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = fieldColors,
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
                         }
                     } else {

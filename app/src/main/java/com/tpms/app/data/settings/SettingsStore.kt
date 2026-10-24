@@ -57,9 +57,6 @@ class SettingsStore @Inject constructor(
     private val _dongleProtocolMode = MutableStateFlow(DongleProtocolMode.AUTO)
     val dongleProtocolMode = _dongleProtocolMode.asStateFlow()
 
-    private val _sensorTimeoutMs = MutableStateFlow(DEFAULT_SENSOR_TIMEOUT_MS)
-    val sensorTimeoutMs = _sensorTimeoutMs.asStateFlow()
-
     private val _staleFrameTimeoutMs = MutableStateFlow(ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS)
     val staleFrameTimeoutMs = _staleFrameTimeoutMs.asStateFlow()
 
@@ -126,7 +123,6 @@ class SettingsStore @Inject constructor(
                     DongleProtocolMode.entries.find { it.name == name }
                 } ?: DongleProtocolMode.AUTO
 
-                _sensorTimeoutMs.value = prefs[KEY_SENSOR_TIMEOUT_MS] ?: DEFAULT_SENSOR_TIMEOUT_MS
                 _staleFrameTimeoutMs.value =
                     prefs[KEY_STALE_FRAME_TIMEOUT_MS] ?: ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS
                 _silenceTimeoutMs.value =
@@ -186,10 +182,6 @@ class SettingsStore @Inject constructor(
 
     suspend fun setDongleProtocolMode(mode: DongleProtocolMode) {
         context.settingsDataStore.edit { it[KEY_DONGLE_PROTOCOL] = mode.name }
-    }
-
-    suspend fun setSensorTimeoutMs(timeoutMs: Long) {
-        context.settingsDataStore.edit { it[KEY_SENSOR_TIMEOUT_MS] = timeoutMs }
     }
 
     suspend fun setStaleFrameTimeoutMs(timeoutMs: Long) {
@@ -282,7 +274,6 @@ class SettingsStore @Inject constructor(
             prefs[KEY_HIGH_PRESSURE] = imported.thresholds.highPressureKpa
             prefs[KEY_HIGH_TEMP] = imported.thresholds.highTempCelsius
             prefs[KEY_DONGLE_PROTOCOL] = imported.dongleProtocolMode.name
-            prefs[KEY_SENSOR_TIMEOUT_MS] = imported.sensorTimeoutMs
             prefs[KEY_STALE_FRAME_TIMEOUT_MS] = imported.staleFrameTimeoutMs
             prefs[KEY_SHOW_SPARE_WHEEL] = imported.showSpareWheel
             prefs[KEY_MIN_LIVE_WHEEL_PRESSURE] = imported.minLiveWheelPressureKpa
@@ -318,8 +309,6 @@ class SettingsStore @Inject constructor(
     }
 
     companion object {
-        const val DEFAULT_SENSOR_TIMEOUT_MS = 60_000L
-
         private val KEY_SETTINGS_UI_MODE = stringPreferencesKey("settings_ui_mode")
 
         private val KEY_PRESSURE_UNIT = stringPreferencesKey("pressure_unit")
@@ -327,7 +316,6 @@ class SettingsStore @Inject constructor(
         private val KEY_HIGH_PRESSURE = floatPreferencesKey("high_pressure_kpa")
         private val KEY_HIGH_TEMP = floatPreferencesKey("high_temp_celsius")
         private val KEY_DONGLE_PROTOCOL = stringPreferencesKey("dongle_protocol")
-        private val KEY_SENSOR_TIMEOUT_MS = longPreferencesKey("sensor_timeout_ms")
         private val KEY_STALE_FRAME_TIMEOUT_MS = longPreferencesKey("stale_frame_timeout_ms")
         private val KEY_SILENCE_TIMEOUT_MS = longPreferencesKey("silence_timeout_ms")
         private val KEY_SHOW_SPARE_WHEEL = booleanPreferencesKey("show_spare_wheel")

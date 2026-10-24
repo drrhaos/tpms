@@ -14,7 +14,6 @@ class SettingsExporterTest {
             pressureUnit = PressureUnit.BAR,
             thresholds = AlertThresholds(lowPressureKpa = 170f, highPressureKpa = 280f, highTempCelsius = 70f),
             dongleProtocolMode = DongleProtocolMode.SERIAL_AA55,
-            sensorTimeoutMs = 90_000L,
             staleFrameTimeoutMs = 120_000L,
             wheelMapping = mapOf("FL" to "ABC"),
             showSpareWheel = true,
@@ -30,7 +29,6 @@ class SettingsExporterTest {
         assertEquals(PressureUnit.BAR, imported.pressureUnit)
         assertEquals(170f, imported.thresholds.lowPressureKpa)
         assertEquals(DongleProtocolMode.SERIAL_AA55, imported.dongleProtocolMode)
-        assertEquals(90_000L, imported.sensorTimeoutMs)
         assertEquals(120_000L, imported.staleFrameTimeoutMs)
         assertEquals("ABC", imported.wheelMapping["FL"])
         assertEquals(true, imported.showSpareWheel)

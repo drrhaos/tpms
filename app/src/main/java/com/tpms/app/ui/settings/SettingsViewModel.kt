@@ -69,9 +69,6 @@ class SettingsViewModel @Inject constructor(
     private val _dongleProtocolMode = MutableStateFlow(DongleProtocolMode.AUTO)
     val dongleProtocolMode: StateFlow<DongleProtocolMode> = _dongleProtocolMode.asStateFlow()
 
-    private val _sensorTimeoutSec = MutableStateFlow(60)
-    val sensorTimeoutSec: StateFlow<Int> = _sensorTimeoutSec.asStateFlow()
-
     private val _staleFrameTimeoutSec = MutableStateFlow(90)
     val staleFrameTimeoutSec: StateFlow<Int> = _staleFrameTimeoutSec.asStateFlow()
 
@@ -154,7 +151,6 @@ class SettingsViewModel @Inject constructor(
             _pressureUnit.value = settingsStore.pressureUnit.value
             loadThresholdsFromStore()
             _dongleProtocolMode.value = settingsStore.dongleProtocolMode.value
-            _sensorTimeoutSec.value = (settingsStore.sensorTimeoutMs.value / 1000).toInt()
             _staleFrameTimeoutSec.value = (settingsStore.staleFrameTimeoutMs.value / 1000).toInt()
             _showSpareWheel.value = settingsStore.showSpareWheel.value
             _minLiveWheelPressure.value = settingsStore.minLiveWheelPressureKpa.value
@@ -334,12 +330,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsStore.setDongleProtocolMode(mode) }
     }
 
-    fun setSensorTimeoutSec(seconds: Int) {
-        val value = seconds.coerceIn(15, 300)
-        _sensorTimeoutSec.value = value
-        viewModelScope.launch { settingsStore.setSensorTimeoutMs(value * 1000L) }
-    }
-
     fun setStaleFrameTimeoutSec(seconds: Int) {
         val value = seconds.coerceIn(30, 300)
         _staleFrameTimeoutSec.value = value
@@ -388,7 +378,6 @@ class SettingsViewModel @Inject constructor(
                 highTempCelsius = _highTemp.value
             ),
             dongleProtocolMode = _dongleProtocolMode.value,
-            sensorTimeoutMs = _sensorTimeoutSec.value * 1000L,
             staleFrameTimeoutMs = _staleFrameTimeoutSec.value * 1000L,
             wheelMapping = _wheelMapping.value,
             showSpareWheel = _showSpareWheel.value,
@@ -425,7 +414,6 @@ class SettingsViewModel @Inject constructor(
                 _highPressure.value = imported.pressureUnit.fromKpa(imported.thresholds.highPressureKpa)
                 _highTemp.value = imported.thresholds.highTempCelsius
                 _dongleProtocolMode.value = imported.dongleProtocolMode
-                _sensorTimeoutSec.value = (imported.sensorTimeoutMs / 1000).toInt()
                 _staleFrameTimeoutSec.value = (imported.staleFrameTimeoutMs / 1000).toInt()
                 _showSpareWheel.value = imported.showSpareWheel
                 _minLiveWheelPressure.value = imported.minLiveWheelPressureKpa
@@ -447,7 +435,6 @@ class SettingsViewModel @Inject constructor(
         val unit = _pressureUnit.value
         settingsStore.setPressureUnit(unit)
         settingsStore.setDongleProtocolMode(_dongleProtocolMode.value)
-        settingsStore.setSensorTimeoutMs(_sensorTimeoutSec.value * 1000L)
         settingsStore.setStaleFrameTimeoutMs(_staleFrameTimeoutSec.value * 1000L)
         settingsStore.setMinLiveWheelPressureKpa(_minLiveWheelPressure.value)
         settingsStore.setThresholds(

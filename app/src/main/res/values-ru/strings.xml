@@ -145,7 +145,6 @@
     <string name="settings_low_pressure">Низкое давление (%1$s)</string>
     <string name="settings_high_pressure">Высокое давление (%1$s)</string>
     <string name="settings_high_temp">Высокая темп. (°C)</string>
-    <string name="settings_sensor_timeout">Таймаут потери датчика (сек)</string>
     <string name="settings_alert_notifications">Оповещения</string>
     <string name="settings_alert_sound">Звук оповещений</string>
     <string name="settings_teyes_permissions">Разрешения Teyes</string>
