@@ -36,7 +36,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -318,11 +317,19 @@ class TpmsRepository @Inject constructor(
         }
     }
 
-    /** Publishes the latest fault (not the caller's): whoever publishes last leaves the newest one. */
+    /**
+     * Brings [usbFault] in line with the current recovery state. Loops until they agree, so a writer
+     * that publishes after a newer recovery write still ends on the newest fault, not its own.
+     */
     private fun publishUsbFault() {
-        val fault = _recovery.value.fault
-        val previous = _usbFault.getAndUpdate { fault }
-        if (previous != fault) fault?.let { debugLog.warn("Repository", "USB fault: $it") }
+        while (true) {
+            val fault = _recovery.value.fault
+            val published = _usbFault.value
+            if (published == fault) return
+            if (_usbFault.compareAndSet(published, fault)) {
+                fault?.let { debugLog.warn("Repository", "USB fault: $it") }
+            }
+        }
     }
 
     fun lastFrameAtMs(): Long = lastFrameAtMs
