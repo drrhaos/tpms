@@ -52,6 +52,10 @@ fun CarTopDown(
     wheelLabels: List<String> = listOf("FL", "FR", "RL", "RR"),
     pressureUnit: PressureUnit = PressureUnit.PSI,
     highlightMalfunction: Boolean = false,
+    /** Per slot (parallel to [sensors]): "N min" caption of a stale wheel, null when fresh. */
+    staleMinutes: List<Long?> = emptyList(),
+    /** Per slot: stale wheel without an active alert, drawn muted. */
+    muted: List<Boolean> = emptyList(),
     onWheelClick: (label: String, sensor: TireSensor?) -> Unit = { _, _ -> },
     dense: Boolean = false,
     modifier: Modifier = Modifier
@@ -106,6 +110,8 @@ fun CarTopDown(
                 pressureUnit = pressureUnit,
                 batteryOnStart = false,
                 dense = dense,
+                staleMinutes = staleMinutes,
+                muted = muted,
                 onWheelClick = onWheelClick,
                 modifier = Modifier
                     .weight(SIDE_COLUMN_WEIGHT)
@@ -139,7 +145,8 @@ fun CarTopDown(
                         sensor = sensor,
                         label = label,
                         pressureUnit = pressureUnit,
-                        accentColor = sensor.wheelStatusColor(),
+                        accentColor = wheelAccentColor(sensor, muted.getOrNull(index) == true),
+                        staleMinutes = staleMinutes.getOrNull(index),
                         batteryOnStart = true,
                         dense = dense,
                         onClick = { onWheelClick(label, sensor) },
@@ -158,6 +165,8 @@ fun CarTopDown(
                 pressureUnit = pressureUnit,
                 batteryOnStart = true,
                 dense = dense,
+                staleMinutes = staleMinutes,
+                muted = muted,
                 onWheelClick = onWheelClick,
                 modifier = Modifier
                     .weight(SIDE_COLUMN_WEIGHT)
@@ -175,6 +184,8 @@ private fun WheelSideColumn(
     pressureUnit: PressureUnit,
     batteryOnStart: Boolean,
     dense: Boolean,
+    staleMinutes: List<Long?>,
+    muted: List<Boolean>,
     onWheelClick: (label: String, sensor: TireSensor?) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -194,7 +205,8 @@ private fun WheelSideColumn(
                 sensor = sensor,
                 label = label,
                 pressureUnit = pressureUnit,
-                accentColor = sensor.wheelStatusColor(),
+                accentColor = wheelAccentColor(sensor, muted.getOrNull(index) == true),
+                staleMinutes = staleMinutes.getOrNull(index),
                 batteryOnStart = batteryOnStart,
                 dense = dense,
                 onClick = { onWheelClick(label, sensor) },
@@ -212,6 +224,7 @@ private fun WheelInfoBlock(
     label: String,
     pressureUnit: PressureUnit,
     accentColor: Color,
+    staleMinutes: Long?,
     batteryOnStart: Boolean,
     dense: Boolean,
     onClick: () -> Unit,
@@ -236,6 +249,7 @@ private fun WheelInfoBlock(
             label = label,
             pressureUnit = pressureUnit,
             accentColor = accentColor,
+            staleMinutes = staleMinutes,
             dense = dense,
             onClick = onClick,
             modifier = Modifier
@@ -289,6 +303,7 @@ private fun WheelParameterCard(
     label: String,
     pressureUnit: PressureUnit,
     accentColor: Color,
+    staleMinutes: Long?,
     dense: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -333,8 +348,11 @@ private fun WheelParameterCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            val temperature = formatTemperature(sensor)
             Text(
-                text = formatTemperature(sensor),
+                text = staleMinutes?.let {
+                    stringResource(R.string.wheel_stale_caption_format, temperature, it)
+                } ?: temperature,
                 fontSize = tempSize,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -354,6 +372,10 @@ private fun formatPressure(sensor: TireSensor?, unit: PressureUnit): String {
         else -> noData
     }
 }
+
+/** Alert colours win over muting; a muted (stale, alert-free) wheel is grey. */
+private fun wheelAccentColor(sensor: TireSensor?, muted: Boolean): Color =
+    if (muted) TpmsColors.onSurfaceMuted else sensor.wheelStatusColor()
 
 private fun formatTemperature(sensor: TireSensor?): String =
     if (sensor != null && sensor.temperatureCelsius.isFinite()) {

@@ -20,8 +20,8 @@ import com.tpms.app.data.usb.toHexPreview
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.AlertTracker
 import com.tpms.app.domain.ConnectionHealthPolicy
-import com.tpms.app.domain.MonitoringHealthPolicy
 import com.tpms.app.domain.RecoveryState
+import com.tpms.app.domain.SensorFreshness
 import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
@@ -94,6 +94,20 @@ class TpmsRepository @Inject constructor(
     @Volatile
     private var restoredFromSnapshot: Boolean = false
 
+    /**
+     * Protocol of the current or most recent session; kept after the session closes so HID wheels stay
+     * stale-aware while reconnecting. Null until the first session of this process opens.
+     */
+    @Volatile
+    private var lastSessionProtocol: DongleProtocol? = null
+
+    /**
+     * When the shown data was last confirmed by a valid frame; survives session close (unlike
+     * [lastValidFrameAtMs]). After a snapshot restore it is the newest restored reading.
+     */
+    @Volatile
+    private var lastLiveDataAtMs: Long = 0L
+
     init {
         repoScope.launch {
             settingsStore.awaitLoaded()
@@ -118,6 +132,7 @@ class TpmsRepository @Inject constructor(
         if (filtered.isEmpty()) return
         _sensors.update { current -> current.ifEmpty { filtered } }
         restoredFromSnapshot = true
+        if (lastLiveDataAtMs <= 0L) lastLiveDataAtMs = filtered.values.maxOf { it.timestamp }
         _state.value = TpmsState.Disconnected
         debugLog.info("Repository", "Restored ${filtered.size} sensors from last-known snapshot")
     }
@@ -138,13 +153,33 @@ class TpmsRepository @Inject constructor(
 
     fun disconnectedSinceMs(): Long? = disconnectedSinceMs
 
-    fun newestSensorAgeSec(now: Long = System.currentTimeMillis()): Long? =
-        MonitoringHealthPolicy.newestSensorAgeSec(_sensors.value.values, now)
-
-    fun isDataStale(now: Long = System.currentTimeMillis()): Boolean {
-        val age = newestSensorAgeSec(now) ?: return restoredFromSnapshot
-        return age > MonitoringHealthPolicy.DATA_STALE_UI_SEC
+    /** Inputs for the connection-based "data outdated" rule (wayfinder 10). */
+    fun connectionSnapshot(): SensorFreshness.ConnectionSnapshot {
+        val session = activeSession
+        return SensorFreshness.ConnectionSnapshot(
+            hasLiveSession = session != null && !session.isClosed && !isReconnecting && !restoredFromSnapshot,
+            protocol = session?.protocol,
+            sessionOpenedAtMs = dongleOpenedAtMs,
+            lastValidFrameAtMs = lastValidFrameAtMs
+        )
     }
+
+    /** "Data outdated" for the header, widget, overlay and notification: judged by the connection. */
+    fun isDataStale(now: Long = System.currentTimeMillis()): Boolean =
+        SensorFreshness.isDataStale(connectionSnapshot(), now)
+
+    /**
+     * Seconds since the shown data was last confirmed by a valid frame (any session), for the "N min"
+     * next to "data outdated"; null when no data was ever received or restored.
+     */
+    fun dataAgeSec(now: Long = System.currentTimeMillis()): Long? {
+        val at = lastLiveDataAtMs
+        if (at <= 0L) return null
+        return (now - at).coerceAtLeast(0L) / 1000
+    }
+
+    /** Protocol for per-wheel staleness ([SensorFreshness.isWheelStale]): live session, else the last one. */
+    fun wheelFreshnessProtocol(): DongleProtocol? = activeSession?.protocol ?: lastSessionProtocol
 
     fun isProtocolUnhealthy(now: Long = System.currentTimeMillis()): Boolean =
         ConnectionHealthPolicy.isProtocolUnhealthy(
@@ -274,6 +309,7 @@ class TpmsRepository @Inject constructor(
             }
             val session = DongleSession(link, FrameDecoder(protocol), debugLog)
             dongleOpenedAtMs = session.openedAtMs
+            lastSessionProtocol = protocol
             lastFrameAtMs = 0L
             lastValidFrameAtMs = 0L
             activeSession = session
@@ -348,6 +384,7 @@ class TpmsRepository @Inject constructor(
         } else {
             alertTracker.clear()
             _sensors.value = emptyMap()
+            lastLiveDataAtMs = 0L
             isReconnecting = false
             updateState(TpmsState.Disconnected)
         }
@@ -385,6 +422,7 @@ class TpmsRepository @Inject constructor(
         result.auxFrames.forEach { logAuxFrame(it) }
         if (result.sensors.isNotEmpty()) {
             lastValidFrameAtMs = timestamp
+            lastLiveDataAtMs = timestamp
             debugLog.info(
                 "Repository",
                 result.sensors.distinctBy { it.id }.joinToString { sensorSummary(it) }

@@ -191,6 +191,8 @@ private fun MainDashboardBody(
             wheelLabels = uiState.wheelSlotLabels,
             pressureUnit = uiState.pressureUnit,
             highlightMalfunction = MainUiHealth.hasMalfunction(uiState),
+            staleMinutes = uiState.wheelStaleMinutes,
+            muted = uiState.wheelMuted,
             onWheelClick = onWheelClick,
             modifier = Modifier
                 .weight(1f)

@@ -37,7 +37,8 @@ class WidgetSnapshotBuilder @Inject constructor(
                 TpmsState.Connected(sensors.values.toList(), System.currentTimeMillis())
             else -> repository.state.value
         }
-        val dataAgeSec = repository.newestSensorAgeSec().takeIf { liveSensors.isNotEmpty() }
+        // Connection-based (wayfinder 10): minutes since the last valid frame, not newest sensor age.
+        val dataAgeSec = repository.dataAgeSec().takeIf { liveSensors.isNotEmpty() }
             ?: persistedAgeSec(persistedAtMs)
         val dataStale = when {
             liveSensors.isNotEmpty() -> repository.isDataStale()
@@ -56,7 +57,8 @@ class WidgetSnapshotBuilder @Inject constructor(
             useLightTheme = WidgetSnapshot.resolveLightTheme(
                 context,
                 settingsStore.widgetThemeMode.value
-            )
+            ),
+            wheelProtocol = repository.wheelFreshnessProtocol()
         )
     }
 

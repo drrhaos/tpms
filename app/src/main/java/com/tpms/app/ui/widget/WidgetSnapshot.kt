@@ -4,9 +4,11 @@ import android.content.Context
 import android.content.res.Configuration
 import com.tpms.app.R
 import com.tpms.app.domain.AlertSeverity
+import com.tpms.app.domain.SensorFreshness
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.toSeverity
 import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -26,8 +28,15 @@ data class WidgetTireSlot(
     val batteryText: String = "--%",
     val batteryPercent: Int? = null,
     val isLowBattery: Boolean = false,
-    val status: WidgetTireStatus
-)
+    val status: WidgetTireStatus,
+    /** Minutes for the "N min" caption of a stale wheel (wayfinder 10), null when fresh. */
+    val staleMinutes: Long? = null,
+    /** Stale wheel without an active alert: drawn grey; alert colours win over muting. */
+    val muted: Boolean = false
+) {
+    /** Status that drives colours: a muted wheel looks like an empty slot, values stay visible. */
+    val displayStatus: WidgetTireStatus get() = if (muted) WidgetTireStatus.EMPTY else status
+}
 
 data class WidgetSnapshot(
     val connectionStatus: String,
@@ -47,13 +56,18 @@ data class WidgetSnapshot(
             showSpareWheel: Boolean = false,
             dataAgeSec: Long? = null,
             dataStale: Boolean = false,
-            useLightTheme: Boolean = false
+            useLightTheme: Boolean = false,
+            wheelProtocol: DongleProtocol? = null,
+            now: Long = System.currentTimeMillis()
         ): WidgetSnapshot {
             val slots = WheelLayout.allSlots(showSpareWheel)
             val ordered = WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel)
             val tires = slots.mapIndexed { index, slot ->
                 val sensor = ordered.getOrNull(index)
-                formatTireSlot(context, sensor, slot, unit)
+                formatTireSlot(context, sensor, slot, unit).copy(
+                    staleMinutes = SensorFreshness.staleWheelMinutes(sensor, wheelProtocol, now),
+                    muted = SensorFreshness.isWheelMuted(sensor, wheelProtocol, now)
+                )
             }
 
             val baseStatus = state.widgetStatusLabel(context)

@@ -3,10 +3,12 @@ package com.tpms.app.domain
 import com.tpms.app.domain.SensorFreshness.ConnectionSnapshot
 import com.tpms.app.domain.SensorFreshness.FRAMES_STALE_AFTER_MS
 import com.tpms.app.domain.SensorFreshness.HID_STALE_AFTER_MS
+import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -137,5 +139,38 @@ class SensorFreshnessTest {
     fun streamingSession_frameFromPreviousSession_countsFromOpen() {
         val reopened = live(DongleProtocol.SERIAL_AA55, openedAt = now - 10_000L, lastFrame = now - 10 * FRAMES_STALE_AFTER_MS)
         assertFalse(SensorFreshness.isDataStale(reopened, now))
+    }
+
+    // --- display helpers ---
+
+    @Test
+    fun staleWheelMinutes_givenForStaleHidWheel() {
+        val stale = sensor(now - 20 * 60_000L)
+        assertEquals(20L, SensorFreshness.staleWheelMinutes(stale, DongleProtocol.HID_GENERIC, now))
+    }
+
+    @Test
+    fun staleWheelMinutes_nullWhenFreshMissingOrStreaming() {
+        assertNull(SensorFreshness.staleWheelMinutes(sensor(now - 60_000L), DongleProtocol.HID_GENERIC, now))
+        assertNull(SensorFreshness.staleWheelMinutes(null, DongleProtocol.HID_GENERIC, now))
+        assertNull(SensorFreshness.staleWheelMinutes(sensor(now - 20 * 60_000L), DongleProtocol.SERIAL_AA55, now))
+    }
+
+    @Test
+    fun isWheelMuted_staleWithoutAlert() {
+        assertTrue(SensorFreshness.isWheelMuted(sensor(now - 20 * 60_000L), DongleProtocol.HID_GENERIC, now))
+    }
+
+    @Test
+    fun isWheelMuted_activeAlertWinsOverMuting() {
+        val alerting = sensor(now - 20 * 60_000L).copy(alertType = AlertType.LOW_PRESSURE)
+        assertFalse(SensorFreshness.isWheelMuted(alerting, DongleProtocol.HID_GENERIC, now))
+        assertEquals(20L, SensorFreshness.staleWheelMinutes(alerting, DongleProtocol.HID_GENERIC, now))
+    }
+
+    @Test
+    fun isWheelMuted_falseWhenFreshOrMissing() {
+        assertFalse(SensorFreshness.isWheelMuted(sensor(now - 60_000L), DongleProtocol.HID_GENERIC, now))
+        assertFalse(SensorFreshness.isWheelMuted(null, DongleProtocol.HID_GENERIC, now))
     }
 }

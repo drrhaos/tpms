@@ -34,6 +34,17 @@ object SensorFreshness {
     fun ageMinutes(sensor: TireSensor, now: Long): Long =
         (now - sensor.timestamp).coerceAtLeast(0L) / 60_000L
 
+    /**
+     * Minutes for a stale wheel's "N мин" caption, or null when the wheel is fresh (or has no sensor).
+     * The caption is shown even when an active alert keeps the wheel's alert colour.
+     */
+    fun staleWheelMinutes(sensor: TireSensor?, protocol: DongleProtocol?, now: Long): Long? =
+        if (sensor != null && isWheelStale(sensor, protocol, now)) ageMinutes(sensor, now) else null
+
+    /** A stale wheel is drawn muted unless an active alert keeps its alert colour. */
+    fun isWheelMuted(sensor: TireSensor?, protocol: DongleProtocol?, now: Long): Boolean =
+        sensor != null && !sensor.isAlert && isWheelStale(sensor, protocol, now)
+
     fun isDataStale(connection: ConnectionSnapshot, now: Long): Boolean {
         if (!connection.hasLiveSession) return true
         if (!streamsContinuously(connection.protocol)) return false

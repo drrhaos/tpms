@@ -8,6 +8,7 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.MonitoringHealthPolicy
+import com.tpms.app.domain.SensorFreshness
 import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,6 +34,10 @@ data class MainUiState(
     val sensors: Map<String, TireSensor> = emptyMap(),
     val wheelSlots: List<TireSensor?> = List(WheelLayout.ORDER.size) { null },
     val wheelSlotLabels: List<String> = WheelLayout.ORDER,
+    /** Per slot (parallel to [wheelSlots]): minutes for the "N min" caption of a stale wheel, else null. */
+    val wheelStaleMinutes: List<Long?> = emptyList(),
+    /** Per slot: stale wheel drawn muted (an active alert keeps its colour instead). */
+    val wheelMuted: List<Boolean> = emptyList(),
     val wheelMapping: Map<String, String> = emptyMap(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
     val advancedMode: Boolean = false,
@@ -53,8 +59,16 @@ class MainViewModel @Inject constructor(
     private val uiBreadcrumbs: UiBreadcrumbs
 ) : AndroidViewModel(application) {
 
+    /** Re-evaluates time-based staleness (per-wheel and overall) while nothing else changes. */
+    private val freshnessTicker = flow {
+        while (true) {
+            emit(Unit)
+            delay(FRESHNESS_TICK_MS)
+        }
+    }
+
     val uiState: StateFlow<MainUiState> = combine(
-        repository.state,
+        combine(repository.state, freshnessTicker) { state, _ -> state },
         repository.sensors,
         repository.usbFault,
         combine(
@@ -101,8 +115,10 @@ class MainViewModel @Inject constructor(
         return try {
             val slots = WheelLayout.allSlots(settings.showSpareWheel)
             val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
-            val ageSec = repository.newestSensorAgeSec()
-            val stale = repository.isDataStale()
+            val now = System.currentTimeMillis()
+            val ageSec = repository.dataAgeSec(now)
+            val stale = repository.isDataStale(now)
+            val wheelProtocol = repository.wheelFreshnessProtocol()
             val protocolUnhealthy = repository.isProtocolUnhealthy()
             val monitoringOffline = MonitoringHealthPolicy.shouldAlertMonitoringOffline(
                 repository.disconnectedSinceMs()
@@ -112,6 +128,8 @@ class MainViewModel @Inject constructor(
                 sensors = sensors,
                 wheelSlots = wheelSlots,
                 wheelSlotLabels = slots,
+                wheelStaleMinutes = wheelSlots.map { SensorFreshness.staleWheelMinutes(it, wheelProtocol, now) },
+                wheelMuted = wheelSlots.map { SensorFreshness.isWheelMuted(it, wheelProtocol, now) },
                 wheelMapping = settings.wheelMapping,
                 pressureUnit = settings.pressureUnit,
                 advancedMode = settings.advancedMode,
@@ -141,6 +159,7 @@ class MainViewModel @Inject constructor(
 
     companion object {
         private const val CHECK_NOW_REFRESH_MS = 1500L
+        private const val FRESHNESS_TICK_MS = 30_000L
     }
 }
 
