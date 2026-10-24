@@ -94,12 +94,16 @@
     <string name="onboarding_title_teyes">Быстрая настройка для Teyes</string>
     <string name="onboarding_step_usb">Вставьте USB-адаптер в магнитолу и нажмите «Старт».</string>
     <string name="onboarding_step_notifications">Разрешите уведомления — приложение предупредит о проблемах с шинами.</string>
-    <string name="onboarding_step_teyes">На Teyes: снимите ограничения батареи и разрешите автозапуск TPMS Monitor.</string>
+    <string name="onboarding_step_teyes">Teyes закрывает фоновые приложения, когда уходит в сон. Настройте TPMS Monitor, чтобы он продолжал работать.</string>
     <string name="onboarding_step_widget">Добавьте TPMS на главный экран через FrontApp for Teyes.</string>
     <string name="onboarding_grant_usb">Старт</string>
     <string name="onboarding_open_notifications">Разрешить уведомления</string>
     <string name="onboarding_open_battery">Исправить батарею</string>
     <string name="onboarding_open_teyes_settings">Открыть настройки Teyes</string>
+    <string name="onboarding_autostart_title">Автозапуск после сна</string>
+    <string name="onboarding_autostart_explanation">Без этого мониторинг не переживёт сон магнитолы: после включения зажигания давление в шинах не отслеживается, пока вы сами не откроете приложение. В настройках Teyes (FYT) включите автозапуск для TPMS Monitor.</string>
+    <string name="onboarding_autostart_done">Автозапуск TPMS Monitor включён</string>
+    <string name="onboarding_teyes_more">Там же в настройках Teyes: Батарея → Без ограничений и закрепите TPMS Monitor в недавних приложениях. Это можно доделать позже в настройках.</string>
     <string name="onboarding_open_frontapp">Открыть FrontApp for Teyes</string>
     <string name="onboarding_frontapp_done">Добавлено через FrontApp</string>
     <string name="onboarding_next">Дальше</string>
@@ -146,6 +150,7 @@
     <string name="settings_alert_sound">Звук оповещений</string>
     <string name="settings_teyes_permissions">Разрешения Teyes</string>
     <string name="settings_teyes_auto_start">Автозапуск включён (Настройки → Приложения → TPMS)</string>
+    <string name="settings_teyes_auto_start_hint">Без этого мониторинг не переживёт сон магнитолы.</string>
     <string name="settings_teyes_battery">Батарея → Без ограничений</string>
     <string name="settings_teyes_lock">Закреплено в недавних приложениях</string>
     <string name="settings_teyes_boot">Разрешён запуск после загрузки</string>

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.startup.HeadUnitSupport
 import com.tpms.app.ui.settings.TeyesPermissionHelper
@@ -38,6 +39,8 @@ class OnboardingViewModel @Inject constructor(
     private val _step = MutableStateFlow(OnboardingSteps.USB)
     val step: StateFlow<Int> = _step.asStateFlow()
 
+    val teyesChecklist: StateFlow<TeyesChecklist> = settingsStore.teyesChecklist
+
     fun nextStep() {
         _step.value = (_step.value + 1).coerceAtMost(lastStep)
     }
@@ -57,6 +60,13 @@ class OnboardingViewModel @Inject constructor(
 
     fun openFrontApp() {
         TeyesPermissionHelper.openFrontApp(context)
+    }
+
+    /** Manual mark: the user confirms that FYT auto start after sleep is enabled. */
+    fun setAutoStartDone(done: Boolean) {
+        viewModelScope.launch {
+            settingsStore.setTeyesChecklistItem("auto_start", done)
+        }
     }
 
     fun markFrontAppHome() {

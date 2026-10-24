@@ -94,12 +94,16 @@
     <string name="onboarding_title_teyes">Quick setup for Teyes</string>
     <string name="onboarding_step_usb">Plug the USB adapter into the car, then tap Start.</string>
     <string name="onboarding_step_notifications">Allow notifications so the app can warn you about tire problems.</string>
-    <string name="onboarding_step_teyes">On Teyes: turn off battery limits and allow auto-start for TPMS Monitor.</string>
+    <string name="onboarding_step_teyes">Teyes closes background apps when it goes to sleep. Set up TPMS Monitor so it keeps running.</string>
     <string name="onboarding_step_widget">Add TPMS to the home screen with FrontApp for Teyes.</string>
     <string name="onboarding_grant_usb">Start</string>
     <string name="onboarding_open_notifications">Allow notifications</string>
     <string name="onboarding_open_battery">Fix battery limits</string>
     <string name="onboarding_open_teyes_settings">Open Teyes settings</string>
+    <string name="onboarding_autostart_title">Auto start after sleep</string>
+    <string name="onboarding_autostart_explanation">Without this, monitoring will not survive the head unit\'s sleep: after you switch the ignition back on, tire pressure stays unmonitored until you open the app yourself. In the Teyes (FYT) settings, enable auto start for TPMS Monitor.</string>
+    <string name="onboarding_autostart_done">Auto start for TPMS Monitor is on</string>
+    <string name="onboarding_teyes_more">Also in the Teyes settings: Battery → No restrictions, and lock TPMS Monitor in recent apps. You can finish these later in Settings.</string>
     <string name="onboarding_open_frontapp">Open FrontApp for Teyes</string>
     <string name="onboarding_frontapp_done">Added via FrontApp</string>
     <string name="onboarding_next">Continue</string>
@@ -146,6 +150,7 @@
     <string name="settings_alert_sound">Alert sound</string>
     <string name="settings_teyes_permissions">Teyes Permissions</string>
     <string name="settings_teyes_auto_start">Auto start enabled (Settings → Apps → TPMS)</string>
+    <string name="settings_teyes_auto_start_hint">Without this, monitoring will not survive the head unit\'s sleep.</string>
     <string name="settings_teyes_battery">Battery → No restrictions</string>
     <string name="settings_teyes_lock">Locked in recent apps</string>
     <string name="settings_teyes_boot">Boot completed allowed</string>

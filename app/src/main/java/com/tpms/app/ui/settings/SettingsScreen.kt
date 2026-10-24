@@ -468,6 +468,7 @@ fun SettingsScreen(
                         SettingsGroupDivider()
                         SettingsSwitchRow(
                             label = stringResource(R.string.settings_teyes_auto_start),
+                            description = stringResource(R.string.settings_teyes_auto_start_hint),
                             checked = teyesChecklist.autoStart,
                             onCheckedChange = { viewModel.setTeyesChecklistItem("auto_start", it) }
                         )

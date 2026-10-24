@@ -2,14 +2,20 @@ package com.tpms.app.ui.onboarding
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -18,8 +24,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -74,12 +82,23 @@ fun OnboardingScreen(
                         if (showTeyesSteps) viewModel.nextStep() else viewModel.complete(onComplete)
                     }
                 )
-                OnboardingSteps.TEYES_PERMISSIONS -> OnboardingStepActions(
-                    primaryLabel = stringResource(R.string.onboarding_open_teyes_settings),
-                    onPrimary = { viewModel.openTeyesSettings() },
-                    secondaryLabel = stringResource(R.string.onboarding_next),
-                    onSecondary = { viewModel.nextStep() }
-                )
+                OnboardingSteps.TEYES_PERMISSIONS -> {
+                    val checklist by viewModel.teyesChecklist.collectAsState()
+                    AutoStartAfterSleepCard(
+                        done = checklist.autoStart,
+                        onOpenSettings = { viewModel.openTeyesSettings() },
+                        onDoneChange = { viewModel.setAutoStartDone(it) }
+                    )
+                    Text(
+                        text = stringResource(R.string.onboarding_teyes_more),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OnboardingPrimaryAction(
+                        label = stringResource(R.string.onboarding_next),
+                        onClick = { viewModel.nextStep() }
+                    )
+                }
                 else -> OnboardingStepActions(
                     primaryLabel = stringResource(R.string.onboarding_open_frontapp),
                     onPrimary = { viewModel.openFrontApp() },
@@ -92,6 +111,57 @@ fun OnboardingScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.onboarding_skip))
+            }
+        }
+    }
+}
+
+/** First and highlighted Teyes item: without FYT auto start the process is killed in sleep. */
+@Composable
+private fun AutoStartAfterSleepCard(
+    done: Boolean,
+    onOpenSettings: () -> Unit,
+    onDoneChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_autostart_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.onboarding_autostart_explanation),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.onboarding_open_teyes_settings))
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = done,
+                        role = Role.Checkbox,
+                        onValueChange = onDoneChange
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(checked = done, onCheckedChange = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.onboarding_autostart_done),
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
         }
     }
