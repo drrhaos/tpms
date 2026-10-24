@@ -1,6 +1,7 @@
 package com.tpms.app.data.persistence
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -10,11 +11,17 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.tpms.app.domain.PreviousRun
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,6 +31,9 @@ private val Context.heartbeatDataStore: DataStore<Preferences> by preferencesDat
 class ServiceHeartbeatStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    /** Owns the bounded main-thread writes, so a timed-out wait does not cancel the write. */
+    private val writeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     suspend fun recordBeat(atMs: Long = System.currentTimeMillis()) {
         context.heartbeatDataStore.edit { it[KEY_LAST_BEAT_MS] = atMs }
     }
@@ -72,11 +82,20 @@ class ServiceHeartbeatStore @Inject constructor(
         return checkNotNull(previous)
     }
 
-    fun beginRunBlocking(bootCount: Int?): PreviousRun = runBlocking { beginRun(bootCount) }
+    /**
+     * Main-thread [beginRun], bounded by [MAIN_THREAD_TIMEOUT_MS]. Null on timeout or failure: the
+     * previous run is unknown, so no "killed in sleep" verdict. A timed-out edit still completes in
+     * the background, queued ahead of this process's screen events (see [boundedBlocking]).
+     */
+    fun beginRunBlocking(bootCount: Int?): PreviousRun? =
+        boundedBlocking("beginRun") { beginRun(bootCount) }
 
-    /** Clean shutdown (`onDestroy`, including an intentional stop). */
+    /**
+     * Clean shutdown (`onDestroy`, including an intentional stop). Bounded; on timeout the removal
+     * finishes in the background unless the process dies first, in which case the marker stays.
+     */
     fun markRunEndedBlocking() {
-        runBlocking {
+        boundedBlocking("markRunEnded") {
             context.heartbeatDataStore.edit {
                 it.remove(KEY_RUN_STARTED_MS)
                 it.remove(KEY_RUN_BOOT_COUNT)
@@ -84,9 +103,29 @@ class ServiceHeartbeatStore @Inject constructor(
         }
     }
 
-    /** Blocking: the process may be killed right after the screen goes off, so it must hit disk first. */
+    /**
+     * Blocking: the process may be killed right after the screen goes off, so it should hit disk
+     * first. Bounded; on timeout the write finishes in the background (best effort).
+     */
     fun recordScreenOffBlocking(atMs: Long = System.currentTimeMillis()) {
-        runBlocking { context.heartbeatDataStore.edit { it[KEY_LAST_SCREEN_OFF_MS] = atMs } }
+        boundedBlocking("recordScreenOff") {
+            context.heartbeatDataStore.edit { it[KEY_LAST_SCREEN_OFF_MS] = atMs }
+        }
+    }
+
+    /**
+     * Main-thread DataStore access must never hang the service (ANR): waits at most
+     * [MAIN_THREAD_TIMEOUT_MS], null on timeout or failure. The work runs in [writeScope], so a
+     * timeout only stops the wait, not the write. Started undispatched: the edit is queued in
+     * DataStore before this returns, and DataStore applies edits in queue order.
+     */
+    private fun <T : Any> boundedBlocking(what: String, block: suspend () -> T): T? = try {
+        val work = writeScope.async(start = CoroutineStart.UNDISPATCHED) { block() }
+        runBlocking { withTimeoutOrNull(MAIN_THREAD_TIMEOUT_MS) { work.await() } }
+            .also { if (it == null) Log.w(TAG, "$what timed out after $MAIN_THREAD_TIMEOUT_MS ms") }
+    } catch (e: Exception) {
+        Log.w(TAG, "$what failed", e)
+        null
     }
 
     /** [survivedSleep]: this process also saw the SCREEN_OFF, so a previous sleep kill warning is stale. */
@@ -109,6 +148,8 @@ class ServiceHeartbeatStore @Inject constructor(
         context.heartbeatDataStore.data.map { it[KEY_KILLED_IN_SLEEP_MS] }.distinctUntilChanged()
 
     companion object {
+        private const val TAG = "ServiceHeartbeat"
+        private const val MAIN_THREAD_TIMEOUT_MS = 500L
         private val KEY_LAST_BEAT_MS = longPreferencesKey("last_beat_ms")
         private val KEY_LAST_PROCESS_RESTART_MS = longPreferencesKey("last_process_restart_ms")
         private val KEY_LAST_PROCESS_RESTART_REASON = stringPreferencesKey("last_process_restart_reason")

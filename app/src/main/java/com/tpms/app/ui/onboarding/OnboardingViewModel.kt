@@ -46,7 +46,7 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun requestUsbPermission() {
-        TpmsMonitorService.start(context)
+        TpmsMonitorService.start(context, userInitiated = true)
         nextStep()
     }
 

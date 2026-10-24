@@ -199,8 +199,10 @@ class TpmsMonitorService : Service() {
                 monitoringHealthNotifier.clear()
                 BootStartScheduler.cancel(this)
                 ServiceLivenessScheduler.schedule(this)
-                // App / widget / FrontApp start: search now, but keep recovery (like a manual check).
-                wakeSearch()
+                // App / FrontApp / widget tap: search now, but keep recovery (like a manual check).
+                // Periodic starts (START_STICKY, boot, liveness alarm, widget refresh) must not cut
+                // the silent-dongle pause short.
+                if (intent?.getBooleanExtra(EXTRA_USER_START, false) == true) wakeSearch()
             }
         }
 
@@ -433,11 +435,12 @@ class TpmsMonitorService : Service() {
     /**
      * Marks this run as started and checks whether the previous process was killed while the head
      * unit slept (FYT `killAppWhenSleep`): reported here and flagged for the Teyes checklist.
-     * Blocking (one small read-and-write) so it lands before any screen event of this process.
+     * Blocking (one small read-and-write, bounded) so it lands before any screen event of this
+     * process; on timeout the previous run is unknown and no verdict is made.
      */
     private fun checkPreviousRun() {
         val bootCount = currentBootCount()
-        val previous = runCatching { heartbeatStore.beginRunBlocking(bootCount) }.getOrNull() ?: return
+        val previous = heartbeatStore.beginRunBlocking(bootCount) ?: return
         if (!SleepKillDetector.killedDuringSleep(previous, bootCount)) return
         debugLog.warn("Service", "Previous process was killed during sleep (screen off at ${previous.lastScreenOffMs})")
         serviceHealth.recordError("killed during sleep")
@@ -633,9 +636,16 @@ class TpmsMonitorService : Service() {
         const val ACTION_USB_DETACHED = "com.tpms.app.action.USB_DETACHED"
         const val EXTRA_DEVICE_NAME = "com.tpms.app.extra.DEVICE_NAME"
         const val EXTRA_DEVICE_ATTACHED = "com.tpms.app.extra.DEVICE_ATTACHED"
+        private const val EXTRA_USER_START = "com.tpms.app.extra.USER_START"
 
-        fun start(context: Context) {
-            startForegroundSafely(context, Intent(context, TpmsMonitorService::class.java))
+        /**
+         * Ensure the service runs. [userInitiated] (app opened, FrontApp, widget tap, onboarding)
+         * also wakes the dongle search at full speed; recovery is kept either way.
+         */
+        fun start(context: Context, userInitiated: Boolean = false) {
+            val intent = Intent(context, TpmsMonitorService::class.java)
+            if (userInitiated) intent.putExtra(EXTRA_USER_START, true)
+            startForegroundSafely(context, intent)
         }
 
         /** Wake an already-running service: search for the dongle now and refresh outputs. */

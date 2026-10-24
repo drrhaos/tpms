@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         runCatching {
-            TpmsMonitorService.start(this)
+            TpmsMonitorService.start(this, userInitiated = true)
         }.onFailure { error ->
             debugLog.exception("App", error, "ensure service on resume")
         }
@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
         runCatching {
             debugLog.info("App", "TPMS Monitor started")
             startupPermissions.ensureOnLaunch(this, notificationPermissionLauncher)
-            TpmsMonitorService.start(this)
+            TpmsMonitorService.start(this, userInitiated = true)
         }.onFailure { error ->
             debugLog.error("App", uiBreadcrumbs.describe())
             debugLog.exception("App", error, "onCreate startup")
