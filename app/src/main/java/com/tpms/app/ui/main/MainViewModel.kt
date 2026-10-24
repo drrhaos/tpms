@@ -43,7 +43,9 @@ data class MainUiState(
     val advancedMode: Boolean = false,
     val debugToolsEnabled: Boolean = false,
     val lastError: String? = null,
+    /** Connection-based "data outdated" (wayfinder 10); false when there are no readings at all. */
     val dataStale: Boolean = false,
+    /** Minutes since the shown data was last confirmed live; null when unknown (no minutes shown). */
     val dataAgeMinutes: Long? = null,
     val protocolUnhealthy: Boolean = false,
     val monitoringOffline: Boolean = false,
@@ -117,7 +119,8 @@ class MainViewModel @Inject constructor(
             val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
             val now = System.currentTimeMillis()
             val ageSec = repository.dataAgeSec(now)
-            val stale = repository.isDataStale(now)
+            // "Data outdated" needs data to be outdated: with no readings at all the header says why.
+            val stale = sensors.isNotEmpty() && repository.isDataStale(now)
             val wheelProtocol = repository.wheelFreshnessProtocol()
             val protocolUnhealthy = repository.isProtocolUnhealthy()
             val monitoringOffline = MonitoringHealthPolicy.shouldAlertMonitoringOffline(

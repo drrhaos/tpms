@@ -28,7 +28,7 @@ object SensorFreshness {
     )
 
     fun isWheelStale(sensor: TireSensor, protocol: DongleProtocol?, now: Long): Boolean =
-        protocol == DongleProtocol.HID_GENERIC && now - sensor.timestamp > HID_STALE_AFTER_MS
+        protocol?.streamsContinuously == false && now - sensor.timestamp > HID_STALE_AFTER_MS
 
     /** Whole minutes since the sensor's last reading, for the "N мин" caption; never negative. */
     fun ageMinutes(sensor: TireSensor, now: Long): Long =
@@ -47,11 +47,8 @@ object SensorFreshness {
 
     fun isDataStale(connection: ConnectionSnapshot, now: Long): Boolean {
         if (!connection.hasLiveSession) return true
-        if (!streamsContinuously(connection.protocol)) return false
+        if (connection.protocol?.streamsContinuously != true) return false
         val referenceMs = maxOf(connection.sessionOpenedAtMs, connection.lastValidFrameAtMs)
         return now - referenceMs > FRAMES_STALE_AFTER_MS
     }
-
-    private fun streamsContinuously(protocol: DongleProtocol?): Boolean =
-        protocol == DongleProtocol.SERIAL_AA55 || protocol == DongleProtocol.DEELIFE
 }

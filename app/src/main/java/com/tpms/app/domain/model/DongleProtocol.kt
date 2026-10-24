@@ -14,10 +14,17 @@ enum class DongleProtocolMode(val label: String) {
     }
 }
 
-enum class DongleProtocol {
-    HID_GENERIC,
-    SERIAL_AA55,
-    DEELIFE;
+enum class DongleProtocol(
+    /**
+     * The receiver repeats its slot cache constantly (AA55/Deelife), so silence means a dead link and
+     * a reading's timestamp is the frame arrival time. HID dongles may stay quiet until a sensor
+     * transmits, and their timestamps are the sensor's own.
+     */
+    val streamsContinuously: Boolean
+) {
+    HID_GENERIC(streamsContinuously = false),
+    SERIAL_AA55(streamsContinuously = true),
+    DEELIFE(streamsContinuously = true);
 
     val displayName: String
         get() = when (this) {
@@ -25,4 +32,9 @@ enum class DongleProtocol {
             SERIAL_AA55 -> "Serial 0x55AA"
             DEELIFE -> "Deelife"
         }
+
+    companion object {
+        /** Parses a persisted [name]; null when missing or unknown (e.g. written by another version). */
+        fun fromNameOrNull(name: String?): DongleProtocol? = entries.firstOrNull { it.name == name }
+    }
 }

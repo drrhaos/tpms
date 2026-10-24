@@ -4,6 +4,7 @@ import android.content.Context
 import com.tpms.app.data.persistence.LastKnownSnapshotStore
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import javax.inject.Inject
@@ -19,16 +20,18 @@ class WidgetSnapshotBuilder @Inject constructor(
         settingsStore.awaitLoaded()
         val persisted = if (preferPersisted) lastKnownSnapshotStore.load().orEmpty() else emptyMap()
         val persistedAtMs = if (preferPersisted) lastKnownSnapshotStore.savedAtMs() else 0L
-        return buildSnapshot(context, persisted, persistedAtMs)
+        val persistedProtocol = if (preferPersisted) lastKnownSnapshotStore.protocol() else null
+        return buildSnapshot(context, persisted, persistedAtMs, persistedProtocol)
     }
 
     fun buildNow(context: Context): WidgetSnapshot =
-        buildSnapshot(context, persisted = emptyMap(), persistedAtMs = 0L)
+        buildSnapshot(context, persisted = emptyMap(), persistedAtMs = 0L, persistedProtocol = null)
 
     private fun buildSnapshot(
         context: Context,
         persisted: Map<String, TireSensor>,
-        persistedAtMs: Long
+        persistedAtMs: Long,
+        persistedProtocol: DongleProtocol?
     ): WidgetSnapshot {
         val liveSensors = repository.sensors.value
         val sensors = liveSensors.ifEmpty { persisted }
@@ -58,7 +61,8 @@ class WidgetSnapshotBuilder @Inject constructor(
                 context,
                 settingsStore.widgetThemeMode.value
             ),
-            wheelProtocol = repository.wheelFreshnessProtocol()
+            // Before the repository restored the snapshot, its protocol comes from the store.
+            wheelProtocol = repository.wheelFreshnessProtocol() ?: persistedProtocol
         )
     }
 

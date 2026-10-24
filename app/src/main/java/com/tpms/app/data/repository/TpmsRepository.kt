@@ -130,11 +130,21 @@ class TpmsRepository @Inject constructor(
         val filtered = filterSensorsForSpareSetting(restored)
             .filterValues { it.label.isBlank() || it.label in wheelLabels }
         if (filtered.isEmpty()) return
-        _sensors.update { current -> current.ifEmpty { filtered } }
+        val restoredProtocol = lastKnownSnapshotStore.protocol()
+        // Live frames may have filled the sensors while the snapshot was loading: they win.
+        if (!_sensors.compareAndSet(emptyMap(), filtered)) {
+            debugLog.info("Repository", "Snapshot restore skipped: live data arrived first")
+            return
+        }
         restoredFromSnapshot = true
+        if (lastSessionProtocol == null) lastSessionProtocol = restoredProtocol
         if (lastLiveDataAtMs <= 0L) lastLiveDataAtMs = filtered.values.maxOf { it.timestamp }
-        _state.value = TpmsState.Disconnected
-        debugLog.info("Repository", "Restored ${filtered.size} sensors from last-known snapshot")
+        // A session opened (or reconnecting) meanwhile owns the state (Connecting); else Disconnected.
+        if (activeSession == null && !isReconnecting) updateState(TpmsState.Disconnected)
+        debugLog.info(
+            "Repository",
+            "Restored ${filtered.size} sensors from last-known snapshot (${restoredProtocol?.displayName ?: "protocol unknown"})"
+        )
     }
 
     fun onAlert(callback: (TireSensor) -> Unit) {
@@ -384,6 +394,7 @@ class TpmsRepository @Inject constructor(
         } else {
             alertTracker.clear()
             _sensors.value = emptyMap()
+            restoredFromSnapshot = false
             lastLiveDataAtMs = 0L
             isReconnecting = false
             updateState(TpmsState.Disconnected)
@@ -512,8 +523,9 @@ class TpmsRepository @Inject constructor(
     private fun persistLastKnown() {
         val snapshot = filterSensorsForSpareSetting(_sensors.value)
         if (snapshot.isEmpty()) return
+        val protocol = lastSessionProtocol
         repoScope.launch {
-            runCatching { lastKnownSnapshotStore.save(snapshot) }
+            runCatching { lastKnownSnapshotStore.save(snapshot, protocol) }
         }
     }
 

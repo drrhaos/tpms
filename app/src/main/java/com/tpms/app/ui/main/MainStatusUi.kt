@@ -26,23 +26,17 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
             } else {
                 state.statusLabel()
             }
-            return text to StatusColors.disconnected
+            return withStaleSuffix(text, uiState) to StatusColors.disconnected
         }
         is TpmsState.Connecting -> {
             uiState.usbFault?.let { return usbFaultPresentation(it) }
-            return state.statusLabel() to StatusColors.warning
+            return withStaleSuffix(state.statusLabel(), uiState) to StatusColors.warning
         }
         is TpmsState.Alert -> {
             val wheel = WheelLayout.resolveWheelLabel(state.sensor, uiState.wheelMapping)
             val alertLabel = state.type.shortLabel()
             val base = stringResource(R.string.status_alert_format, wheel, alertLabel)
-            val text = if (uiState.dataStale) {
-                val minutes = uiState.dataAgeMinutes ?: 1
-                stringResource(R.string.widget_status_stale_format, base, minutes)
-            } else {
-                base
-            }
-            return text to StatusColors.alert
+            return withStaleSuffix(base, uiState) to StatusColors.alert
         }
         is TpmsState.Connected -> {
             MainUiHealth.firstMissingWheelLabel(uiState)?.let { label ->
@@ -54,12 +48,27 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
                 return stringResource(R.string.notification_monitoring_blind_title) to StatusColors.warning
             }
             if (uiState.dataStale) {
-                val minutes = uiState.dataAgeMinutes ?: 1
-                return stringResource(R.string.main_status_stale_format, minutes) to StatusColors.warning
+                val text = uiState.dataAgeMinutes
+                    ?.let { stringResource(R.string.main_status_stale_format, it) }
+                    ?: stringResource(R.string.main_status_stale)
+                return text to StatusColors.warning
             }
             return state.statusLabel() to StatusColors.ok
         }
     }
+}
+
+/**
+ * Appends "data outdated" to [base] like the widget does in every state (wayfinder 10); without a
+ * known age the minutes are left out rather than guessed. [MainUiState.dataStale] is never set
+ * when there is no data at all.
+ */
+@Composable
+private fun withStaleSuffix(base: String, uiState: MainUiState): String {
+    if (!uiState.dataStale) return base
+    return uiState.dataAgeMinutes
+        ?.let { stringResource(R.string.widget_status_stale_format, base, it) }
+        ?: stringResource(R.string.widget_status_stale_short, base)
 }
 
 @Composable

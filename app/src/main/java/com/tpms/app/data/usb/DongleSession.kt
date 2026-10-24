@@ -23,8 +23,8 @@ class DongleSession(
     val vidPid: String get() = link.vidPid
     val openedAtMs: Long = clock()
 
-    /** AA55 receivers repeat every slot constantly; HID dongles may stay quiet until a value changes. */
-    val streamsContinuously: Boolean get() = protocol != DongleProtocol.HID_GENERIC
+    /** See [DongleProtocol.streamsContinuously]. */
+    val streamsContinuously: Boolean get() = protocol.streamsContinuously
 
     @Volatile
     var lastBytesAtMs: Long = openedAtMs

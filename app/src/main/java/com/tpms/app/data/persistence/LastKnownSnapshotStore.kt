@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.SensorFlags
 import com.tpms.app.domain.model.TireSensor
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,11 +24,20 @@ private val Context.lastKnownDataStore: DataStore<Preferences> by preferencesDat
 class LastKnownSnapshotStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    suspend fun save(sensors: Map<String, TireSensor>, savedAtMs: Long = System.currentTimeMillis()) {
+    /**
+     * Saves [sensors] with the [protocol] that produced them (drives per-wheel staleness after a
+     * restart). A null [protocol] keeps the previously stored one.
+     */
+    suspend fun save(
+        sensors: Map<String, TireSensor>,
+        protocol: DongleProtocol?,
+        savedAtMs: Long = System.currentTimeMillis()
+    ) {
         if (sensors.isEmpty()) return
         context.lastKnownDataStore.edit { prefs ->
             prefs[KEY_SAVED_AT_MS] = savedAtMs
             prefs[KEY_SENSORS_JSON] = encode(sensors)
+            if (protocol != null) prefs[KEY_PROTOCOL] = protocol.name
         }
     }
 
@@ -39,6 +49,10 @@ class LastKnownSnapshotStore @Inject constructor(
 
     suspend fun savedAtMs(): Long =
         context.lastKnownDataStore.data.first()[KEY_SAVED_AT_MS] ?: 0L
+
+    /** Protocol of the session that produced the snapshot; null for snapshots saved before it was stored. */
+    suspend fun protocol(): DongleProtocol? =
+        DongleProtocol.fromNameOrNull(context.lastKnownDataStore.data.first()[KEY_PROTOCOL])
 
     private fun encode(sensors: Map<String, TireSensor>): String {
         val array = JSONArray()
@@ -89,5 +103,6 @@ class LastKnownSnapshotStore @Inject constructor(
     companion object {
         private val KEY_SAVED_AT_MS = longPreferencesKey("saved_at_ms")
         private val KEY_SENSORS_JSON = stringPreferencesKey("sensors_json")
+        private val KEY_PROTOCOL = stringPreferencesKey("protocol")
     }
 }
