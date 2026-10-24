@@ -2,7 +2,7 @@
 title: Как определять потерю датчика, если ресивер повторяет последнее значение
 labels: [wayfinder:grilling]
 status: open
-assignee:
+assignee: drhaos+claude
 blocked_by: []
 ---
 
