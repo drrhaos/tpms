@@ -2,7 +2,7 @@
 title: Какие датчики допускать в слоты колёс
 labels: [wayfinder:grilling]
 status: open
-assignee:
+assignee: drhaos+claude
 blocked_by: [04]
 ---
 
