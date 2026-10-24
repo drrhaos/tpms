@@ -30,13 +30,13 @@ import com.tpms.app.data.usb.DongleSession
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.RecoveryAction
 import com.tpms.app.domain.RecoveryDecision
-import com.tpms.app.domain.RecoveryState
 import com.tpms.app.domain.SessionOutcome
 import com.tpms.app.domain.SessionRecoveryPolicy
 import com.tpms.app.domain.SleepKillDetector
 import com.tpms.app.domain.SuspendDetector
 import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WakeAction
+import com.tpms.app.domain.WakeDecision
 import com.tpms.app.domain.WakeSession
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.label
@@ -90,8 +90,11 @@ class TpmsMonitorService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /**
-     * Wake counters, bumped before [wakeBell] rings. A wait honours only bumps newer than its
-     * start, so a wake sent while a session was live does not cut the next wait short.
+     * Wake counters, bumped before [wakeBell] rings. A wait honours only bumps newer than a snapshot
+     * the loop takes before the work the wait follows: the search wait from the top of the no-dongle
+     * iteration (before findDongle), the post-session wait from the moment the session ended. So a
+     * wake sent while a session was live does not cut the next wait short, but one sent during the
+     * search, the open or the session cleanup is not lost.
      * - [searchWakes]: every wake (user start, CHECK_NOW, SCREEN_ON, attach, permission) — cuts
      *   the no-dongle search wait.
      * - [pauseBreaks]: only wakes that reset recovery (SCREEN_ON, attach, permission) — may also
@@ -303,6 +306,8 @@ class TpmsMonitorService : Service() {
         sessionJob = serviceScope.launch {
             var searchIntervalMs = SEARCH_MIN_INTERVAL_MS
             while (isActive) {
+                // Before the search: a wake during findDongle/openSession must still cut the wait.
+                val searchSince = searchWakes.get()
                 val dongle = repository.findDongle()
                 val session = if (dongle != null && repository.hasUsbPermission(dongle)) {
                     repository.openSession(dongle) ?: run {
@@ -314,7 +319,7 @@ class TpmsMonitorService : Service() {
                 }
                 if (session == null) {
                     repository.updateState(TpmsState.Disconnected)
-                    awaitWake(searchIntervalMs, searchWakes)
+                    awaitWake(searchIntervalMs, searchWakes, searchSince)
                     searchIntervalMs = if (searchIntervalReset.getAndSet(false)) {
                         SEARCH_MIN_INTERVAL_MS
                     } else {
@@ -329,50 +334,51 @@ class TpmsMonitorService : Service() {
                     keepCpuAwake()
                     if (session.hasReceivedBytes) onBytes()
                 }
+                // The session is over: wakes from here on (during cleanup) may cut the pause.
+                val pauseSince = pauseBreaks.get()
                 val stopped = repository.closeSession(session, reason)
                 if (!stopped) serviceHealth.recordError("reader stuck after: $reason")
                 val closedByWake = wakeClosedSession === session
                 if (closedByWake) wakeClosedSession = null
-                val decision = SessionRecoveryPolicy.afterSession(
-                    SessionOutcome(
-                        receivedBytes = session.hasReceivedBytes,
-                        readerStopped = stopped,
-                        closedByWake = closedByWake
-                    ),
-                    repository.recovery,
-                    heartbeatStore.lastProcessRestartMs(),
-                    System.currentTimeMillis()
+                val outcome = SessionOutcome(
+                    receivedBytes = session.hasReceivedBytes,
+                    readerStopped = stopped,
+                    closedByWake = closedByWake
                 )
-                when (val action = applyRecovery(decision)) {
+                val lastRestartAtMs = heartbeatStore.lastProcessRestartMs()
+                val now = System.currentTimeMillis()
+                val decision = repository.decideRecovery(
+                    { SessionRecoveryPolicy.afterSession(outcome, it, lastRestartAtMs, now) },
+                    RecoveryDecision::state
+                )
+                when (val action = decision.action) {
                     RecoveryAction.RestartProcess -> restartProcess("reader stuck after: $reason")
-                    // Closed by a screen-on reopen: that wake is the reason, reopen right away.
-                    is RecoveryAction.Reopen -> if (!closedByWake) awaitWake(action.delayMs, pauseBreaks)
-                    null -> awaitWake(SessionRecoveryPolicy.REOPEN_DELAY_MS, pauseBreaks)
+                    is RecoveryAction.Reopen -> awaitWake(action.delayMs, pauseBreaks, pauseSince)
+                    null -> awaitWake(SessionRecoveryPolicy.REOPEN_DELAY_MS, pauseBreaks, pauseSince)
                 }
             }
         }
     }
 
     private suspend fun onOpenFailed() {
-        val decision = SessionRecoveryPolicy.afterOpenFailed(
-            repository.recovery,
-            heartbeatStore.lastProcessRestartMs(),
-            System.currentTimeMillis()
+        val lastRestartAtMs = heartbeatStore.lastProcessRestartMs()
+        val now = System.currentTimeMillis()
+        val decision = repository.decideRecovery(
+            { SessionRecoveryPolicy.afterOpenFailed(it, lastRestartAtMs, now) },
+            RecoveryDecision::state
         )
-        if (applyRecovery(decision) == RecoveryAction.RestartProcess) {
+        if (decision.action == RecoveryAction.RestartProcess) {
             restartProcess("open failed while a reader is stuck")
         }
     }
 
     private fun onBytes() {
-        val current = repository.recovery
-        val next = SessionRecoveryPolicy.onBytes(current)
-        if (next != current) applyRecoveryState(next)
+        repository.updateRecovery(SessionRecoveryPolicy::onBytes)
     }
 
     /** Dongle attach or USB permission granted: forget the silent streak and search at full speed. */
     private fun onHeadUnitWake() {
-        applyRecoveryState(SessionRecoveryPolicy.onWake(repository.recovery))
+        repository.updateRecovery(SessionRecoveryPolicy::onWake)
         wakeSearch(breakPause = true)
     }
 
@@ -385,13 +391,12 @@ class TpmsMonitorService : Service() {
         val survivedSleep = sawScreenOff
         serviceScope.launch { runCatchingCancellable { heartbeatStore.recordScreenOn(survivedSleep) } }
         val session = repository.activeSession()?.takeIf { !it.isClosed }
-        val decision = SessionRecoveryPolicy.onScreenOn(
-            repository.recovery,
-            suspended,
-            session?.let { WakeSession(it.streamsContinuously, it.silentForMs()) }
+        val wakeSession = session?.let { WakeSession(it.streamsContinuously, it.silentForMs()) }
+        val decision = repository.decideRecovery(
+            { SessionRecoveryPolicy.onScreenOn(it, suspended, wakeSession) },
+            WakeDecision::state
         )
         debugLog.info("Power", "SCREEN_ON — suspended=$suspended action=${decision.action}")
-        applyRecoveryState(decision.state)
         wakeSearch(breakPause = true)
         if (decision.action == WakeAction.Reopen && session != null) {
             wakeClosedSession = session
@@ -410,18 +415,6 @@ class TpmsMonitorService : Service() {
         wakeBell.trySend(Unit)
     }
 
-    private fun applyRecovery(decision: RecoveryDecision): RecoveryAction? {
-        applyRecoveryState(decision.state)
-        return decision.action
-    }
-
-    private fun applyRecoveryState(state: RecoveryState) {
-        if (repository.updateRecovery(state)) {
-            state.fault?.let { debugLog.warn("Service", "USB fault: $it") }
-            uiRefresh.trySend(Unit)
-        }
-    }
-
     /**
      * Kills this process so a stuck reader thread and its connection go with it; START_STICKY
      * brings the service back (the liveness alarm is the fallback). The policy limits how often.
@@ -431,7 +424,7 @@ class TpmsMonitorService : Service() {
         if (saved.isFailure) {
             // Without the saved time the 30 min limit is gone and kills could loop: show the fault instead.
             debugLog.error("Service", "Restart time not saved (${saved.exceptionOrNull()?.message}) — not restarting")
-            applyRecoveryState(repository.recovery.copy(fault = UsbFault.USB_STUCK))
+            repository.updateRecovery { it.copy(fault = UsbFault.USB_STUCK) }
             return
         }
         debugLog.error("Service", "Restarting process: $reason")
@@ -467,9 +460,12 @@ class TpmsMonitorService : Service() {
     private fun currentBootCount(): Int? =
         runCatching { Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT) }.getOrNull()
 
-    /** Waits [timeoutMs] or until [wakes] is bumped after this call; earlier (stale) wakes are ignored. */
-    private suspend fun awaitWake(timeoutMs: Long, wakes: AtomicLong) {
-        val since = wakes.get()
+    /**
+     * Waits [timeoutMs] or until [wakes] has moved past [since] (a snapshot the caller took before
+     * the work this wait follows); bumps up to [since] are stale and ignored. Returns at once if a
+     * bump already landed, or if [timeoutMs] is not positive.
+     */
+    private suspend fun awaitWake(timeoutMs: Long, wakes: AtomicLong, since: Long) {
         wakeBell.tryReceive() // a stale ring; a bump after `since` is still seen by the check below
         withTimeoutOrNull(timeoutMs) {
             while (wakes.get() == since) wakeBell.receive()
@@ -514,6 +510,7 @@ class TpmsMonitorService : Service() {
             merge(
                 repository.sensors.map { },
                 repository.state.map { },
+                repository.usbFault.map { },
                 ticker,
                 uiRefresh.receiveAsFlow()
             )

@@ -61,12 +61,14 @@ data class WakeDecision(val action: WakeAction, val state: RecoveryState)
  *   failed open while one is stuck, restarts the process (at most once per 30 min, else [UsbFault.USB_STUCK]).
  * - Three sessions in a row without a single byte report [UsbFault.DONGLE_SILENT] and slow retries
  *   to 30 s, until a byte arrives or the head unit wakes. A session closed by a screen-on reopen
- *   does not count.
+ *   does not count and is reopened at once ([WAKE_REOPEN_DELAY_MS]).
  * - On screen-on the silent streak is cleared; a session that went through a real suspend is
  *   reopened whatever its protocol, otherwise only a streaming session quiet for > [PROBE_QUIET_MS].
  */
 object SessionRecoveryPolicy {
     const val REOPEN_DELAY_MS = 1_000L
+    /** A session closed by a screen-on reopen: the wake is the reason, reopen at once. */
+    const val WAKE_REOPEN_DELAY_MS = 0L
     const val SILENT_REOPEN_DELAY_MS = 30_000L
     const val SILENT_SESSIONS_FOR_FAULT = 3
     const val STUCK_READERS_FOR_RESTART = 2
@@ -80,18 +82,19 @@ object SessionRecoveryPolicy {
         lastRestartAtMs: Long?,
         now: Long
     ): RecoveryDecision {
+        val reopen = RecoveryAction.Reopen(if (outcome.closedByWake) WAKE_REOPEN_DELAY_MS else REOPEN_DELAY_MS)
         if (!outcome.readerStopped) {
             val stuck = state.copy(stuckReaders = state.stuckReaders + 1)
             if (stuck.stuckReaders < STUCK_READERS_FOR_RESTART) {
-                return RecoveryDecision(RecoveryAction.Reopen(REOPEN_DELAY_MS), stuck)
+                return RecoveryDecision(reopen, stuck)
             }
-            return restartOrReportStuck(stuck, lastRestartAtMs, now, RecoveryAction.Reopen(REOPEN_DELAY_MS))
+            return restartOrReportStuck(stuck, lastRestartAtMs, now, reopen)
         }
         if (outcome.receivedBytes) {
-            return RecoveryDecision(RecoveryAction.Reopen(REOPEN_DELAY_MS), onBytes(state))
+            return RecoveryDecision(reopen, onBytes(state))
         }
         if (outcome.closedByWake) {
-            return RecoveryDecision(RecoveryAction.Reopen(REOPEN_DELAY_MS), state)
+            return RecoveryDecision(reopen, state)
         }
         val silentSessions = state.silentSessions + 1
         val silent = silentSessions >= SILENT_SESSIONS_FOR_FAULT

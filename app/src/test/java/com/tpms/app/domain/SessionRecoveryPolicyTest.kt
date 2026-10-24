@@ -139,11 +139,18 @@ class SessionRecoveryPolicyTest {
 
     private val wakeClosedSilent = silent.copy(closedByWake = true)
 
+    private val wakeReopen = RecoveryAction.Reopen(SessionRecoveryPolicy.WAKE_REOPEN_DELAY_MS)
+
+    @Test
+    fun wakeReopenDelay_isImmediate() {
+        assertEquals(0L, SessionRecoveryPolicy.WAKE_REOPEN_DELAY_MS)
+    }
+
     @Test
     fun wakeClosedSessionWithoutBytes_doesNotCountAsSilent() {
         // A quiet HID session reopened at screen-on says nothing about the dongle.
         val decision = SessionRecoveryPolicy.afterSession(wakeClosedSilent, RecoveryState(), null, now)
-        assertEquals(RecoveryAction.Reopen(SessionRecoveryPolicy.REOPEN_DELAY_MS), decision.action)
+        assertEquals(wakeReopen, decision.action)
         assertEquals(RecoveryState(), decision.state)
     }
 
@@ -152,20 +159,31 @@ class SessionRecoveryPolicyTest {
         val state = afterSessions(silent, silent).state
         val decision = SessionRecoveryPolicy.afterSession(wakeClosedSilent, state, null, now)
         assertEquals(state, decision.state)
-        assertEquals(RecoveryAction.Reopen(SessionRecoveryPolicy.REOPEN_DELAY_MS), decision.action)
+        assertEquals(wakeReopen, decision.action)
     }
 
     @Test
-    fun wakeClosedSessionWithBytes_clearsSilentStreak() {
+    fun wakeClosedSession_reopensImmediatelyEvenAfterSilentFault() {
+        // The wake is the reason for the close: no 30 s silent-dongle pause.
+        val state = afterSessions(silent, silent, silent).state
+        val decision = SessionRecoveryPolicy.afterSession(wakeClosedSilent, state, null, now)
+        assertEquals(wakeReopen, decision.action)
+    }
+
+    @Test
+    fun wakeClosedSessionWithBytes_clearsSilentStreakAndReopensImmediately() {
         val state = afterSessions(silent, silent).state
         val decision = SessionRecoveryPolicy.afterSession(healthy.copy(closedByWake = true), state, null, now)
         assertEquals(RecoveryState(), decision.state)
+        assertEquals(wakeReopen, decision.action)
     }
 
     @Test
     fun wakeClosedSessionWithStuckReader_stillCountsAsStuck() {
         val stuckOnWake = stuck.copy(closedByWake = true)
-        assertEquals(1, SessionRecoveryPolicy.afterSession(stuckOnWake, RecoveryState(), null, now).state.stuckReaders)
+        val first = SessionRecoveryPolicy.afterSession(stuckOnWake, RecoveryState(), null, now)
+        assertEquals(1, first.state.stuckReaders)
+        assertEquals(wakeReopen, first.action)
         val second = SessionRecoveryPolicy.afterSession(stuckOnWake, RecoveryState(stuckReaders = 1), null, now)
         assertEquals(RecoveryAction.RestartProcess, second.action)
     }

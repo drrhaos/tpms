@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,10 +61,12 @@ class TpmsRepository @Inject constructor(
     private val _usbFault = MutableStateFlow<UsbFault?>(null)
     val usbFault = _usbFault.asStateFlow()
 
-    /** Stuck readers and silent sessions seen by this process; outlives a service instance. */
-    @Volatile
-    var recovery = RecoveryState()
-        private set
+    /**
+     * Stuck readers and silent sessions seen by this process; outlives a service instance.
+     * Written only through [updateRecovery] / [decideRecovery] (atomic: loop thread and main thread race).
+     */
+    private val _recovery = MutableStateFlow(RecoveryState())
+    val recovery: RecoveryState get() = _recovery.value
 
     private val _sensors = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
     val sensors = _sensors.asStateFlow()
@@ -294,12 +297,32 @@ class TpmsRepository @Inject constructor(
         return "$stateLabel · $protocol · $dongle · frame $frameAge · valid $validAge$protocolWarn · screen ${uiBreadcrumbs.lastScreen} · $health"
     }
 
-    /** Stores [state] and publishes its fault; returns true if the shown fault changed. */
-    fun updateRecovery(state: RecoveryState): Boolean {
-        recovery = state
-        if (_usbFault.value == state.fault) return false
-        _usbFault.value = state.fault
-        return true
+    /** Atomically replaces the recovery state with [transform] of it; [transform] must be pure (it may be retried). */
+    fun updateRecovery(transform: (RecoveryState) -> RecoveryState): RecoveryState =
+        decideRecovery(transform) { it }
+
+    /**
+     * Atomically applies the pure [decide] to the current recovery state and stores [stateOf] its
+     * result. [decide] is retried if another writer got in first, so the returned decision is always
+     * the one computed from the state it replaced.
+     */
+    fun <D> decideRecovery(decide: (RecoveryState) -> D, stateOf: (D) -> RecoveryState): D {
+        while (true) {
+            val current = _recovery.value
+            val decision = decide(current)
+            val next = stateOf(decision)
+            if (_recovery.compareAndSet(current, next)) {
+                publishUsbFault()
+                return decision
+            }
+        }
+    }
+
+    /** Publishes the latest fault (not the caller's): whoever publishes last leaves the newest one. */
+    private fun publishUsbFault() {
+        val fault = _recovery.value.fault
+        val previous = _usbFault.getAndUpdate { fault }
+        if (previous != fault) fault?.let { debugLog.warn("Repository", "USB fault: $it") }
     }
 
     fun lastFrameAtMs(): Long = lastFrameAtMs
@@ -336,13 +359,14 @@ class TpmsRepository @Inject constructor(
             }
             val session = DongleSession(link, FrameDecoder(protocol), debugLog)
             dongleOpenedAtMs = session.openedAtMs
-            lastSessionProtocol = protocol
             lastFrameAtMs = 0L
             lastValidFrameAtMs = 0L
             activeSession = session
             session.start()
-            // Under the lock so a concurrent snapshot restore cannot overwrite Connecting with Disconnected.
+            // Under the lock so a concurrent snapshot restore cannot overwrite Connecting with Disconnected
+            // or the live protocol with the snapshot's.
             synchronized(restoreLock) {
+                lastSessionProtocol = protocol
                 isReconnecting = false
                 updateState(TpmsState.Connecting(attempt = 0))
             }
