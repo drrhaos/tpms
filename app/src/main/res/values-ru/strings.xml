@@ -151,6 +151,8 @@
     <string name="settings_teyes_permissions">Разрешения Teyes</string>
     <string name="settings_teyes_auto_start">Автозапуск включён (Настройки → Приложения → TPMS)</string>
     <string name="settings_teyes_auto_start_hint">Без этого мониторинг не переживёт сон магнитолы.</string>
+    <string name="settings_teyes_killed_in_sleep">Мониторинг был остановлен во сне магнитолы — включите автозапуск для TPMS.</string>
+    <string name="settings_teyes_killed_in_sleep_auto_run">Мониторинг был остановлен во сне магнитолы — включите автозапуск и «Автозапуск при пробуждении» для TPMS.</string>
     <string name="settings_teyes_battery">Батарея → Без ограничений</string>
     <string name="settings_teyes_lock">Закреплено в недавних приложениях</string>
     <string name="settings_teyes_boot">Разрешён запуск после загрузки</string>

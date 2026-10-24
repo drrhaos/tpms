@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.AlertNotificationPrefs
 import com.tpms.app.data.settings.SettingsExporter
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -46,7 +48,8 @@ class SettingsViewModel @Inject constructor(
     private val headUnitSupport: HeadUnitSupport,
     private val usbDebugLog: UsbDebugLog,
     private val usbConnection: UsbConnection,
-    private val floatingOverlayController: FloatingOverlayController
+    private val floatingOverlayController: FloatingOverlayController,
+    heartbeatStore: ServiceHeartbeatStore
 ) : ViewModel() {
 
     val isTeyesDevice: Boolean get() = headUnitSupport.isTeyesHeadUnit()
@@ -92,6 +95,11 @@ class SettingsViewModel @Inject constructor(
 
     private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
     val teyesChecklist: StateFlow<TeyesChecklist> = _teyesChecklist.asStateFlow()
+
+    /** The service was killed during the head unit's sleep and no sleep has been survived since. */
+    val killedInSleep: StateFlow<Boolean> = heartbeatStore.killedInSleepAtMs
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _batteryUnrestricted = MutableStateFlow(true)
     val batteryUnrestricted: StateFlow<Boolean> = _batteryUnrestricted.asStateFlow()

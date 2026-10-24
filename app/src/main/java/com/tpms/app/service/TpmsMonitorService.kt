@@ -16,6 +16,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -32,6 +33,7 @@ import com.tpms.app.domain.RecoveryDecision
 import com.tpms.app.domain.RecoveryState
 import com.tpms.app.domain.SessionOutcome
 import com.tpms.app.domain.SessionRecoveryPolicy
+import com.tpms.app.domain.SleepKillDetector
 import com.tpms.app.domain.SuspendDetector
 import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WakeAction
@@ -96,6 +98,9 @@ class TpmsMonitorService : Service() {
 
     private val suspendDetector = SuspendDetector({ SystemClock.elapsedRealtime() - SystemClock.uptimeMillis() })
 
+    /** This process saw a SCREEN_OFF; its next SCREEN_ON means it survived a sleep. */
+    @Volatile private var sawScreenOff = false
+
     // SCREEN_ON/OFF are only delivered to runtime-registered receivers.
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -103,6 +108,8 @@ class TpmsMonitorService : Service() {
                 Intent.ACTION_SCREEN_ON -> onScreenOn()
                 Intent.ACTION_SCREEN_OFF -> {
                     suspendDetector.onScreenOff()
+                    sawScreenOff = true
+                    serviceScope.launch { runCatching { heartbeatStore.recordScreenOff() } }
                     debugLog.info("Power", "SCREEN_OFF")
                 }
             }
@@ -140,6 +147,7 @@ class TpmsMonitorService : Service() {
             addAction(Intent.ACTION_SCREEN_OFF)
         }
         reportPreviousRestart()
+        checkPreviousRun()
         screenReceiverRegistered = runCatching {
             ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         }.isSuccess
@@ -256,6 +264,7 @@ class TpmsMonitorService : Service() {
             ServiceStoppedNotifier.show(this)
         }
         floatingOverlayController.hide(this)
+        runCatching { heartbeatStore.markRunEndedBlocking() }
         // After a refused foreground start the liveness alarm is what retries later.
         if (!foregroundRefused) ServiceLivenessScheduler.cancel(this)
         serviceScope.cancel()
@@ -343,6 +352,8 @@ class TpmsMonitorService : Service() {
      */
     private fun onScreenOn() {
         val suspended = suspendDetector.onScreenOn()
+        val survivedSleep = sawScreenOff
+        serviceScope.launch { runCatching { heartbeatStore.recordScreenOn(survivedSleep) } }
         val session = repository.activeSession()?.takeIf { !it.isClosed }
         val decision = SessionRecoveryPolicy.onWake(
             repository.recovery,
@@ -400,6 +411,28 @@ class TpmsMonitorService : Service() {
             serviceHealth.recordError("process restart: $reason")
         }
     }
+
+    /**
+     * Before marking this run as started, checks whether the previous process was killed while
+     * the head unit slept (FYT `killAppWhenSleep`): reported here and flagged for the Teyes checklist.
+     */
+    private fun checkPreviousRun() {
+        serviceScope.launch {
+            val bootCount = currentBootCount()
+            runCatching {
+                val previous = heartbeatStore.previousRun()
+                if (SleepKillDetector.killedDuringSleep(previous, bootCount)) {
+                    debugLog.warn("Service", "Previous process was killed during sleep (screen off at ${previous.lastScreenOffMs})")
+                    serviceHealth.recordError("killed during sleep")
+                    heartbeatStore.recordKilledInSleep(System.currentTimeMillis())
+                }
+            }
+            runCatching { heartbeatStore.markRunStarted(bootCount) }
+        }
+    }
+
+    private fun currentBootCount(): Int? =
+        runCatching { Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT) }.getOrNull()
 
     private suspend fun awaitSearchWake(timeoutMs: Long) {
         withTimeoutOrNull(timeoutMs) { searchWake.receive() }

@@ -151,6 +151,8 @@
     <string name="settings_teyes_permissions">Teyes Permissions</string>
     <string name="settings_teyes_auto_start">Auto start enabled (Settings → Apps → TPMS)</string>
     <string name="settings_teyes_auto_start_hint">Without this, monitoring will not survive the head unit\'s sleep.</string>
+    <string name="settings_teyes_killed_in_sleep">Monitoring was stopped while the head unit slept — enable auto start for TPMS.</string>
+    <string name="settings_teyes_killed_in_sleep_auto_run">Monitoring was stopped while the head unit slept — enable auto start and “Auto run when device awake” for TPMS.</string>
     <string name="settings_teyes_battery">Battery → No restrictions</string>
     <string name="settings_teyes_lock">Locked in recent apps</string>
     <string name="settings_teyes_boot">Boot completed allowed</string>

@@ -86,6 +86,7 @@ fun SettingsScreen(
     val alertSoundEnabled by viewModel.alertSoundEnabled.collectAsState()
     val showSpareWheel by viewModel.showSpareWheel.collectAsState()
     val teyesChecklist by viewModel.teyesChecklist.collectAsState()
+    val killedInSleep by viewModel.killedInSleep.collectAsState()
     val batteryUnrestricted by viewModel.batteryUnrestricted.collectAsState()
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsState()
     val widgetActive by viewModel.widgetActive.collectAsState()
@@ -472,6 +473,20 @@ fun SettingsScreen(
                             checked = teyesChecklist.autoStart,
                             onCheckedChange = { viewModel.setTeyesChecklistItem("auto_start", it) }
                         )
+                        if (killedInSleep) {
+                            Text(
+                                text = stringResource(
+                                    if (teyesChecklist.autoRunAwake) {
+                                        R.string.settings_teyes_killed_in_sleep
+                                    } else {
+                                        R.string.settings_teyes_killed_in_sleep_auto_run
+                                    }
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)
+                            )
+                        }
                         SettingsGroupDivider()
                         SettingsSwitchRow(
                             label = stringResource(R.string.settings_teyes_battery),
