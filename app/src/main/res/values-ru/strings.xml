@@ -102,8 +102,7 @@
     <string name="onboarding_open_battery">Исправить батарею</string>
     <string name="onboarding_open_teyes_settings">Открыть настройки Teyes</string>
     <string name="onboarding_autostart_title">Автозапуск после сна</string>
-    <string name="onboarding_autostart_explanation">Без этого мониторинг не переживёт сон магнитолы: после включения зажигания давление в шинах не отслеживается, пока вы сами не откроете приложение. В настройках Teyes (FYT) включите автозапуск для TPMS Monitor.</string>
-    <string name="onboarding_autostart_done">Автозапуск TPMS Monitor включён</string>
+    <string name="onboarding_autostart_explanation">Без этого мониторинг не переживёт сон магнитолы: после включения зажигания давление в шинах не отслеживается, пока вы сами не откроете приложение. В настройках Teyes (FYT) включите для TPMS Monitor обе опции ниже: какая из них защищает от закрытия во сне, зависит от прошивки.</string>
     <string name="onboarding_teyes_more">Там же в настройках Teyes: Батарея → Без ограничений и закрепите TPMS Monitor в недавних приложениях. Это можно доделать позже в настройках.</string>
     <string name="onboarding_open_frontapp">Открыть FrontApp for Teyes</string>
     <string name="onboarding_frontapp_done">Добавлено через FrontApp</string>

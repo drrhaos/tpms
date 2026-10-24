@@ -85,9 +85,11 @@ fun OnboardingScreen(
                 OnboardingSteps.TEYES_PERMISSIONS -> {
                     val checklist by viewModel.teyesChecklist.collectAsState()
                     AutoStartAfterSleepCard(
-                        done = checklist.autoStart,
+                        autoStartDone = checklist.autoStart,
+                        autoRunAwakeDone = checklist.autoRunAwake,
                         onOpenSettings = { viewModel.openTeyesSettings() },
-                        onDoneChange = { viewModel.setAutoStartDone(it) }
+                        onAutoStartChange = { viewModel.setAutoStartDone(it) },
+                        onAutoRunAwakeChange = { viewModel.setAutoRunAwakeDone(it) }
                     )
                     Text(
                         text = stringResource(R.string.onboarding_teyes_more),
@@ -116,12 +118,17 @@ fun OnboardingScreen(
     }
 }
 
-/** First and highlighted Teyes item: without FYT auto start the process is killed in sleep. */
+/**
+ * First and highlighted Teyes item: without FYT auto start the process is killed in sleep.
+ * Which of the two FYT settings prevents that differs between firmwares, so both are asked for.
+ */
 @Composable
 private fun AutoStartAfterSleepCard(
-    done: Boolean,
+    autoStartDone: Boolean,
+    autoRunAwakeDone: Boolean,
     onOpenSettings: () -> Unit,
-    onDoneChange: (Boolean) -> Unit
+    onAutoStartChange: (Boolean) -> Unit,
+    onAutoRunAwakeChange: (Boolean) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -146,24 +153,42 @@ private fun AutoStartAfterSleepCard(
             Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.onboarding_open_teyes_settings))
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .toggleable(
-                        value = done,
-                        role = Role.Checkbox,
-                        onValueChange = onDoneChange
-                    ),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(checked = done, onCheckedChange = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.onboarding_autostart_done),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
+            ManualCheckRow(
+                label = stringResource(R.string.settings_teyes_auto_start),
+                checked = autoStartDone,
+                onCheckedChange = onAutoStartChange
+            )
+            ManualCheckRow(
+                label = stringResource(R.string.settings_teyes_auto_run_awake),
+                checked = autoRunAwakeDone,
+                onCheckedChange = onAutoRunAwakeChange
+            )
         }
+    }
+}
+
+@Composable
+private fun ManualCheckRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Checkbox,
+                onValueChange = onCheckedChange
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
 

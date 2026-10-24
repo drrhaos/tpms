@@ -102,8 +102,7 @@
     <string name="onboarding_open_battery">Fix battery limits</string>
     <string name="onboarding_open_teyes_settings">Open Teyes settings</string>
     <string name="onboarding_autostart_title">Auto start after sleep</string>
-    <string name="onboarding_autostart_explanation">Without this, monitoring will not survive the head unit\'s sleep: after you switch the ignition back on, tire pressure stays unmonitored until you open the app yourself. In the Teyes (FYT) settings, enable auto start for TPMS Monitor.</string>
-    <string name="onboarding_autostart_done">Auto start for TPMS Monitor is on</string>
+    <string name="onboarding_autostart_explanation">Without this, monitoring will not survive the head unit\'s sleep: after you switch the ignition back on, tire pressure stays unmonitored until you open the app yourself. In the Teyes (FYT) settings, enable both options below for TPMS Monitor: firmware versions differ in which one keeps apps alive in sleep.</string>
     <string name="onboarding_teyes_more">Also in the Teyes settings: Battery → No restrictions, and lock TPMS Monitor in recent apps. You can finish these later in Settings.</string>
     <string name="onboarding_open_frontapp">Open FrontApp for Teyes</string>
     <string name="onboarding_frontapp_done">Added via FrontApp</string>

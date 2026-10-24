@@ -69,6 +69,13 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
+    /** Manual mark: the user confirms that FYT "Auto run when device awake" includes TPMS Monitor. */
+    fun setAutoRunAwakeDone(done: Boolean) {
+        viewModelScope.launch {
+            settingsStore.setTeyesChecklistItem("auto_run_awake", done)
+        }
+    }
+
     fun markFrontAppHome() {
         viewModelScope.launch {
             settingsStore.setTeyesChecklistItem("frontapp_home", true)
