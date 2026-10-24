@@ -297,7 +297,7 @@ class SettingsViewModel @Inject constructor(
         _preferredUsbVidPid.value = value
         viewModelScope.launch {
             settingsStore.setPreferredUsbVidPid(value)
-            TpmsMonitorService.probeUsb(context, force = true)
+            TpmsMonitorService.reconnectUsb(context)
         }
     }
 

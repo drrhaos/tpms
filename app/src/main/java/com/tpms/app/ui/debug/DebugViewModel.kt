@@ -59,7 +59,7 @@ class DebugViewModel @Inject constructor(
     /** Reopens the dongle; reading itself is owned by the monitoring service. */
     fun probeRead() {
         viewModelScope.launch {
-            runCatching { TpmsMonitorService.probeUsb(context, force = true) }
+            runCatching { TpmsMonitorService.reconnectUsb(context) }
             refreshUsbScan()
         }
     }

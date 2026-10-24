@@ -45,6 +45,7 @@ import com.tpms.app.ui.widget.TpmsWidget
 import com.tpms.app.ui.widget.WidgetRemoteViews
 import com.tpms.app.ui.widget.WidgetSnapshotBuilder
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -109,13 +110,17 @@ class TpmsMonitorService : Service() {
                 Intent.ACTION_SCREEN_OFF -> {
                     suspendDetector.onScreenOff()
                     sawScreenOff = true
-                    serviceScope.launch { runCatching { heartbeatStore.recordScreenOff() } }
+                    // Blocking (a tiny write): FYT may kill the process right after the screen goes off.
+                    runCatching { heartbeatStore.recordScreenOffBlocking() }
                     debugLog.info("Power", "SCREEN_OFF")
                 }
             }
         }
     }
     private var screenReceiverRegistered = false
+
+    /** The session [onScreenOn] is reopening; its death is not counted as a silent session. */
+    @Volatile private var wakeClosedSession: DongleSession? = null
 
     // FYT ACC broadcasts come from other apps, so this one is exported. Logged only, for hardware checks.
     private val accReceiver = object : BroadcastReceiver() {
@@ -142,11 +147,15 @@ class TpmsMonitorService : Service() {
             mainHandler.post { alertNotifier.clearSensor(sensorId) }
         }
 
+        // Started during sleep (START_STICKY / liveness alarm): no SCREEN_OFF will come, seed the baseline.
+        if (!pm.isInteractive) suspendDetector.onScreenOff()
+
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
         }
         reportPreviousRestart()
+        // Before the screen receiver: the previous run must be read before this process records screen events.
         checkPreviousRun()
         screenReceiverRegistered = runCatching {
             ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -181,7 +190,7 @@ class TpmsMonitorService : Service() {
                 searchWake.trySend(Unit)
                 uiRefresh.trySend(Unit)
             }
-            ACTION_PROBE_USB -> probeUsb(force = intent.getBooleanExtra(EXTRA_FORCE, false))
+            ACTION_RECONNECT_USB -> reconnectUsb()
             ACTION_USB_DETACHED -> onUsbDetached(intent.getStringExtra(EXTRA_DEVICE_NAME))
             else -> {
                 ServiceStoppedNotifier.dismiss(this)
@@ -190,6 +199,8 @@ class TpmsMonitorService : Service() {
                 monitoringHealthNotifier.clear()
                 BootStartScheduler.cancel(this)
                 ServiceLivenessScheduler.schedule(this)
+                // App / widget / FrontApp start: search now, but keep recovery (like a manual check).
+                wakeSearch()
             }
         }
 
@@ -308,8 +319,14 @@ class TpmsMonitorService : Service() {
                 }
                 val stopped = repository.closeSession(session, reason)
                 if (!stopped) serviceHealth.recordError("reader stuck after: $reason")
+                val closedByWake = wakeClosedSession === session
+                if (closedByWake) wakeClosedSession = null
                 val decision = SessionRecoveryPolicy.afterSession(
-                    SessionOutcome(receivedBytes = session.hasReceivedBytes, readerStopped = stopped),
+                    SessionOutcome(
+                        receivedBytes = session.hasReceivedBytes,
+                        readerStopped = stopped,
+                        closedByWake = closedByWake
+                    ),
                     repository.recovery,
                     heartbeatStore.lastProcessRestartMs(),
                     System.currentTimeMillis()
@@ -353,9 +370,9 @@ class TpmsMonitorService : Service() {
     private fun onScreenOn() {
         val suspended = suspendDetector.onScreenOn()
         val survivedSleep = sawScreenOff
-        serviceScope.launch { runCatching { heartbeatStore.recordScreenOn(survivedSleep) } }
+        serviceScope.launch { runCatchingCancellable { heartbeatStore.recordScreenOn(survivedSleep) } }
         val session = repository.activeSession()?.takeIf { !it.isClosed }
-        val decision = SessionRecoveryPolicy.onWake(
+        val decision = SessionRecoveryPolicy.onScreenOn(
             repository.recovery,
             suspended,
             session?.let { WakeSession(it.streamsContinuously, it.silentForMs()) }
@@ -364,6 +381,7 @@ class TpmsMonitorService : Service() {
         applyRecoveryState(decision.state)
         wakeSearch()
         if (decision.action == WakeAction.Reopen && session != null) {
+            wakeClosedSession = session
             closeSessionAsync(session, if (suspended) "wake after suspend" else "wake: no data")
         }
     }
@@ -413,22 +431,17 @@ class TpmsMonitorService : Service() {
     }
 
     /**
-     * Before marking this run as started, checks whether the previous process was killed while
-     * the head unit slept (FYT `killAppWhenSleep`): reported here and flagged for the Teyes checklist.
+     * Marks this run as started and checks whether the previous process was killed while the head
+     * unit slept (FYT `killAppWhenSleep`): reported here and flagged for the Teyes checklist.
+     * Blocking (one small read-and-write) so it lands before any screen event of this process.
      */
     private fun checkPreviousRun() {
-        serviceScope.launch {
-            val bootCount = currentBootCount()
-            runCatching {
-                val previous = heartbeatStore.previousRun()
-                if (SleepKillDetector.killedDuringSleep(previous, bootCount)) {
-                    debugLog.warn("Service", "Previous process was killed during sleep (screen off at ${previous.lastScreenOffMs})")
-                    serviceHealth.recordError("killed during sleep")
-                    heartbeatStore.recordKilledInSleep(System.currentTimeMillis())
-                }
-            }
-            runCatching { heartbeatStore.markRunStarted(bootCount) }
-        }
+        val bootCount = currentBootCount()
+        val previous = runCatching { heartbeatStore.beginRunBlocking(bootCount) }.getOrNull() ?: return
+        if (!SleepKillDetector.killedDuringSleep(previous, bootCount)) return
+        debugLog.warn("Service", "Previous process was killed during sleep (screen off at ${previous.lastScreenOffMs})")
+        serviceHealth.recordError("killed during sleep")
+        serviceScope.launch { runCatchingCancellable { heartbeatStore.recordKilledInSleep(System.currentTimeMillis()) } }
     }
 
     private fun currentBootCount(): Int? =
@@ -438,20 +451,14 @@ class TpmsMonitorService : Service() {
         withTimeoutOrNull(timeoutMs) { searchWake.receive() }
     }
 
-    /**
-     * Reopens the session only if a continuously streaming dongle has gone quiet, so a probe
-     * never tears down a healthy connection; [force] reopens unconditionally.
-     */
-    private fun probeUsb(force: Boolean) {
+    /** Debug / settings: close the session and reopen the dongle unconditionally (or search now if none). */
+    private fun reconnectUsb() {
         val session = repository.activeSession()
         if (session == null || session.isClosed) {
             searchWake.trySend(Unit)
             return
         }
-        val quiet = session.streamsContinuously && session.silentForMs() > SessionRecoveryPolicy.PROBE_QUIET_MS
-        if (force || quiet) {
-            closeSessionAsync(session, if (force) "forced reconnect" else "probe: no data")
-        }
+        closeSessionAsync(session, "forced reconnect")
     }
 
     private fun onUsbDetached(deviceName: String?) {
@@ -622,9 +629,8 @@ class TpmsMonitorService : Service() {
         const val ACTION_MUTE = "com.tpms.app.action.MUTE"
         const val ACTION_STOP = "com.tpms.app.action.STOP"
         const val ACTION_CHECK_NOW = "com.tpms.app.action.CHECK_NOW"
-        const val ACTION_PROBE_USB = "com.tpms.app.action.PROBE_USB"
+        const val ACTION_RECONNECT_USB = "com.tpms.app.action.RECONNECT_USB"
         const val ACTION_USB_DETACHED = "com.tpms.app.action.USB_DETACHED"
-        const val EXTRA_FORCE = "com.tpms.app.extra.FORCE"
         const val EXTRA_DEVICE_NAME = "com.tpms.app.extra.DEVICE_NAME"
         const val EXTRA_DEVICE_ATTACHED = "com.tpms.app.extra.DEVICE_ATTACHED"
 
@@ -642,12 +648,9 @@ class TpmsMonitorService : Service() {
             startForegroundSafely(context, intent)
         }
 
-        /** Reopen the dongle if it stopped sending data; [force] reopens it unconditionally. */
-        fun probeUsb(context: Context, force: Boolean = false) {
-            val intent = Intent(context, TpmsMonitorService::class.java).apply {
-                action = ACTION_PROBE_USB
-                putExtra(EXTRA_FORCE, force)
-            }
+        /** Close the dongle session and reopen it unconditionally (debug / settings). */
+        fun reconnectUsb(context: Context) {
+            val intent = Intent(context, TpmsMonitorService::class.java).apply { action = ACTION_RECONNECT_USB }
             startForegroundSafely(context, intent)
         }
 
@@ -664,4 +667,13 @@ class TpmsMonitorService : Service() {
             context.stopService(Intent(context, TpmsMonitorService::class.java))
         }
     }
+}
+
+/** [runCatching] for coroutines: failures are caught, cancellation is rethrown. */
+private inline fun <T> runCatchingCancellable(block: () -> T): Result<T> = try {
+    Result.success(block())
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Throwable) {
+    Result.failure(e)
 }

@@ -51,13 +51,28 @@ class ServiceHeartbeatStore @Inject constructor(
     suspend fun lastProcessRestartReason(): String? =
         context.heartbeatDataStore.data.first()[KEY_LAST_PROCESS_RESTART_REASON]
 
-    /** Marks a run as started; [markRunEnded] removes it, so a marker left behind means the process was killed. */
-    suspend fun markRunStarted(bootCount: Int?, atMs: Long = System.currentTimeMillis()) {
+    /**
+     * Returns what the previous process left behind and, in the same write, marks this run as
+     * started; [markRunEndedBlocking] removes the marker, so a marker left behind means the process
+     * was killed. Must run before this process records any screen event.
+     */
+    suspend fun beginRun(bootCount: Int?, atMs: Long = System.currentTimeMillis()): PreviousRun {
+        var previous: PreviousRun? = null
         context.heartbeatDataStore.edit {
+            previous = PreviousRun(
+                runStartedAtMs = it[KEY_RUN_STARTED_MS],
+                runBootCount = it[KEY_RUN_BOOT_COUNT],
+                lastScreenOffMs = it[KEY_LAST_SCREEN_OFF_MS],
+                lastScreenOnMs = it[KEY_LAST_SCREEN_ON_MS],
+                lastProcessRestartMs = it[KEY_LAST_PROCESS_RESTART_MS]
+            )
             it[KEY_RUN_STARTED_MS] = atMs
             if (bootCount != null) it[KEY_RUN_BOOT_COUNT] = bootCount else it.remove(KEY_RUN_BOOT_COUNT)
         }
+        return checkNotNull(previous)
     }
+
+    fun beginRunBlocking(bootCount: Int?): PreviousRun = runBlocking { beginRun(bootCount) }
 
     /** Clean shutdown (`onDestroy`, including an intentional stop). */
     fun markRunEndedBlocking() {
@@ -69,8 +84,9 @@ class ServiceHeartbeatStore @Inject constructor(
         }
     }
 
-    suspend fun recordScreenOff(atMs: Long = System.currentTimeMillis()) {
-        context.heartbeatDataStore.edit { it[KEY_LAST_SCREEN_OFF_MS] = atMs }
+    /** Blocking: the process may be killed right after the screen goes off, so it must hit disk first. */
+    fun recordScreenOffBlocking(atMs: Long = System.currentTimeMillis()) {
+        runBlocking { context.heartbeatDataStore.edit { it[KEY_LAST_SCREEN_OFF_MS] = atMs } }
     }
 
     /** [survivedSleep]: this process also saw the SCREEN_OFF, so a previous sleep kill warning is stale. */
@@ -79,18 +95,6 @@ class ServiceHeartbeatStore @Inject constructor(
             it[KEY_LAST_SCREEN_ON_MS] = atMs
             if (survivedSleep) it.remove(KEY_KILLED_IN_SLEEP_MS)
         }
-    }
-
-    /** What the previous process left behind; read before [markRunStarted] overwrites it. */
-    suspend fun previousRun(): PreviousRun {
-        val prefs = context.heartbeatDataStore.data.first()
-        return PreviousRun(
-            runStartedAtMs = prefs[KEY_RUN_STARTED_MS],
-            runBootCount = prefs[KEY_RUN_BOOT_COUNT],
-            lastScreenOffMs = prefs[KEY_LAST_SCREEN_OFF_MS],
-            lastScreenOnMs = prefs[KEY_LAST_SCREEN_ON_MS],
-            lastProcessRestartMs = prefs[KEY_LAST_PROCESS_RESTART_MS]
-        )
     }
 
     suspend fun recordKilledInSleep(atMs: Long) {
