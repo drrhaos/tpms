@@ -108,6 +108,13 @@ class TpmsRepository @Inject constructor(
     @Volatile
     private var lastLiveDataAtMs: Long = 0L
 
+    /**
+     * Serialises the snapshot restore against live data and session state: the restore's "still empty"
+     * and "no session" checks must hold while it publishes the sensors, [restoredFromSnapshot] and the
+     * Disconnected state. Never held across a suspension point.
+     */
+    private val restoreLock = Any()
+
     init {
         repoScope.launch {
             settingsStore.awaitLoaded()
@@ -131,16 +138,22 @@ class TpmsRepository @Inject constructor(
             .filterValues { it.label.isBlank() || it.label in wheelLabels }
         if (filtered.isEmpty()) return
         val restoredProtocol = lastKnownSnapshotStore.protocol()
-        // Live frames may have filled the sensors while the snapshot was loading: they win.
-        if (!_sensors.compareAndSet(emptyMap(), filtered)) {
+        val applied = synchronized(restoreLock) {
+            // Live frames may have filled the sensors while the snapshot was loading: they win.
+            if (_sensors.value.isNotEmpty()) return@synchronized false
+            // Flags before the sensors, so a reader never sees restored sensors without them.
+            restoredFromSnapshot = true
+            if (lastSessionProtocol == null) lastSessionProtocol = restoredProtocol
+            if (lastLiveDataAtMs <= 0L) lastLiveDataAtMs = filtered.values.maxOf { it.timestamp }
+            _sensors.value = filtered
+            // A session opened (or reconnecting) meanwhile owns the state (Connecting); else Disconnected.
+            if (activeSession == null && !isReconnecting) updateState(TpmsState.Disconnected)
+            true
+        }
+        if (!applied) {
             debugLog.info("Repository", "Snapshot restore skipped: live data arrived first")
             return
         }
-        restoredFromSnapshot = true
-        if (lastSessionProtocol == null) lastSessionProtocol = restoredProtocol
-        if (lastLiveDataAtMs <= 0L) lastLiveDataAtMs = filtered.values.maxOf { it.timestamp }
-        // A session opened (or reconnecting) meanwhile owns the state (Connecting); else Disconnected.
-        if (activeSession == null && !isReconnecting) updateState(TpmsState.Disconnected)
         debugLog.info(
             "Repository",
             "Restored ${filtered.size} sensors from last-known snapshot (${restoredProtocol?.displayName ?: "protocol unknown"})"
@@ -167,6 +180,7 @@ class TpmsRepository @Inject constructor(
     fun connectionSnapshot(): SensorFreshness.ConnectionSnapshot {
         val session = activeSession
         return SensorFreshness.ConnectionSnapshot(
+            hasData = _sensors.value.isNotEmpty(),
             hasLiveSession = session != null && !session.isClosed && !isReconnecting && !restoredFromSnapshot,
             protocol = session?.protocol,
             sessionOpenedAtMs = dongleOpenedAtMs,
@@ -174,7 +188,10 @@ class TpmsRepository @Inject constructor(
         )
     }
 
-    /** "Data outdated" for the header, widget, overlay and notification: judged by the connection. */
+    /**
+     * "Data outdated" for the header and widget: judged by the connection; never true while no
+     * sensor is shown (see [SensorFreshness.isDataStale]).
+     */
     fun isDataStale(now: Long = System.currentTimeMillis()): Boolean =
         SensorFreshness.isDataStale(connectionSnapshot(), now)
 
@@ -324,8 +341,11 @@ class TpmsRepository @Inject constructor(
             lastValidFrameAtMs = 0L
             activeSession = session
             session.start()
-            isReconnecting = false
-            updateState(TpmsState.Connecting(attempt = 0))
+            // Under the lock so a concurrent snapshot restore cannot overwrite Connecting with Disconnected.
+            synchronized(restoreLock) {
+                isReconnecting = false
+                updateState(TpmsState.Connecting(attempt = 0))
+            }
             debugLog.info("Repository", "Session opened: ${link.deviceName} (${link.vidPid}) as ${protocol.displayName}")
             session
         } catch (e: Exception) {
@@ -393,11 +413,13 @@ class TpmsRepository @Inject constructor(
             serviceHealth.recordReconnect()
         } else {
             alertTracker.clear()
-            _sensors.value = emptyMap()
-            restoredFromSnapshot = false
-            lastLiveDataAtMs = 0L
-            isReconnecting = false
-            updateState(TpmsState.Disconnected)
+            synchronized(restoreLock) {
+                _sensors.value = emptyMap()
+                restoredFromSnapshot = false
+                lastLiveDataAtMs = 0L
+                isReconnecting = false
+                updateState(TpmsState.Disconnected)
+            }
         }
         return stopped
     }
@@ -457,7 +479,11 @@ class TpmsRepository @Inject constructor(
                 return
             }
             val sensor = alertTracker.apply(reading, settingsStore.thresholds.value)
-            _sensors.update { it + (sensor.id to sensor) }
+            // Live data ends the snapshot state atomically with publishing the reading (see restoreLock).
+            synchronized(restoreLock) {
+                restoredFromSnapshot = false
+                _sensors.update { it + (sensor.id to sensor) }
+            }
             runCatching { sensorDao.insert(sensor.toReading()) }
                 .onFailure { debugLog.warn("Repository", "DB insert failed: ${it.message}") }
             if (sensor.isAlert) {
@@ -465,7 +491,6 @@ class TpmsRepository @Inject constructor(
             } else {
                 onSensorNormalCallback?.invoke(sensor.id)
             }
-            restoredFromSnapshot = false
             refreshConnectionState(sensor.timestamp)
             persistLastKnown()
         } catch (e: Exception) {

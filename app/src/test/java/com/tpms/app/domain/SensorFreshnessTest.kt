@@ -73,6 +73,7 @@ class SensorFreshnessTest {
         openedAt: Long = now - 10 * FRAMES_STALE_AFTER_MS,
         lastFrame: Long = 0L
     ) = ConnectionSnapshot(
+        hasData = true,
         hasLiveSession = true,
         protocol = protocol,
         sessionOpenedAtMs = openedAt,
@@ -82,12 +83,21 @@ class SensorFreshnessTest {
     @Test
     fun noLiveSession_isStale() {
         val noSession = ConnectionSnapshot(
+            hasData = true,
             hasLiveSession = false,
             protocol = null,
             sessionOpenedAtMs = 0L,
             lastValidFrameAtMs = 0L
         )
         assertTrue(SensorFreshness.isDataStale(noSession, now))
+    }
+
+    @Test
+    fun noData_neverStale() {
+        val noSession = live(null).copy(hasData = false, hasLiveSession = false)
+        assertFalse(SensorFreshness.isDataStale(noSession, now))
+        val silentStream = live(DongleProtocol.SERIAL_AA55, lastFrame = 0L).copy(hasData = false)
+        assertFalse(SensorFreshness.isDataStale(silentStream, now))
     }
 
     @Test

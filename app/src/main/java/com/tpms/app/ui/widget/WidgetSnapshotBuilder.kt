@@ -43,11 +43,8 @@ class WidgetSnapshotBuilder @Inject constructor(
         // Connection-based (wayfinder 10): minutes since the last valid frame, not newest sensor age.
         val dataAgeSec = repository.dataAgeSec().takeIf { liveSensors.isNotEmpty() }
             ?: persistedAgeSec(persistedAtMs)
-        val dataStale = when {
-            liveSensors.isNotEmpty() -> repository.isDataStale()
-            sensors.isNotEmpty() -> true
-            else -> false
-        }
+        // Persisted sensors not restored into the repository yet come from a snapshot: outdated.
+        val dataStale = repository.isDataStale() || (liveSensors.isEmpty() && persisted.isNotEmpty())
         return WidgetSnapshot.from(
             context = context,
             state = state,

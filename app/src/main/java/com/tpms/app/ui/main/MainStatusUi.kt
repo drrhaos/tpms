@@ -20,7 +20,7 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
 
     when (val state = uiState.tpmsState) {
         is TpmsState.Disconnected -> {
-            uiState.usbFault?.let { return usbFaultPresentation(it) }
+            uiState.usbFault?.let { return usbFaultPresentation(it, uiState) }
             val text = if (uiState.monitoringOffline) {
                 stringResource(R.string.notification_monitoring_offline_title)
             } else {
@@ -29,7 +29,7 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
             return withStaleSuffix(text, uiState) to StatusColors.disconnected
         }
         is TpmsState.Connecting -> {
-            uiState.usbFault?.let { return usbFaultPresentation(it) }
+            uiState.usbFault?.let { return usbFaultPresentation(it, uiState) }
             return withStaleSuffix(state.statusLabel(), uiState) to StatusColors.warning
         }
         is TpmsState.Alert -> {
@@ -43,7 +43,7 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
                 return stringResource(R.string.status_no_sensor_format, label) to StatusColors.alert
             }
             // Data flows again, but a stuck reader is still leaked until the head unit reboots.
-            if (uiState.usbFault == UsbFault.USB_STUCK) return usbFaultPresentation(UsbFault.USB_STUCK)
+            if (uiState.usbFault == UsbFault.USB_STUCK) return usbFaultPresentation(UsbFault.USB_STUCK, uiState)
             if (uiState.protocolUnhealthy) {
                 return stringResource(R.string.notification_monitoring_blind_title) to StatusColors.warning
             }
@@ -59,20 +59,22 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
 }
 
 /**
- * Appends "data outdated" to [base] like the widget does in every state (wayfinder 10); without a
- * known age the minutes are left out rather than guessed. [MainUiState.dataStale] is never set
- * when there is no data at all.
+ * Appends "data outdated" to [base] in every state (wayfinder 10); without a known age the minutes
+ * are left out rather than guessed. [MainUiState.dataStale] is never set when there is no data at
+ * all (rule in [com.tpms.app.domain.SensorFreshness.isDataStale]).
  */
 @Composable
 private fun withStaleSuffix(base: String, uiState: MainUiState): String {
     if (!uiState.dataStale) return base
     return uiState.dataAgeMinutes
-        ?.let { stringResource(R.string.widget_status_stale_format, base, it) }
-        ?: stringResource(R.string.widget_status_stale_short, base)
+        ?.let { stringResource(R.string.main_status_stale_suffix_format, base, it) }
+        ?: stringResource(R.string.main_status_stale_suffix, base)
 }
 
+/** The fault stays the primary text and colour; outdated data is still flagged after it. */
 @Composable
-private fun usbFaultPresentation(fault: UsbFault): Pair<String, Color> = fault.label() to when (fault) {
-    UsbFault.DONGLE_SILENT -> StatusColors.warning
-    UsbFault.USB_STUCK -> StatusColors.alert
-}
+private fun usbFaultPresentation(fault: UsbFault, uiState: MainUiState): Pair<String, Color> =
+    withStaleSuffix(fault.label(), uiState) to when (fault) {
+        UsbFault.DONGLE_SILENT -> StatusColors.warning
+        UsbFault.USB_STUCK -> StatusColors.alert
+    }

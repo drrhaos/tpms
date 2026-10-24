@@ -119,8 +119,7 @@ class MainViewModel @Inject constructor(
             val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
             val now = System.currentTimeMillis()
             val ageSec = repository.dataAgeSec(now)
-            // "Data outdated" needs data to be outdated: with no readings at all the header says why.
-            val stale = sensors.isNotEmpty() && repository.isDataStale(now)
+            val stale = repository.isDataStale(now)
             val wheelProtocol = repository.wheelFreshnessProtocol()
             val protocolUnhealthy = repository.isProtocolUnhealthy()
             val monitoringOffline = MonitoringHealthPolicy.shouldAlertMonitoringOffline(

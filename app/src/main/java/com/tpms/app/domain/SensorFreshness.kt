@@ -13,14 +13,19 @@ import com.tpms.app.domain.model.TireSensor
  * - Overall ("данные устарели"): judged by the connection, not by sensor ages — stale when there is no
  *   live session (reconnecting, dongle gone, data restored from a snapshot), or when a continuously
  *   streaming session (AA55/Deelife) has produced no valid frame for more than [FRAMES_STALE_AFTER_MS].
+ *   Empty data is never outdated: with no readings at all the header says why instead.
  */
 object SensorFreshness {
 
     const val HID_STALE_AFTER_MS = 15 * 60_000L
     const val FRAMES_STALE_AFTER_MS = 60_000L
 
-    /** Inputs for [isDataStale]; [protocol] is the live session's protocol (null when unknown). */
+    /**
+     * Inputs for [isDataStale]; [protocol] is the live session's protocol (null when unknown),
+     * [hasData] whether any sensor reading (live or restored) is shown.
+     */
     data class ConnectionSnapshot(
+        val hasData: Boolean,
         val hasLiveSession: Boolean,
         val protocol: DongleProtocol?,
         val sessionOpenedAtMs: Long,
@@ -46,6 +51,7 @@ object SensorFreshness {
         sensor != null && !sensor.isAlert && isWheelStale(sensor, protocol, now)
 
     fun isDataStale(connection: ConnectionSnapshot, now: Long): Boolean {
+        if (!connection.hasData) return false
         if (!connection.hasLiveSession) return true
         if (connection.protocol?.streamsContinuously != true) return false
         val referenceMs = maxOf(connection.sessionOpenedAtMs, connection.lastValidFrameAtMs)
