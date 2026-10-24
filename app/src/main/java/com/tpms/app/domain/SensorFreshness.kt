@@ -1,0 +1,46 @@
+package com.tpms.app.domain
+
+import com.tpms.app.domain.model.DongleProtocol
+import com.tpms.app.domain.model.TireSensor
+
+/**
+ * "Old data" is a state, not an alert (wayfinder 10).
+ *
+ * - Per wheel: only HID has an honest [TireSensor.timestamp]; a wheel is stale when its sensor has not
+ *   transmitted for more than [HID_STALE_AFTER_MS]. AA55/Deelife receivers repeat their slot cache, so
+ *   the timestamp is the frame arrival time — those wheels are never stale here; a dead sensor is
+ *   flagged by the receiver itself (0x20 → SENSOR_LOST).
+ * - Overall ("данные устарели"): judged by the connection, not by sensor ages — stale when there is no
+ *   live session (reconnecting, dongle gone, data restored from a snapshot), or when a continuously
+ *   streaming session (AA55/Deelife) has produced no valid frame for more than [FRAMES_STALE_AFTER_MS].
+ */
+object SensorFreshness {
+
+    const val HID_STALE_AFTER_MS = 15 * 60_000L
+    const val FRAMES_STALE_AFTER_MS = 60_000L
+
+    /** Inputs for [isDataStale]; [protocol] is the live session's protocol (null when unknown). */
+    data class ConnectionSnapshot(
+        val hasLiveSession: Boolean,
+        val protocol: DongleProtocol?,
+        val sessionOpenedAtMs: Long,
+        val lastValidFrameAtMs: Long
+    )
+
+    fun isWheelStale(sensor: TireSensor, protocol: DongleProtocol?, now: Long): Boolean =
+        protocol == DongleProtocol.HID_GENERIC && now - sensor.timestamp > HID_STALE_AFTER_MS
+
+    /** Whole minutes since the sensor's last reading, for the "N мин" caption; never negative. */
+    fun ageMinutes(sensor: TireSensor, now: Long): Long =
+        (now - sensor.timestamp).coerceAtLeast(0L) / 60_000L
+
+    fun isDataStale(connection: ConnectionSnapshot, now: Long): Boolean {
+        if (!connection.hasLiveSession) return true
+        if (!streamsContinuously(connection.protocol)) return false
+        val referenceMs = maxOf(connection.sessionOpenedAtMs, connection.lastValidFrameAtMs)
+        return now - referenceMs > FRAMES_STALE_AFTER_MS
+    }
+
+    private fun streamsContinuously(protocol: DongleProtocol?): Boolean =
+        protocol == DongleProtocol.SERIAL_AA55 || protocol == DongleProtocol.DEELIFE
+}
