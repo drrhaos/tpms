@@ -118,7 +118,7 @@ Key source paths: `service/TpmsMonitorService.kt`, `data/usb/TpmsProtocolRouter.
 
 ```bash
 adb shell dumpsys usb
-adb logcat -s TPMS_HID TPMS_RAW TPMS_WIDGET WakeEscalation
+adb logcat -s TPMS_HID TPMS_RAW TPMS_WIDGET BootReceiver
 ```
 
 ### Teyes emulator profile

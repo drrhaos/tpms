@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -31,7 +32,10 @@ import com.tpms.app.domain.RecoveryDecision
 import com.tpms.app.domain.RecoveryState
 import com.tpms.app.domain.SessionOutcome
 import com.tpms.app.domain.SessionRecoveryPolicy
+import com.tpms.app.domain.SuspendDetector
 import com.tpms.app.domain.UsbFault
+import com.tpms.app.domain.WakeAction
+import com.tpms.app.domain.WakeSession
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.label
 import com.tpms.app.ui.main.MainActivity
@@ -55,6 +59,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -86,20 +91,32 @@ class TpmsMonitorService : Service() {
     /** Forces an immediate UI/widget/notification refresh. */
     private val uiRefresh = Channel<Unit>(Channel.CONFLATED)
 
+    /** Set by a wake; the session loop drops its search backoff back to the minimum. */
+    private val searchIntervalReset = AtomicBoolean(false)
+
+    private val suspendDetector = SuspendDetector({ SystemClock.elapsedRealtime() - SystemClock.uptimeMillis() })
+
     // SCREEN_ON/OFF are only delivered to runtime-registered receivers.
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_ON -> {
-                    debugLog.info("Power", "SCREEN_ON — wake escalation")
-                    onHeadUnitWake()
-                    WakeEscalationScheduler.onScreenOn(context)
+                Intent.ACTION_SCREEN_ON -> onScreenOn()
+                Intent.ACTION_SCREEN_OFF -> {
+                    suspendDetector.onScreenOff()
+                    debugLog.info("Power", "SCREEN_OFF")
                 }
-                Intent.ACTION_SCREEN_OFF -> debugLog.info("Power", "SCREEN_OFF")
             }
         }
     }
     private var screenReceiverRegistered = false
+
+    // FYT ACC broadcasts come from other apps, so this one is exported. Logged only, for hardware checks.
+    private val accReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            debugLog.info("Power", "ACC event (runtime): ${intent.action}")
+        }
+    }
+    private var accReceiverRegistered = false
 
     override fun onCreate() {
         super.onCreate()
@@ -125,6 +142,10 @@ class TpmsMonitorService : Service() {
         reportPreviousRestart()
         screenReceiverRegistered = runCatching {
             ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }.isSuccess
+        val accFilter = IntentFilter().apply { BootReceiver.ACC_ACTIONS.forEach { addAction(it) } }
+        accReceiverRegistered = runCatching {
+            ContextCompat.registerReceiver(this, accReceiver, accFilter, ContextCompat.RECEIVER_EXPORTED)
         }.isSuccess
     }
 
@@ -224,6 +245,10 @@ class TpmsMonitorService : Service() {
             runCatching { unregisterReceiver(screenReceiver) }
             screenReceiverRegistered = false
         }
+        if (accReceiverRegistered) {
+            runCatching { unregisterReceiver(accReceiver) }
+            accReceiverRegistered = false
+        }
         wakeLock?.let {
             if (it.isHeld) it.release()
         }
@@ -239,7 +264,7 @@ class TpmsMonitorService : Service() {
 
     /**
      * Finds the dongle, opens a [DongleSession] and consumes it until it dies, then starts over.
-     * The search interval grows while no dongle is found and resets once one opens.
+     * The search interval grows while no dongle is found and resets once one opens or on a wake.
      */
     private fun startSessionLoop() {
         sessionJob?.cancel()
@@ -258,10 +283,15 @@ class TpmsMonitorService : Service() {
                 if (session == null) {
                     repository.updateState(TpmsState.Disconnected)
                     awaitSearchWake(searchIntervalMs)
-                    searchIntervalMs = (searchIntervalMs * 2).coerceAtMost(SEARCH_MAX_INTERVAL_MS)
+                    searchIntervalMs = if (searchIntervalReset.getAndSet(false)) {
+                        SEARCH_MIN_INTERVAL_MS
+                    } else {
+                        (searchIntervalMs * 2).coerceAtMost(SEARCH_MAX_INTERVAL_MS)
+                    }
                     continue
                 }
                 searchIntervalMs = SEARCH_MIN_INTERVAL_MS
+                searchIntervalReset.set(false)
 
                 val reason = repository.consume(session) {
                     keepCpuAwake()
@@ -301,9 +331,34 @@ class TpmsMonitorService : Service() {
         if (next != current) applyRecoveryState(next)
     }
 
-    /** SCREEN_ON or a dongle attach: forget the silent streak and search at full speed. */
+    /** Dongle attach or USB permission granted: forget the silent streak and search at full speed. */
     private fun onHeadUnitWake() {
         applyRecoveryState(SessionRecoveryPolicy.onWake(repository.recovery))
+        wakeSearch()
+    }
+
+    /**
+     * Runtime SCREEN_ON (all devices): reset recovery, search at full speed, and reopen the session
+     * if the device really suspended, or if a streaming session has gone quiet (soft probe).
+     */
+    private fun onScreenOn() {
+        val suspended = suspendDetector.onScreenOn()
+        val session = repository.activeSession()?.takeIf { !it.isClosed }
+        val decision = SessionRecoveryPolicy.onWake(
+            repository.recovery,
+            suspended,
+            session?.let { WakeSession(it.streamsContinuously, it.silentForMs()) }
+        )
+        debugLog.info("Power", "SCREEN_ON — suspended=$suspended action=${decision.action}")
+        applyRecoveryState(decision.state)
+        wakeSearch()
+        if (decision.action == WakeAction.Reopen && session != null) {
+            closeSessionAsync(session, if (suspended) "wake after suspend" else "wake: no data")
+        }
+    }
+
+    private fun wakeSearch() {
+        searchIntervalReset.set(true)
         searchWake.trySend(Unit)
     }
 
@@ -351,8 +406,8 @@ class TpmsMonitorService : Service() {
     }
 
     /**
-     * Reopens the session only if a continuously streaming dongle has gone quiet, so wake
-     * escalation never tears down a healthy connection; [force] reopens unconditionally.
+     * Reopens the session only if a continuously streaming dongle has gone quiet, so a probe
+     * never tears down a healthy connection; [force] reopens unconditionally.
      */
     private fun probeUsb(force: Boolean) {
         val session = repository.activeSession()
@@ -360,7 +415,7 @@ class TpmsMonitorService : Service() {
             searchWake.trySend(Unit)
             return
         }
-        val quiet = session.streamsContinuously && session.silentForMs() > PROBE_QUIET_MS
+        val quiet = session.streamsContinuously && session.silentForMs() > SessionRecoveryPolicy.PROBE_QUIET_MS
         if (force || quiet) {
             closeSessionAsync(session, if (force) "forced reconnect" else "probe: no data")
         }
@@ -524,7 +579,6 @@ class TpmsMonitorService : Service() {
         private const val NOTIF_ID = 1001
         private const val SEARCH_MIN_INTERVAL_MS = 1_000L
         private const val SEARCH_MAX_INTERVAL_MS = 5_000L
-        private const val PROBE_QUIET_MS = 5_000L
         private const val RESTART_REPORT_WINDOW_MS = 10 * 60_000L
         private const val UI_MIN_INTERVAL_MS = 1_000L
         private const val UI_TICK_MS = 30_000L

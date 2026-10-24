@@ -61,14 +61,6 @@
         </receiver>
 
         <receiver
-            android:name=".service.WakeEscalationReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.tpms.app.action.WAKE_ESCALATION" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
             android:name=".service.BootReceiver"
             android:exported="true">
             <intent-filter>
@@ -76,6 +68,13 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="com.tpms.app.action.DELAYED_BOOT_START" />
+            </intent-filter>
+            <!-- FYT/Teyes ACC and quick-boot events: logged only, for hardware checks. -->
+            <intent-filter>
+                <action android:name="com.fyt.boot.ACCON" />
+                <action android:name="com.glsx.boot.ACCON" />
+                <action android:name="android.intent.action.ACTION_MT_COMMAND_SLEEP_OUT" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
 
