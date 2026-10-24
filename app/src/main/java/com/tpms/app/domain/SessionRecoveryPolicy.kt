@@ -32,12 +32,32 @@ sealed interface RecoveryAction {
 /** [action] null means "keep searching as usual". */
 data class RecoveryDecision(val action: RecoveryAction?, val state: RecoveryState)
 
+/** What the service knows about the open session at screen-on; null in [SessionRecoveryPolicy.onWake] means no session. */
+data class WakeSession(
+    /** The protocol streams frames continuously (AA55, Deelife); HID sends only on change. */
+    val streamsContinuously: Boolean,
+    /** Time since the session last received a byte. */
+    val silentForMs: Long
+)
+
+sealed interface WakeAction {
+    /** Keep the session (if any); wake the search loop at minimum backoff. */
+    data object WakeSearch : WakeAction
+
+    /** Close the open session and reopen the dongle now. */
+    data object Reopen : WakeAction
+}
+
+data class WakeDecision(val action: WakeAction, val state: RecoveryState)
+
 /**
  * Decides what the service does after a session dies or a dongle fails to open.
  * - A stuck reader is left behind and the dongle reopened; a second one in the same process, or a
  *   failed open while one is stuck, restarts the process (at most once per 30 min, else [UsbFault.USB_STUCK]).
  * - Three sessions in a row without a single byte report [UsbFault.DONGLE_SILENT] and slow retries
  *   to 30 s, until a byte arrives or the head unit wakes.
+ * - On screen-on the silent streak is cleared; a session that went through a real suspend is
+ *   reopened whatever its protocol, otherwise only a streaming session quiet for > [PROBE_QUIET_MS].
  */
 object SessionRecoveryPolicy {
     const val REOPEN_DELAY_MS = 1_000L
@@ -45,6 +65,8 @@ object SessionRecoveryPolicy {
     const val SILENT_SESSIONS_FOR_FAULT = 3
     const val STUCK_READERS_FOR_RESTART = 2
     const val RESTART_MIN_INTERVAL_MS = 30 * 60_000L
+    /** A streaming session silent longer than this at screen-on is reopened even without suspend. */
+    const val PROBE_QUIET_MS = 5_000L
 
     fun afterSession(
         outcome: SessionOutcome,
@@ -83,8 +105,19 @@ object SessionRecoveryPolicy {
      */
     fun onBytes(state: RecoveryState): RecoveryState = clearSilence(state)
 
-    /** The head unit woke (screen on) or the dongle was attached: retry at full speed. */
+    /** The dongle was attached or USB permission granted: retry at full speed. */
     fun onWake(state: RecoveryState): RecoveryState = clearSilence(state)
+
+    /**
+     * The screen turned on. Recovery is reset as in [onWake]; the open [session] (null = none) is
+     * reopened if the device really [suspended], or, without suspend, if it streams continuously
+     * and has been quiet for more than [PROBE_QUIET_MS]. Otherwise only the search is woken.
+     */
+    fun onWake(state: RecoveryState, suspended: Boolean, session: WakeSession?): WakeDecision {
+        val reopen = session != null &&
+            (suspended || (session.streamsContinuously && session.silentForMs > PROBE_QUIET_MS))
+        return WakeDecision(if (reopen) WakeAction.Reopen else WakeAction.WakeSearch, onWake(state))
+    }
 
     private fun clearSilence(state: RecoveryState): RecoveryState = state.copy(
         silentSessions = 0,

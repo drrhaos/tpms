@@ -70,6 +70,71 @@ class SessionRecoveryPolicyTest {
         assertEquals(RecoveryState(stuckReaders = 1), SessionRecoveryPolicy.onWake(state))
     }
 
+    // --- Wake decision (screen on) ---
+
+    private val streaming = WakeSession(streamsContinuously = true, silentForMs = 0L)
+    private val hid = WakeSession(streamsContinuously = false, silentForMs = 60_000L)
+
+    @Test
+    fun wakeDecision_resetsStateLikeWake() {
+        val state = RecoveryState(stuckReaders = 1, silentSessions = 3, fault = UsbFault.DONGLE_SILENT)
+        val decision = SessionRecoveryPolicy.onWake(state, suspended = true, session = streaming)
+        assertEquals(RecoveryState(stuckReaders = 1), decision.state)
+    }
+
+    @Test
+    fun wakeDecision_keepsStuckFault() {
+        val state = RecoveryState(stuckReaders = 2, silentSessions = 1, fault = UsbFault.USB_STUCK)
+        val decision = SessionRecoveryPolicy.onWake(state, suspended = false, session = null)
+        assertEquals(RecoveryState(stuckReaders = 2, fault = UsbFault.USB_STUCK), decision.state)
+    }
+
+    @Test
+    fun wakeDecision_noSession_wakesSearch() {
+        assertEquals(
+            WakeAction.WakeSearch,
+            SessionRecoveryPolicy.onWake(RecoveryState(), suspended = true, session = null).action
+        )
+        assertEquals(
+            WakeAction.WakeSearch,
+            SessionRecoveryPolicy.onWake(RecoveryState(), suspended = false, session = null).action
+        )
+    }
+
+    @Test
+    fun wakeDecision_afterSuspend_reopensStreamingSession() {
+        val decision = SessionRecoveryPolicy.onWake(RecoveryState(), suspended = true, session = streaming)
+        assertEquals(WakeAction.Reopen, decision.action)
+    }
+
+    @Test
+    fun wakeDecision_afterSuspend_reopensHidSession() {
+        val freshHid = hid.copy(silentForMs = 0L)
+        val decision = SessionRecoveryPolicy.onWake(RecoveryState(), suspended = true, session = freshHid)
+        assertEquals(WakeAction.Reopen, decision.action)
+    }
+
+    @Test
+    fun wakeDecision_noSuspend_reopensQuietStreamingSession() {
+        val quiet = streaming.copy(silentForMs = SessionRecoveryPolicy.PROBE_QUIET_MS + 1)
+        val decision = SessionRecoveryPolicy.onWake(RecoveryState(), suspended = false, session = quiet)
+        assertEquals(WakeAction.Reopen, decision.action)
+    }
+
+    @Test
+    fun wakeDecision_noSuspend_keepsStreamingSessionWithRecentData() {
+        val recent = streaming.copy(silentForMs = SessionRecoveryPolicy.PROBE_QUIET_MS)
+        val decision = SessionRecoveryPolicy.onWake(RecoveryState(), suspended = false, session = recent)
+        assertEquals(WakeAction.WakeSearch, decision.action)
+    }
+
+    @Test
+    fun wakeDecision_noSuspend_keepsQuietHidSession() {
+        // HID sends only on change, so silence alone says nothing about it.
+        val decision = SessionRecoveryPolicy.onWake(RecoveryState(), suspended = false, session = hid)
+        assertEquals(WakeAction.WakeSearch, decision.action)
+    }
+
     // --- Stuck reader ---
 
     @Test
