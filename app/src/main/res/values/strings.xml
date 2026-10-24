@@ -43,8 +43,6 @@
     <!-- Status -->
     <string name="status_alert_format">%1$s — %2$s</string>
     <string name="status_no_sensor_format">%1$s — no sensor data</string>
-    <string name="main_status_stale_format">Data outdated (%1$d min ago)</string>
-    <string name="main_status_stale">Data outdated</string>
     <string name="main_status_stale_suffix_format">%1$s · data outdated (%2$d min ago)</string>
     <string name="main_status_stale_suffix">%1$s · data outdated</string>
     <string name="label_disconnected">Disconnected</string>

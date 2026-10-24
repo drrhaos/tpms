@@ -40,20 +40,17 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
         }
         is TpmsState.Connected -> {
             MainUiHealth.firstMissingWheelLabel(uiState)?.let { label ->
-                return stringResource(R.string.status_no_sensor_format, label) to StatusColors.alert
+                val text = stringResource(R.string.status_no_sensor_format, label)
+                return withStaleSuffix(text, uiState) to StatusColors.alert
             }
             // Data flows again, but a stuck reader is still leaked until the head unit reboots.
             if (uiState.usbFault == UsbFault.USB_STUCK) return usbFaultPresentation(UsbFault.USB_STUCK, uiState)
             if (uiState.protocolUnhealthy) {
-                return stringResource(R.string.notification_monitoring_blind_title) to StatusColors.warning
+                val text = stringResource(R.string.notification_monitoring_blind_title)
+                return withStaleSuffix(text, uiState) to StatusColors.warning
             }
-            if (uiState.dataStale) {
-                val text = uiState.dataAgeMinutes
-                    ?.let { stringResource(R.string.main_status_stale_format, it) }
-                    ?: stringResource(R.string.main_status_stale)
-                return text to StatusColors.warning
-            }
-            return state.statusLabel() to StatusColors.ok
+            val color = if (uiState.dataStale) StatusColors.warning else StatusColors.ok
+            return withStaleSuffix(state.statusLabel(), uiState) to color
         }
     }
 }
