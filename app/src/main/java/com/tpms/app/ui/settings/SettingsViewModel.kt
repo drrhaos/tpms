@@ -14,11 +14,13 @@ import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDeviceInfo
+import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
+import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.WidgetThemeMode
 import com.tpms.app.service.FloatingOverlayController
 import com.tpms.app.service.TpmsMonitorService
@@ -139,11 +141,33 @@ class SettingsViewModel @Inject constructor(
     )
     val setupStatus: StateFlow<SetupStatus> = _setupStatus.asStateFlow()
 
-    val knownSensorIds: StateFlow<List<String>> = repository.sensors
-        .combine(_wheelMapping) { sensors, _ ->
-            sensors.keys.sorted()
+    /**
+     * Sensors offered by the wheel-mapping rows: every seen sensor (on a wheel or not) with its last
+     * reading, sorted by id, except placeholder readings of an empty AA55 slot, which are never
+     * admitted to a wheel (wayfinder 11).
+     */
+    val mappableSensors: StateFlow<Map<String, TireSensor>> = repository.seenSensors
+        .combine(repository.aa55EmptySlots) { seen, emptySlots ->
+            seen.values
+                .filter { it.label !in emptySlots }
+                .sortedBy { it.id }
+                .associateBy { it.id }
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val knownSensorIds: StateFlow<List<String>> = mappableSensors
+        .map { it.keys.toList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Slot label → sensor currently placed there (what "Авто" resolves to for a blank mapping). */
+    val wheelAssignment: StateFlow<Map<String, TireSensor>> = combine(
+        repository.seenSensors,
+        _wheelMapping,
+        _showSpareWheel,
+        repository.aa55EmptySlots
+    ) { seen, mapping, showSpare, emptySlots ->
+        WheelAssignment.assign(seen, mapping, showSpare, emptySlots)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     init {
         viewModelScope.launch {

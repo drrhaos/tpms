@@ -82,6 +82,8 @@ fun SettingsScreen(
     val dongleProtocolMode by viewModel.dongleProtocolMode.collectAsState()
     val wheelMapping by viewModel.wheelMapping.collectAsState()
     val knownSensorIds by viewModel.knownSensorIds.collectAsState()
+    val mappableSensors by viewModel.mappableSensors.collectAsState()
+    val wheelAssignment by viewModel.wheelAssignment.collectAsState()
     val alertSoundEnabled by viewModel.alertSoundEnabled.collectAsState()
     val showSpareWheel by viewModel.showSpareWheel.collectAsState()
     val teyesChecklist by viewModel.teyesChecklist.collectAsState()
@@ -352,9 +354,17 @@ fun SettingsScreen(
                         wheelSlots.forEachIndexed { index, slot ->
                             if (index > 0) SettingsGroupDivider()
                             val selected = wheelMapping[slot].orEmpty()
+                            val autoLabel = stringResource(R.string.settings_auto)
+                            val value = if (selected.isBlank()) {
+                                wheelAssignment[slot]?.let { "$autoLabel (${it.id})" } ?: autoLabel
+                            } else {
+                                mappableSensors[selected]
+                                    ?.let { "$selected · ${pressureUnit.formatPressure(it.pressureKpa)}" }
+                                    ?: selected
+                            }
                             SettingsValueRow(
                                 label = slot,
-                                value = selected.ifBlank { stringResource(R.string.settings_auto) },
+                                value = value,
                                 onClick = { viewModel.cycleWheelMapping(slot, knownSensorIds) },
                                 enabled = sensorsAvailable || selected.isNotBlank()
                             )
