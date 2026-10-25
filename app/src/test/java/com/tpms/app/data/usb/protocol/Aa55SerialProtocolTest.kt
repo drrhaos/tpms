@@ -164,6 +164,18 @@ class Aa55SerialProtocolTest {
     }
 
     @Test
+    fun feed_numbersSensorIdSlotsOneToFiveAsFlFrRlRrSp() {
+        val frames = (1..5).map { n -> withChecksum(0x55, 0xAA, 0x09, n, 0xA1, 0xB2, 0xC3, n, 0x00) }
+
+        protocol.feed(frames.reduce { acc, frame -> acc + frame }, 1L)
+
+        assertEquals(
+            listOf("FL", "FR", "RL", "RR", "SP"),
+            protocol.drainAuxFrames().map { (it as Aa55AuxFrame.SensorId).slot }
+        )
+    }
+
+    @Test
     fun feed_recognizesOtherReceiverFrames() {
         val pairOk = withChecksum(0x55, 0xAA, 0x06, 0x18, 0x00, 0x00)
         val swapAck = withChecksum(0x55, 0xAA, 0x07, 0x30, 0x00, 0x01, 0x00)

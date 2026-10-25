@@ -1,6 +1,7 @@
 package com.tpms.app.data.diagnostics
 
 import com.tpms.app.data.usb.UsbDebugLog
+import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
@@ -22,7 +23,8 @@ class DiagnosticsExporter @Inject constructor(
 
     fun exportFullReport(
         tpmsState: TpmsState,
-        sensors: Map<String, TireSensor>,
+        seenSensors: Map<String, TireSensor>,
+        aa55EmptySlots: Set<String>,
         wheelMapping: Map<String, String>,
         showSpareWheel: Boolean,
         settingsUiMode: SettingsUiMode,
@@ -45,7 +47,8 @@ class DiagnosticsExporter @Inject constructor(
         appendLine("--- Settings ---")
         appendLine("show_spare_wheel: $showSpareWheel")
         appendLine("settings_ui_mode: $settingsUiMode")
-        appendLine("sensor_ids: ${sensors.keys.sorted().joinToString().ifEmpty { "none" }}")
+        appendLine("sensor_ids: ${seenSensors.keys.sorted().joinToString().ifEmpty { "none" }}")
+        appendLine("aa55_empty_slots: ${aa55EmptySlots.sorted().joinToString().ifEmpty { "none" }}")
         appendLine()
         appendLine("--- Wheel mapping ---")
         val slots = WheelLayout.allSlots(showSpareWheel)
@@ -57,18 +60,18 @@ class DiagnosticsExporter @Inject constructor(
             appendLine("  (automatic)")
         }
         appendLine()
-        appendLine("--- Sensors (${sensors.size}) ---")
-        if (sensors.isEmpty()) {
+        appendLine("--- Sensors (${seenSensors.size} seen) ---")
+        if (seenSensors.isEmpty()) {
             appendLine("  No sensor data")
         } else {
-            WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel).forEachIndexed { index, sensor ->
-                val slot = slots[index]
-                appendLine("  $slot: ${formatSensor(sensor, pressureUnit)}")
+            // Same placement as the wheels the repository publishes.
+            val assignment = WheelAssignment.assign(seenSensors, wheelMapping, showSpareWheel, aa55EmptySlots)
+            slots.forEach { slot ->
+                appendLine("  $slot: ${formatSensor(assignment[slot], pressureUnit)}")
             }
-            sensors.values.sortedBy { it.id }.forEach { sensor ->
-                if (WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel).none { it?.id == sensor.id }) {
-                    appendLine("  unmapped ${sensor.id}: ${formatSensor(sensor, pressureUnit)}")
-                }
+            WheelAssignment.unassigned(seenSensors, assignment).forEach { sensor ->
+                val emptySlot = if (sensor.label in aa55EmptySlots) " (empty AA55 slot)" else ""
+                appendLine("  unmapped ${sensor.id}$emptySlot: ${formatSensor(sensor, pressureUnit)}")
             }
         }
         appendLine()

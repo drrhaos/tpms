@@ -44,12 +44,22 @@ class FrameDecoderTest {
     }
 
     @Test
-    fun aa55_dropsSpareWhenDisplayDisabled() {
+    fun aa55_passesSpareReadingsOnToWheelAssignment() {
         val decoder = FrameDecoder(DongleProtocol.SERIAL_AA55)
         val spare = frames.buildTireStateFrame(tireId = 0x05, pressureRaw = 70, tempRaw = 70)
 
         decoder.decode(spare, 0L, settings)
-        assertTrue(decoder.decode(spare, 500L, settings).sensors.isEmpty())
+        assertEquals("SP", decoder.decode(spare, 500L, settings).sensors.single().id)
+    }
+
+    @Test
+    fun aa55_dropsSparePlaceholderBelowMinLivePressure() {
+        val decoder = FrameDecoder(DongleProtocol.SERIAL_AA55)
+        // 16 * 3.44 = 55 kPa: the receiver's placeholder for an empty slot 05
+        val placeholder = frames.buildTireStateFrame(tireId = 0x05, pressureRaw = 16, tempRaw = 16)
+
+        decoder.decode(placeholder, 0L, settings)
+        assertTrue(decoder.decode(placeholder, 500L, settings).sensors.isEmpty())
     }
 
     @Test

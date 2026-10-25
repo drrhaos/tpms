@@ -7,9 +7,9 @@ import com.tpms.app.data.usb.protocol.HidGenericProtocol
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 
+/** Wheel placement (spare toggle, mapping) is not decoded here: the repository's WheelAssignment decides. */
 data class DecodeSettings(
-    val minLiveWheelPressureKpa: Float = SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA,
-    val showSpareWheel: Boolean = false
+    val minLiveWheelPressureKpa: Float = SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA
 )
 
 data class DecodeResult(
@@ -48,9 +48,7 @@ class FrameDecoder(
             }
         }
         val sensors = parsed
-            .mapNotNull {
-                SensorValidator.sanitize(it, settings.minLiveWheelPressureKpa, settings.showSpareWheel)
-            }
+            .mapNotNull { SensorValidator.sanitize(it, settings.minLiveWheelPressureKpa) }
             .mapNotNull { confirmation.offer(it) }
         return DecodeResult(sensors, aux)
     }

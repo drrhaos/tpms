@@ -60,11 +60,11 @@ class SensorValidatorTest {
             alertType = null,
             timestamp = 1L
         )
-        assertNull(SensorValidator.sanitize(sensor, showSpareWheel = true))
+        assertNull(SensorValidator.sanitize(sensor))
     }
 
     @Test
-    fun sanitize_rejectsSpareWhenDisplayDisabled() {
+    fun sanitize_acceptsSpareWhateverTheSpareToggle() {
         val sensor = TireSensor(
             id = "SP",
             label = "SP",
@@ -74,7 +74,7 @@ class SensorValidatorTest {
             alertType = null,
             timestamp = 1L
         )
-        assertNull(SensorValidator.sanitize(sensor, showSpareWheel = false))
+        assertEquals(sensor, SensorValidator.sanitize(sensor))
     }
 
     @Test
@@ -88,7 +88,7 @@ class SensorValidatorTest {
             alertType = null,
             timestamp = 1L
         )
-        assertEquals(sensor, SensorValidator.sanitize(sensor, showSpareWheel = true))
+        assertEquals(sensor, SensorValidator.sanitize(sensor))
     }
 
     @Test
