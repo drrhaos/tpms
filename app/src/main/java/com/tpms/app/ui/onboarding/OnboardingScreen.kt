@@ -68,10 +68,17 @@ fun OnboardingScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             when (step) {
-                OnboardingSteps.USB -> OnboardingPrimaryAction(
-                    label = stringResource(R.string.onboarding_grant_usb),
-                    onClick = { viewModel.requestUsbPermission() }
-                )
+                OnboardingSteps.USB -> {
+                    Text(
+                        text = stringResource(R.string.onboarding_usb_default_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OnboardingPrimaryAction(
+                        label = stringResource(R.string.onboarding_grant_usb),
+                        onClick = { viewModel.requestUsbPermission() }
+                    )
+                }
                 OnboardingSteps.PERMISSIONS -> OnboardingStepActions(
                     primaryLabel = stringResource(R.string.onboarding_open_notifications),
                     onPrimary = { viewModel.openNotifications() },

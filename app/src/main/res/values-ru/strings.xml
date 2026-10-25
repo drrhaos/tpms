@@ -94,6 +94,7 @@
     <string name="onboarding_title">Быстрая настройка</string>
     <string name="onboarding_title_teyes">Быстрая настройка для Teyes</string>
     <string name="onboarding_step_usb">Вставьте USB-адаптер в магнитолу и нажмите «Старт».</string>
+    <string name="onboarding_usb_default_hint">В системном окне отметьте «Использовать по умолчанию для этого USB-устройства» — иначе после каждого сна придётся подтверждать доступ заново.</string>
     <string name="onboarding_step_notifications">Разрешите уведомления — приложение предупредит о проблемах с шинами.</string>
     <string name="onboarding_step_teyes">Teyes закрывает фоновые приложения, когда уходит в сон. Настройте TPMS Monitor, чтобы он продолжал работать.</string>
     <string name="onboarding_step_widget">Добавьте TPMS на главный экран через FrontApp for Teyes.</string>

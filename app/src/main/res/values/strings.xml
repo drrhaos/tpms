@@ -94,6 +94,7 @@
     <string name="onboarding_title">Quick setup</string>
     <string name="onboarding_title_teyes">Quick setup for Teyes</string>
     <string name="onboarding_step_usb">Plug the USB adapter into the car, then tap Start.</string>
+    <string name="onboarding_usb_default_hint">In the system dialog, tick “Use by default for this USB device”. Otherwise you will have to confirm access after every sleep.</string>
     <string name="onboarding_step_notifications">Allow notifications so the app can warn you about tire problems.</string>
     <string name="onboarding_step_teyes">Teyes closes background apps when it goes to sleep. Set up TPMS Monitor so it keeps running.</string>
     <string name="onboarding_step_widget">Add TPMS to the home screen with FrontApp for Teyes.</string>

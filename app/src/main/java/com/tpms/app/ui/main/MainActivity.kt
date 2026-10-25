@@ -10,7 +10,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import android.content.Context
 import android.content.Intent
-import android.hardware.usb.UsbManager
 import com.tpms.app.data.diagnostics.UiBreadcrumbs
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.service.TpmsMonitorService
@@ -64,14 +63,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        if (intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
-            startupPermissions.ensureAfterUsbAttach(this)
-            TpmsMonitorService.wake(this, deviceAttached = true)
         }
     }
 

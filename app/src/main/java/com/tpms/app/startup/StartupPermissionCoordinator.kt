@@ -36,12 +36,6 @@ class StartupPermissionCoordinator @Inject constructor(
         requestUsbPermissionIfNeeded(activity, force = true)
     }
 
-    /** Re-request USB permission after a new dongle attach intent. */
-    fun ensureAfterUsbAttach(activity: ComponentActivity) {
-        usbPermissionRequestedThisSession = false
-        requestUsbPermissionIfNeeded(activity, force = true)
-    }
-
     private fun requestNotificationPermissionIfNeeded(
         activity: Activity,
         launcher: ActivityResultLauncher<String>
