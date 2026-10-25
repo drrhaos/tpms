@@ -23,6 +23,7 @@ class DiagnosticsExporter @Inject constructor(
 
     fun exportFullReport(
         tpmsState: TpmsState,
+        wheels: Map<String, TireSensor>,
         seenSensors: Map<String, TireSensor>,
         aa55EmptySlots: Set<String>,
         wheelMapping: Map<String, String>,
@@ -64,12 +65,11 @@ class DiagnosticsExporter @Inject constructor(
         if (seenSensors.isEmpty()) {
             appendLine("  No sensor data")
         } else {
-            // Same placement as the wheels the repository publishes.
-            val assignment = WheelAssignment.assign(seenSensors, wheelMapping, showSpareWheel, aa55EmptySlots)
+            // The wheels the repository publishes (slot → sensor), not a re-derivation.
             slots.forEach { slot ->
-                appendLine("  $slot: ${formatSensor(assignment[slot], pressureUnit)}")
+                appendLine("  $slot: ${formatSensor(wheels[slot], pressureUnit)}")
             }
-            WheelAssignment.unassigned(seenSensors, assignment).forEach { sensor ->
+            WheelAssignment.unassigned(seenSensors, wheels).forEach { sensor ->
                 val emptySlot = if (sensor.label in aa55EmptySlots) " (empty AA55 slot)" else ""
                 appendLine("  unmapped ${sensor.id}$emptySlot: ${formatSensor(sensor, pressureUnit)}")
             }

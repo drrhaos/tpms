@@ -508,7 +508,7 @@ class TpmsMonitorService : Service() {
                 }
             }
             merge(
-                repository.sensors.map { },
+                repository.wheels.map { },
                 repository.state.map { },
                 repository.usbFault.map { },
                 ticker,
@@ -545,7 +545,7 @@ class TpmsMonitorService : Service() {
     }
 
     private fun evaluateMonitoringHealth() {
-        if (repository.sensors.value.isEmpty() && !repository.isUsbConnected()) {
+        if (repository.wheels.value.isEmpty() && !repository.isUsbConnected()) {
             monitoringHealthNotifier.clear()
             return
         }

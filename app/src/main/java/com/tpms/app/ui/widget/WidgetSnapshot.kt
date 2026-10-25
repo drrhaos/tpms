@@ -50,9 +50,9 @@ data class WidgetSnapshot(
         fun from(
             context: Context,
             state: TpmsState,
-            sensors: Map<String, TireSensor>,
+            /** Slot label → placed sensor, as published by the repository ([com.tpms.app.data.repository.TpmsRepository.wheels]). */
+            wheels: Map<String, TireSensor>,
             unit: PressureUnit,
-            wheelMapping: Map<String, String> = emptyMap(),
             showSpareWheel: Boolean = false,
             dataAgeSec: Long? = null,
             dataStale: Boolean = false,
@@ -60,10 +60,8 @@ data class WidgetSnapshot(
             wheelProtocol: DongleProtocol? = null,
             now: Long = System.currentTimeMillis()
         ): WidgetSnapshot {
-            val slots = WheelLayout.allSlots(showSpareWheel)
-            val ordered = WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel)
-            val tires = slots.mapIndexed { index, slot ->
-                val sensor = ordered.getOrNull(index)
+            val tires = WheelLayout.allSlots(showSpareWheel).map { slot ->
+                val sensor = wheels[slot]
                 formatTireSlot(context, sensor, slot, unit).copy(
                     staleMinutes = SensorFreshness.staleWheelMinutes(sensor, wheelProtocol, now),
                     muted = SensorFreshness.isWheelMuted(sensor, wheelProtocol, now)

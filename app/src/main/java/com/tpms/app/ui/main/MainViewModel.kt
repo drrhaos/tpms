@@ -31,14 +31,13 @@ import javax.inject.Inject
 
 data class MainUiState(
     val tpmsState: TpmsState = TpmsState.Disconnected,
-    val sensors: Map<String, TireSensor> = emptyMap(),
+    /** Per slot of [wheelSlotLabels]: the sensor the repository placed there ([TpmsRepository.wheels]), or null. */
     val wheelSlots: List<TireSensor?> = List(WheelLayout.ORDER.size) { null },
     val wheelSlotLabels: List<String> = WheelLayout.ORDER,
     /** Per slot (parallel to [wheelSlots]): minutes for the "N min" caption of a stale wheel, else null. */
     val wheelStaleMinutes: List<Long?> = emptyList(),
     /** Per slot: stale wheel drawn muted (an active alert keeps its colour instead). */
     val wheelMuted: List<Boolean> = emptyList(),
-    val wheelMapping: Map<String, String> = emptyMap(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
     val advancedMode: Boolean = false,
     val debugToolsEnabled: Boolean = false,
@@ -71,25 +70,23 @@ class MainViewModel @Inject constructor(
 
     val uiState: StateFlow<MainUiState> = combine(
         combine(repository.state, freshnessTicker) { state, _ -> state },
-        repository.sensors,
+        repository.wheels,
         repository.usbFault,
         combine(
             settingsStore.pressureUnit,
-            settingsStore.wheelMapping,
             settingsStore.showSpareWheel,
             settingsStore.settingsUiMode,
             settingsStore.debugToolsEnabled
-        ) { unit, mapping, spare, uiMode, debugTools ->
+        ) { unit, spare, uiMode, debugTools ->
             MainSettingsBundle(
                 unit,
-                mapping,
                 spare,
                 uiMode == SettingsUiMode.ADVANCED,
                 debugTools
             )
         }
-    ) { tpmsState, sensors, usbFault, settings ->
-        buildUiState(tpmsState, sensors, usbFault, settings)
+    ) { tpmsState, wheels, usbFault, settings ->
+        buildUiState(tpmsState, wheels, usbFault, settings)
     }.catch { error ->
         debugLog.error("MainScreen", uiBreadcrumbs.describe())
         debugLog.exception("MainScreen", error, "ui state flow")
@@ -110,13 +107,14 @@ class MainViewModel @Inject constructor(
 
     private fun buildUiState(
         tpmsState: TpmsState,
-        sensors: Map<String, TireSensor>,
+        wheels: Map<String, TireSensor>,
         usbFault: UsbFault?,
         settings: MainSettingsBundle
     ): MainUiState {
         return try {
             val slots = WheelLayout.allSlots(settings.showSpareWheel)
-            val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
+            // Placement comes from the repository; only the slot list (spare shown or not) is local.
+            val wheelSlots = slots.map { wheels[it] }
             val now = System.currentTimeMillis()
             val ageSec = repository.dataAgeSec(now)
             val stale = repository.isDataStale(now)
@@ -127,12 +125,10 @@ class MainViewModel @Inject constructor(
             )
             MainUiState(
                 tpmsState = tpmsState,
-                sensors = sensors,
                 wheelSlots = wheelSlots,
                 wheelSlotLabels = slots,
                 wheelStaleMinutes = wheelSlots.map { SensorFreshness.staleWheelMinutes(it, wheelProtocol, now) },
                 wheelMuted = wheelSlots.map { SensorFreshness.isWheelMuted(it, wheelProtocol, now) },
-                wheelMapping = settings.wheelMapping,
                 pressureUnit = settings.pressureUnit,
                 advancedMode = settings.advancedMode,
                 debugToolsEnabled = settings.debugToolsEnabled,
@@ -147,7 +143,6 @@ class MainViewModel @Inject constructor(
             debugLog.exception("MainScreen", error, "buildUiState")
             MainUiState(
                 tpmsState = tpmsState,
-                sensors = sensors,
                 pressureUnit = settings.pressureUnit,
                 lastError = error.message ?: error.javaClass.simpleName
             )
@@ -167,7 +162,6 @@ class MainViewModel @Inject constructor(
 
 private data class MainSettingsBundle(
     val pressureUnit: PressureUnit,
-    val wheelMapping: Map<String, String>,
     val showSpareWheel: Boolean,
     val advancedMode: Boolean,
     val debugToolsEnabled: Boolean

@@ -41,6 +41,14 @@ class LastKnownSnapshotStore @Inject constructor(
         }
     }
 
+    /** Forgets the snapshot (no wheel left after a settings change); the protocol is kept. */
+    suspend fun clear() {
+        context.lastKnownDataStore.edit { prefs ->
+            prefs.remove(KEY_SENSORS_JSON)
+            prefs.remove(KEY_SAVED_AT_MS)
+        }
+    }
+
     suspend fun load(): Map<String, TireSensor>? {
         val prefs = context.lastKnownDataStore.data.first()
         val json = prefs[KEY_SENSORS_JSON] ?: return null

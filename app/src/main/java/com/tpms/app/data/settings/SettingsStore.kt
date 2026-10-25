@@ -131,7 +131,8 @@ class SettingsStore @Inject constructor(
                 val showSpare = prefs[KEY_SHOW_SPARE_WHEEL] ?: false
                 _showSpareWheel.value = showSpare
 
-                _wheelMapping.value = WheelLayout.allSlots(showSpare).associateWith { slot ->
+                // SP mapping included while the spare is hidden: it still takes the sensor off its default slot.
+                _wheelMapping.value = WheelLayout.allSlots(showSpareWheel = true).associateWith { slot ->
                     prefs[wheelMappingKey(slot)] ?: ""
                 }
 

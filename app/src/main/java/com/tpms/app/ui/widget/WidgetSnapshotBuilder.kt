@@ -4,6 +4,7 @@ import android.content.Context
 import com.tpms.app.data.persistence.LastKnownSnapshotStore
 import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -33,24 +34,35 @@ class WidgetSnapshotBuilder @Inject constructor(
         persistedAtMs: Long,
         persistedProtocol: DongleProtocol?
     ): WidgetSnapshot {
-        val liveSensors = repository.sensors.value
-        val sensors = liveSensors.ifEmpty { persisted }
+        val liveWheels = repository.wheels.value
+        // Before the repository restored the snapshot: place the persisted wheels by the same rule the
+        // restore will apply (no AA55 empty slots are known yet).
+        val wheels = liveWheels.ifEmpty {
+            if (persisted.isEmpty()) {
+                emptyMap()
+            } else {
+                WheelAssignment.assign(
+                    seen = persisted,
+                    wheelMapping = settingsStore.wheelMapping.value,
+                    showSpareWheel = settingsStore.showSpareWheel.value
+                )
+            }
+        }
         val state = when {
-            sensors.isNotEmpty() && repository.state.value is TpmsState.Disconnected ->
-                TpmsState.Connected(sensors.values.toList(), System.currentTimeMillis())
+            wheels.isNotEmpty() && repository.state.value is TpmsState.Disconnected ->
+                TpmsState.Connected(wheels.values.toList(), System.currentTimeMillis())
             else -> repository.state.value
         }
         // Connection-based (wayfinder 10): minutes since the last valid frame, not newest sensor age.
-        val dataAgeSec = repository.dataAgeSec().takeIf { liveSensors.isNotEmpty() }
+        val dataAgeSec = repository.dataAgeSec().takeIf { liveWheels.isNotEmpty() }
             ?: persistedAgeSec(persistedAtMs)
         // Persisted sensors not restored into the repository yet come from a snapshot: outdated.
-        val dataStale = repository.isDataStale() || (liveSensors.isEmpty() && persisted.isNotEmpty())
+        val dataStale = repository.isDataStale() || (liveWheels.isEmpty() && persisted.isNotEmpty())
         return WidgetSnapshot.from(
             context = context,
             state = state,
-            sensors = sensors,
+            wheels = wheels,
             unit = settingsStore.pressureUnit.value,
-            wheelMapping = settingsStore.wheelMapping.value,
             showSpareWheel = settingsStore.showSpareWheel.value,
             dataAgeSec = dataAgeSec,
             dataStale = dataStale,

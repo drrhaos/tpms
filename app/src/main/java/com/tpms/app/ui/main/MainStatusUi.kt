@@ -5,7 +5,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import com.tpms.app.R
 import com.tpms.app.domain.UsbFault
-import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.label
 import com.tpms.app.ui.shortLabel
@@ -33,7 +32,7 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
             return withStaleSuffix(state.statusLabel(), uiState) to StatusColors.warning
         }
         is TpmsState.Alert -> {
-            val wheel = WheelLayout.resolveWheelLabel(state.sensor, uiState.wheelMapping)
+            val wheel = MainUiHealth.wheelLabelOf(uiState, state.sensor)
             val alertLabel = state.type.shortLabel()
             val base = stringResource(R.string.status_alert_format, wheel, alertLabel)
             return withStaleSuffix(base, uiState) to StatusColors.alert

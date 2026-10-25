@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -72,18 +73,21 @@ class TpmsRepository @Inject constructor(
     /**
      * Last confirmed reading (alert applied) of every sensor that passed the decoder, by id, whether
      * or not it sits on a wheel: input of [WheelAssignment] and of the wheel-mapping UI / diagnostics.
-     * Written only under [restoreLock], together with [sensors].
+     * Bounded by [WheelAssignment.retainSeen] (old sensors off the wheels and unmapped are dropped).
+     * Written only under [wheelsLock], together with [wheels].
      */
     private val _seenSensors = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
     val seenSensors = _seenSensors.asStateFlow()
 
     /**
-     * Wheels: the seen sensors [WheelAssignment.assign] places (wheel mapping, spare toggle, AA55 empty
-     * slots), keyed by sensor id. Only these drive the state, alerts, history and the last-known
-     * snapshot (wayfinder 11). Re-derived on every reading and on every change of its inputs.
+     * Wheels: slot label → the seen sensor [WheelAssignment.assign] places there (wheel mapping, spare
+     * toggle, AA55 empty slots), in slot order; empty slots are absent. The single published placement:
+     * main screen, widgets, notification, overlay, settings and diagnostics read it, none re-derives it.
+     * Only these sensors drive the state, alerts, history and the last-known snapshot (wayfinder 11).
+     * Re-derived on every reading and on every change of its inputs.
      */
-    private val _sensors = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
-    val sensors = _sensors.asStateFlow()
+    private val _wheels = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
+    val wheels = _wheels.asStateFlow()
 
     /**
      * Wheel labels the AA55 receiver reported as empty in its answer (`09`) to the ID query `0x07`;
@@ -92,8 +96,11 @@ class TpmsRepository @Inject constructor(
     private val _aa55EmptySlots = MutableStateFlow<Set<String>>(emptySet())
     val aa55EmptySlots = _aa55EmptySlots.asStateFlow()
 
-    /** Alert history per sensor id (all seen sensors): survives session reopen. */
+    /** Alert history per sensor id (seen sensors only, see [recomputeWheelsLocked]): survives session reopen. */
     private val alertTracker = AlertTracker()
+
+    /** Latest snapshot write (empty wheels = clear); conflated, written by one collector in order. */
+    private val snapshotWrites = MutableStateFlow<SnapshotWrite?>(null)
     private var onAlertCallback: ((TireSensor) -> Unit)? = null
     private var onSensorNormalCallback: ((String) -> Unit)? = null
 
@@ -133,11 +140,14 @@ class TpmsRepository @Inject constructor(
     private var lastLiveDataAtMs: Long = 0L
 
     /**
-     * Serialises the snapshot restore against live data and session state: the restore's "still empty"
-     * and "no session" checks must hold while it publishes the sensors, [restoredFromSnapshot] and the
-     * Disconnected state. Never held across a suspension point.
+     * Guards the seen sensors, [wheels], the state they produce and the alert callbacks computed from
+     * them. Readings (reader thread), settings changes (IO) and the snapshot restore all re-place the
+     * wheels under it and emit their alert / normal callbacks before releasing it, so notifications are
+     * posted in the same order as the wheel changes they describe (the callbacks only post to the
+     * service's main handler). The restore's "still empty" and "no session" checks hold while it
+     * publishes. Never held across a suspension point.
      */
-    private val restoreLock = Any()
+    private val wheelsLock = Any()
 
     init {
         repoScope.launch {
@@ -149,6 +159,17 @@ class TpmsRepository @Inject constructor(
             combine(settingsStore.wheelMapping, settingsStore.showSpareWheel) { _, _ -> }
                 .collect { republishWheels("settings changed") }
         }
+        repoScope.launch {
+            snapshotWrites.filterNotNull().collect { write ->
+                runCatching {
+                    if (write.wheels.isEmpty()) {
+                        lastKnownSnapshotStore.clear()
+                    } else {
+                        lastKnownSnapshotStore.save(write.wheels, write.protocol, write.savedAtMs)
+                    }
+                }.onFailure { debugLog.warn("Repository", "Snapshot write failed: ${it.message}") }
+            }
+        }
     }
 
     private suspend fun restoreLastKnownIfNeeded() {
@@ -159,7 +180,7 @@ class TpmsRepository @Inject constructor(
         val filtered = restored.filterValues { it.label.isBlank() || it.label in wheelLabels }
         if (filtered.isEmpty()) return
         val restoredProtocol = lastKnownSnapshotStore.protocol()
-        val applied = synchronized(restoreLock) {
+        val applied = synchronized(wheelsLock) {
             // Live frames may have filled the sensors while the snapshot was loading: they win.
             if (_seenSensors.value.isNotEmpty()) return@synchronized false
             // Flags before the sensors, so a reader never sees restored sensors without them.
@@ -182,10 +203,12 @@ class TpmsRepository @Inject constructor(
         )
     }
 
+    /** [callback] runs under [wheelsLock] on the repository's threads: it must not block (post and return). */
     fun onAlert(callback: (TireSensor) -> Unit) {
         onAlertCallback = callback
     }
 
+    /** Same contract as [onAlert]: called under [wheelsLock], must not block. */
     fun onSensorNormal(callback: (String) -> Unit) {
         onSensorNormalCallback = callback
     }
@@ -202,7 +225,7 @@ class TpmsRepository @Inject constructor(
     fun connectionSnapshot(): SensorFreshness.ConnectionSnapshot {
         val session = activeSession
         return SensorFreshness.ConnectionSnapshot(
-            hasData = _sensors.value.isNotEmpty(),
+            hasData = _wheels.value.isNotEmpty(),
             hasLiveSession = session != null && !session.isClosed && !isReconnecting && !restoredFromSnapshot,
             protocol = session?.protocol,
             sessionOpenedAtMs = dongleOpenedAtMs,
@@ -286,6 +309,7 @@ class TpmsRepository @Inject constructor(
 
     fun exportFullReport(): String = diagnosticsExporter.exportFullReport(
         tpmsState = _state.value,
+        wheels = _wheels.value,
         seenSensors = _seenSensors.value,
         aa55EmptySlots = _aa55EmptySlots.value,
         wheelMapping = settingsStore.wheelMapping.value,
@@ -369,9 +393,6 @@ class TpmsRepository @Inject constructor(
         return (System.currentTimeMillis() - lastValidFrameAtMs) / 1000
     }
 
-    /** Ids of all seen sensors, on a wheel or not (for wheel mapping). */
-    fun knownSensorIds(): List<String> = _seenSensors.value.keys.sorted()
-
     fun hasUsbPermission(device: UsbDevice): Boolean = usbConnection.hasPermission(device)
 
     fun activeProtocol(): DongleProtocol? = activeSession?.protocol
@@ -395,7 +416,7 @@ class TpmsRepository @Inject constructor(
             session.start()
             // Under the lock so a concurrent snapshot restore cannot overwrite Connecting with Disconnected
             // or the live protocol with the snapshot's.
-            synchronized(restoreLock) {
+            synchronized(wheelsLock) {
                 lastSessionProtocol = protocol
                 isReconnecting = false
                 updateState(TpmsState.Connecting(attempt = 0))
@@ -466,11 +487,11 @@ class TpmsRepository @Inject constructor(
             updateState(TpmsState.Connecting(attempt = 0))
             serviceHealth.recordReconnect()
         } else {
-            alertTracker.clear()
-            synchronized(restoreLock) {
+            synchronized(wheelsLock) {
+                alertTracker.clear()
                 _seenSensors.value = emptyMap()
                 _aa55EmptySlots.value = emptySet()
-                _sensors.value = emptyMap()
+                _wheels.value = emptyMap()
                 restoredFromSnapshot = false
                 lastLiveDataAtMs = 0L
                 isReconnecting = false
@@ -510,7 +531,7 @@ class TpmsRepository @Inject constructor(
             .takeIf { it.isNotEmpty() }
             ?.let { applyAa55SlotIds(it) }
         if (result.sensors.isNotEmpty()) {
-            // Connection health: any valid frame counts, on a wheel or not.
+            // Intentional: any valid frame keeps the connection fresh, on a wheel or not (connection health, ticket 10).
             lastValidFrameAtMs = timestamp
             debugLog.info(
                 "Repository",
@@ -531,44 +552,53 @@ class TpmsRepository @Inject constructor(
 
     private suspend fun applySensorUpdate(reading: TireSensor) {
         try {
-            // Memory for every seen sensor, so one placed later by a settings change shows its alert.
-            val sensor = alertTracker.apply(reading, settingsStore.thresholds.value)
-            val (onWheel, displaced) = synchronized(restoreLock) {
-                _seenSensors.update { it + (sensor.id to sensor) }
-                val before = recomputeWheelsLocked()
-                val onWheel = _sensors.value[sensor.id] == sensor
-                // Live data ends the snapshot state atomically with publishing the reading (see restoreLock).
-                if (onWheel) {
-                    restoredFromSnapshot = false
-                    lastLiveDataAtMs = sensor.timestamp
-                }
-                onWheel to (before.keys - _sensors.value.keys)
-            }
-            displaced.forEach { onSensorNormalCallback?.invoke(it) }
-            // A sensor off the wheels only waits for a mapping: no state, alert, history or snapshot.
-            if (!onWheel) return
-            runCatching { sensorDao.insert(sensor.toReading()) }
+            val onWheel = synchronized(wheelsLock) { placeReadingLocked(reading) } ?: return
+            runCatching { sensorDao.insert(onWheel.toReading()) }
                 .onFailure { debugLog.warn("Repository", "DB insert failed: ${it.message}") }
-            if (sensor.isAlert) {
-                emitAlert(sensor)
-            } else {
-                onSensorNormalCallback?.invoke(sensor.id)
-            }
-            refreshConnectionState(sensor.timestamp)
-            persistLastKnown()
         } catch (e: Exception) {
             debugLog.warn("Repository", "applySensorUpdate failed: ${e.message}")
         }
     }
 
+    /**
+     * Records [reading] among the seen sensors, re-places the wheels and, if it sits on one, emits its
+     * alert / normal callback, the state and a snapshot write. Returns the reading with its alert
+     * applied when it is on a wheel, else null. Caller holds [wheelsLock].
+     */
+    private fun placeReadingLocked(reading: TireSensor): TireSensor? {
+        // Memory for every seen sensor, so one placed later by a settings change shows its alert.
+        val sensor = alertTracker.apply(reading, settingsStore.thresholds.value)
+        _seenSensors.update { it + (sensor.id to sensor) }
+        val before = recomputeWheelsLocked(now = sensor.timestamp)
+        val after = _wheels.value
+        val afterIds = after.values.mapTo(HashSet()) { it.id }
+        before.values.map { it.id }.filter { it !in afterIds }.forEach { notifySensorNormal(it) }
+        // A sensor off the wheels only waits for a mapping: no state, alert, history or snapshot.
+        if (sensor.id !in afterIds) return null
+        // Live data ends the snapshot state atomically with publishing the reading (see wheelsLock).
+        restoredFromSnapshot = false
+        lastLiveDataAtMs = sensor.timestamp
+        if (sensor.isAlert) emitAlert(sensor) else notifySensorNormal(sensor.id)
+        refreshConnectionStateLocked(sensor.timestamp)
+        requestSnapshotWriteLocked()
+        return sensor
+    }
+
     /** Records which AA55 receiver slots are empty (`09` answers) and re-places the wheels if that changed. */
     private fun applyAa55SlotIds(frames: List<Aa55AuxFrame.SensorId>) {
-        val changed = synchronized(restoreLock) {
-            val before = _aa55EmptySlots.value
-            _aa55EmptySlots.value = Aa55EmptySlots.apply(before, frames)
-            before != _aa55EmptySlots.value
+        try {
+            synchronized(wheelsLock) {
+                val before = _aa55EmptySlots.value
+                _aa55EmptySlots.value = Aa55EmptySlots.apply(before, frames)
+                if (before != _aa55EmptySlots.value) {
+                    republishWheelsLocked(
+                        "AA55 empty slots: ${_aa55EmptySlots.value.sorted().ifEmpty { listOf("none") }.joinToString()}"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            debugLog.warn("Repository", "applyAa55SlotIds failed: ${e.message}")
         }
-        if (changed) republishWheels("AA55 empty slots: ${_aa55EmptySlots.value.sorted().ifEmpty { listOf("none") }.joinToString()}")
     }
 
     /**
@@ -577,54 +607,76 @@ class TpmsRepository @Inject constructor(
      * wheel before this session's `09` answers arrive.
      */
     private fun resetAa55EmptySlots() {
-        synchronized(restoreLock) {
+        synchronized(wheelsLock) {
             val stale = _aa55EmptySlots.value
             if (stale.isEmpty()) return
             _aa55EmptySlots.value = emptySet()
             _seenSensors.update { seen -> seen.filterValues { it.label !in stale } }
-            recomputeWheelsLocked()
+            republishWheelsLocked("AA55 empty slots reset")
         }
     }
 
-    /** Re-derives [sensors] from [seenSensors] and the current inputs; returns the previous wheels. Caller holds [restoreLock]. */
-    private fun recomputeWheelsLocked(): Map<String, TireSensor> {
-        val before = _sensors.value
-        _sensors.value = WheelAssignment.assign(
+    /**
+     * Re-derives [wheels] from [seenSensors] and the current inputs and prunes the seen sensors (and
+     * their alert memory) with [WheelAssignment.retainSeen]; returns the previous wheels.
+     * Caller holds [wheelsLock].
+     */
+    private fun recomputeWheelsLocked(now: Long = System.currentTimeMillis()): Map<String, TireSensor> {
+        val before = _wheels.value
+        val mapping = settingsStore.wheelMapping.value
+        val wheels = WheelAssignment.assign(
             seen = _seenSensors.value,
-            wheelMapping = settingsStore.wheelMapping.value,
+            wheelMapping = mapping,
             showSpareWheel = settingsStore.showSpareWheel.value,
             emptySlots = _aa55EmptySlots.value
-        ).values.associateBy { it.id }
+        )
+        val kept = WheelAssignment.retainSeen(_seenSensors.value, wheels, mapping, now)
+        if (kept.size != _seenSensors.value.size) _seenSensors.value = kept
+        alertTracker.retain(kept.keys)
+        _wheels.value = wheels
         return before
     }
 
     /**
-     * Re-places the wheels after a change of mapping, spare toggle or AA55 empty slots, without
-     * waiting for a frame: sensors that left a wheel clear their alert notification, sensors that
-     * joined show their current alert, and a live state is re-evaluated.
+     * Re-places the wheels after a change of mapping or spare toggle, without waiting for a frame.
      */
     private fun republishWheels(reason: String) {
         try {
-            val (before, after) = synchronized(restoreLock) {
-                recomputeWheelsLocked() to _sensors.value
-            }
-            if (before.keys == after.keys) return
-            (before.keys - after.keys).forEach { onSensorNormalCallback?.invoke(it) }
-            (after.keys - before.keys).mapNotNull { after[it] }.filter { it.isAlert }.forEach { emitAlert(it) }
-            val state = _state.value
-            if (state is TpmsState.Connected || state is TpmsState.Alert) {
-                refreshConnectionState(System.currentTimeMillis())
-            }
-            persistLastKnown()
-            debugLog.info("Repository", "Wheels re-placed ($reason): ${after.keys.sorted().joinToString().ifEmpty { "none" }}")
+            synchronized(wheelsLock) { republishWheelsLocked(reason) }
         } catch (e: Exception) {
             debugLog.warn("Repository", "republishWheels failed: ${e.message}")
         }
     }
 
-    private fun refreshConnectionState(timestamp: Long) {
+    /**
+     * Re-places the wheels from the last readings: sensors that left a wheel clear their alert
+     * notification, sensors that joined show their current alert, a live state is re-evaluated (also
+     * when sensors only swapped slots) and the snapshot follows the wheels (cleared when none is left).
+     * Caller holds [wheelsLock], so these effects are ordered with the reader's.
+     */
+    private fun republishWheelsLocked(reason: String) {
+        val before = recomputeWheelsLocked()
+        val after = _wheels.value
+        if (before == after) return
+        val beforeIds = before.values.mapTo(HashSet()) { it.id }
+        val afterIds = after.values.mapTo(HashSet()) { it.id }
+        (beforeIds - afterIds).forEach { notifySensorNormal(it) }
+        after.values.filter { it.id !in beforeIds && it.isAlert }.forEach { emitAlert(it) }
+        val state = _state.value
+        if (state is TpmsState.Connected || state is TpmsState.Alert) {
+            refreshConnectionStateLocked(System.currentTimeMillis())
+        }
+        requestSnapshotWriteLocked()
+        debugLog.info(
+            "Repository",
+            "Wheels re-placed ($reason): ${after.map { (slot, sensor) -> "$slot=${sensor.id}" }.joinToString().ifEmpty { "none" }}"
+        )
+    }
+
+    /** Publishes Connected / Alert from [wheels] (slot order). Caller holds [wheelsLock]. */
+    private fun refreshConnectionStateLocked(timestamp: Long) {
         try {
-            val sensorList = _sensors.value.values.toList()
+            val sensorList = _wheels.value.values.toList()
             if (sensorList.isEmpty()) {
                 // No wheel left (settings change): an alert must not outlive its sensor's wheel.
                 if (_state.value is TpmsState.Alert) updateState(TpmsState.Connected(emptyList(), timestamp))
@@ -647,14 +699,18 @@ class TpmsRepository @Inject constructor(
         }
     }
 
-    /** Saves the wheels only: sensors off the wheels never reach the snapshot. */
-    private fun persistLastKnown() {
-        val snapshot = _sensors.value
-        if (snapshot.isEmpty()) return
-        val protocol = lastSessionProtocol
-        repoScope.launch {
-            runCatching { lastKnownSnapshotStore.save(snapshot, protocol) }
-        }
+    /**
+     * Queues a snapshot of the current wheels (sensors off the wheels never reach it); no wheel left
+     * clears the stored snapshot. Saved with the time the data was last confirmed live, so a re-save
+     * after a settings change does not make old data look fresh. Caller holds [wheelsLock], so the
+     * latest request always reflects the latest wheels.
+     */
+    private fun requestSnapshotWriteLocked() {
+        snapshotWrites.value = SnapshotWrite(
+            wheels = _wheels.value.values.associateBy { it.id },
+            protocol = lastSessionProtocol,
+            savedAtMs = lastLiveDataAtMs.takeIf { it > 0L } ?: System.currentTimeMillis()
+        )
     }
 
     private fun emitAlert(sensor: TireSensor) {
@@ -662,6 +718,14 @@ class TpmsRepository @Inject constructor(
             onAlertCallback?.invoke(sensor)
         } catch (e: Exception) {
             debugLog.warn("Repository", "emitAlert failed: ${e.message}")
+        }
+    }
+
+    private fun notifySensorNormal(sensorId: String) {
+        try {
+            onSensorNormalCallback?.invoke(sensorId)
+        } catch (e: Exception) {
+            debugLog.warn("Repository", "onSensorNormal failed: ${e.message}")
         }
     }
 
@@ -681,6 +745,13 @@ class TpmsRepository @Inject constructor(
         batteryPercent = batteryPercent,
         alertType = alertType?.name,
         timestamp = timestamp
+    )
+
+    /** One pending write of the last-known snapshot; empty [wheels] clears it. */
+    private data class SnapshotWrite(
+        val wheels: Map<String, TireSensor>,
+        val protocol: DongleProtocol?,
+        val savedAtMs: Long
     )
 
     companion object {

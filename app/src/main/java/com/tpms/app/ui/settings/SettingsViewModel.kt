@@ -14,7 +14,6 @@ import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDeviceInfo
-import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
@@ -159,15 +158,11 @@ class SettingsViewModel @Inject constructor(
         .map { it.keys.toList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Slot label → sensor currently placed there (what "Авто" resolves to for a blank mapping). */
-    val wheelAssignment: StateFlow<Map<String, TireSensor>> = combine(
-        repository.seenSensors,
-        _wheelMapping,
-        _showSpareWheel,
-        repository.aa55EmptySlots
-    ) { seen, mapping, showSpare, emptySlots ->
-        WheelAssignment.assign(seen, mapping, showSpare, emptySlots)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    /**
+     * Slot label → sensor currently placed there (what "Авто" resolves to for a blank mapping): the
+     * repository's published wheels, not a local re-derivation from the optimistic settings flows.
+     */
+    val wheelAssignment: StateFlow<Map<String, TireSensor>> = repository.wheels
 
     init {
         viewModelScope.launch {

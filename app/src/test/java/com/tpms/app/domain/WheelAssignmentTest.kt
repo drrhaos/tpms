@@ -7,14 +7,14 @@ import org.junit.Test
 
 class WheelAssignmentTest {
 
-    private fun sensor(id: String, label: String = "") = TireSensor(
+    private fun sensor(id: String, label: String = "", at: Long = 1L) = TireSensor(
         id = id,
         label = label,
         pressureKpa = 240f,
         temperatureCelsius = 20f,
         batteryPercent = 80,
         alertType = null,
-        timestamp = 1L
+        timestamp = at
     )
 
     private fun aa55(label: String) = sensor(label, label)
@@ -160,6 +160,68 @@ class WheelAssignmentTest {
         )
 
         assertEquals(mapOf("FL" to "FL"), result.ids())
+    }
+
+    @Test
+    fun assign_sensorMappedToSpareWhileSpareIsOffIsOnNoWheel() {
+        val result = WheelAssignment.assign(
+            seen(sensor("SENSOR_01"), sensor("SENSOR_02")),
+            wheelMapping = mapOf("SP" to "SENSOR_01"),
+            showSpareWheel = false
+        )
+
+        // The explicit mapping still takes SENSOR_01 off its default slot FL; with the spare hidden it is unassigned.
+        assertEquals(mapOf("FR" to "SENSOR_02"), result.ids())
+    }
+
+    @Test
+    fun assign_doesNotPlaceForeignLabelledSensor() {
+        val result = WheelAssignment.assign(
+            seen(aa55("FL"), sensor("SENSOR_07", "SENSOR_07")),
+            wheelMapping = emptyMap(),
+            showSpareWheel = false
+        )
+
+        assertEquals(mapOf("FL" to "FL"), result.ids())
+    }
+
+    @Test
+    fun assign_resultIsInSlotOrder() {
+        val result = WheelAssignment.assign(
+            seen(aa55("RR"), aa55("SP"), aa55("FL")),
+            wheelMapping = emptyMap(),
+            showSpareWheel = true
+        )
+
+        assertEquals(listOf("FL", "RR", "SP"), result.keys.toList())
+    }
+
+    @Test
+    fun retainSeen_dropsOnlyOldSensorsOffTheWheelsAndUnmapped() {
+        val now = 10 * WheelAssignment.SEEN_SENSOR_MAX_AGE_MS
+        val old = now - WheelAssignment.SEEN_SENSOR_MAX_AGE_MS - 1
+        val sensors = seen(
+            sensor("SENSOR_01", at = old),          // on a wheel: kept however old
+            sensor("ABC123", at = old),             // mapped to the hidden spare: kept
+            sensor("SENSOR_0A", at = now - 1_000L), // recent, off the wheels: kept for mapping
+            sensor("SENSOR_0B", at = old)           // old, off the wheels, unmapped: dropped
+        )
+        val mapping = mapOf("SP" to "ABC123", "FR" to "")
+        val wheels = WheelAssignment.assign(sensors, mapping, showSpareWheel = false)
+
+        val kept = WheelAssignment.retainSeen(sensors, wheels, mapping, now)
+
+        assertEquals(setOf("SENSOR_01", "ABC123", "SENSOR_0A"), kept.keys)
+    }
+
+    @Test
+    fun retainSeen_keepsSensorExactlyAtMaxAge() {
+        val now = 10 * WheelAssignment.SEEN_SENSOR_MAX_AGE_MS
+        val sensors = seen(sensor("SENSOR_0A", at = now - WheelAssignment.SEEN_SENSOR_MAX_AGE_MS))
+
+        val kept = WheelAssignment.retainSeen(sensors, emptyMap(), emptyMap(), now)
+
+        assertEquals(setOf("SENSOR_0A"), kept.keys)
     }
 
     @Test
