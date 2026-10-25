@@ -32,10 +32,10 @@ class WheelLayoutTest {
     }
 
     @Test
-    fun orderedSlots_fallsBackToSensorIds() {
+    fun orderedSlots_placesHidSensorsByDefaultId() {
         val sensors = mapOf(
-            "SENSOR_01" to sensor("SENSOR_01", "FL"),
-            "SENSOR_02" to sensor("SENSOR_02", "FR")
+            "SENSOR_02" to sensor("SENSOR_02", label = ""),
+            "SENSOR_01" to sensor("SENSOR_01", label = "")
         )
 
         val slots = WheelLayout.orderedSlots(sensors)
@@ -135,7 +135,7 @@ class WheelLayoutTest {
     }
 
     @Test
-    fun orderedSlots_fillsEmptySlotsWithUnlabelledSensorsInOrder() {
+    fun orderedSlots_doesNotFillEmptySlotsWithUnknownSensorsByOrder() {
         val sensors = linkedMapOf(
             "SENSOR_0A" to sensor("SENSOR_0A", label = ""),
             "SENSOR_0B" to sensor("SENSOR_0B", label = "")
@@ -143,6 +143,27 @@ class WheelLayoutTest {
 
         val slots = WheelLayout.orderedSlots(sensors)
 
-        assertEquals(listOf("SENSOR_0A", "SENSOR_0B", null, null), slots.map { it?.id })
+        assertEquals(listOf<String?>(null, null, null, null), slots.map { it?.id })
+    }
+
+    @Test
+    fun orderedValues_followsSlotsWithoutFallback() {
+        val sensors = linkedMapOf(
+            "SENSOR_0A" to sensor("SENSOR_0A", label = ""),
+            "RR" to sensor("RR"),
+            "FL" to sensor("FL")
+        )
+
+        assertEquals(listOf("FL", "RR"), WheelLayout.orderedValues(sensors).map { it.id })
+    }
+
+    @Test
+    fun resolveWheelLabel_usesDefaultSlotForHidId() {
+        assertEquals("RL", WheelLayout.resolveWheelLabel(sensor("SENSOR_03", label = ""), emptyMap()))
+    }
+
+    @Test
+    fun resolveWheelLabel_fallsBackToIdForUnknownSensor() {
+        assertEquals("SENSOR_0A", WheelLayout.resolveWheelLabel(sensor("SENSOR_0A", label = ""), emptyMap()))
     }
 }
