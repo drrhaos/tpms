@@ -54,8 +54,10 @@ class DiagnosticsExporter @Inject constructor(
         appendLine("--- Wheel mapping ---")
         val slots = WheelLayout.allSlots(showSpareWheel)
         if (wheelMapping.values.any { it.isNotBlank() }) {
-            slots.forEach { slot ->
-                appendLine("  $slot → ${wheelMapping[slot].orEmpty().ifBlank { "(auto)" }}")
+            // All five slots: an SP mapping applies even with the spare hidden (wayfinder 11).
+            WheelLayout.allSlots(showSpareWheel = true).forEach { slot ->
+                val hidden = if (slot !in slots) " (spare off)" else ""
+                appendLine("  $slot$hidden → ${wheelMapping[slot].orEmpty().ifBlank { "(auto)" }}")
             }
         } else {
             appendLine("  (automatic)")
@@ -71,7 +73,14 @@ class DiagnosticsExporter @Inject constructor(
             }
             WheelAssignment.unassigned(seenSensors, wheels).forEach { sensor ->
                 val emptySlot = if (sensor.label in aa55EmptySlots) " (empty AA55 slot)" else ""
-                appendLine("  unmapped ${sensor.id}$emptySlot: ${formatSensor(sensor, pressureUnit)}")
+                val mappedSlot = WheelLayout.allSlots(showSpareWheel = true)
+                    .firstOrNull { wheelMapping[it] == sensor.id }
+                val status = when {
+                    mappedSlot == null -> "unmapped"
+                    mappedSlot !in slots -> "mapped to $mappedSlot (spare off)"
+                    else -> "mapped to $mappedSlot, not placed"
+                }
+                appendLine("  $status ${sensor.id}$emptySlot: ${formatSensor(sensor, pressureUnit)}")
             }
         }
         appendLine()

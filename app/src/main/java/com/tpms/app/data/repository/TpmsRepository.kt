@@ -73,7 +73,8 @@ class TpmsRepository @Inject constructor(
     /**
      * Last confirmed reading (alert applied) of every sensor that passed the decoder, by id, whether
      * or not it sits on a wheel: input of [WheelAssignment] and of the wheel-mapping UI / diagnostics.
-     * Bounded by [WheelAssignment.retainSeen] (old sensors off the wheels and unmapped are dropped).
+     * Bounded by [WheelAssignment.retainSeen] (old sensors off the wheels and unmapped are dropped),
+     * applied only when a live reading arrives — never on snapshot restore or a settings change.
      * Written only under [wheelsLock], together with [wheels].
      */
     private val _seenSensors = MutableStateFlow<Map<String, TireSensor>>(emptyMap())
@@ -101,7 +102,11 @@ class TpmsRepository @Inject constructor(
 
     /** Latest snapshot write (empty wheels = clear); conflated, written by one collector in order. */
     private val snapshotWrites = MutableStateFlow<SnapshotWrite?>(null)
+    /** Set on the main thread, invoked on the repository's threads. */
+    @Volatile
     private var onAlertCallback: ((TireSensor) -> Unit)? = null
+
+    @Volatile
     private var onSensorNormalCallback: ((String) -> Unit)? = null
 
     @Volatile
@@ -569,7 +574,7 @@ class TpmsRepository @Inject constructor(
         // Memory for every seen sensor, so one placed later by a settings change shows its alert.
         val sensor = alertTracker.apply(reading, settingsStore.thresholds.value)
         _seenSensors.update { it + (sensor.id to sensor) }
-        val before = recomputeWheelsLocked(now = sensor.timestamp)
+        val before = recomputeWheelsLocked(pruneAt = sensor.timestamp)
         val after = _wheels.value
         val afterIds = after.values.mapTo(HashSet()) { it.id }
         before.values.map { it.id }.filter { it !in afterIds }.forEach { notifySensorNormal(it) }
@@ -617,11 +622,13 @@ class TpmsRepository @Inject constructor(
     }
 
     /**
-     * Re-derives [wheels] from [seenSensors] and the current inputs and prunes the seen sensors (and
-     * their alert memory) with [WheelAssignment.retainSeen]; returns the previous wheels.
+     * Re-derives [wheels] from [seenSensors] and the current inputs; returns the previous wheels.
+     * With [pruneAt] (a live reading's time) also prunes the seen sensors (and their alert memory) with
+     * [WheelAssignment.retainSeen]. Restore and settings changes pass none: restored sensors off the
+     * wheels and a long-silent sensor just set back to "Авто" stay available for mapping.
      * Caller holds [wheelsLock].
      */
-    private fun recomputeWheelsLocked(now: Long = System.currentTimeMillis()): Map<String, TireSensor> {
+    private fun recomputeWheelsLocked(pruneAt: Long? = null): Map<String, TireSensor> {
         val before = _wheels.value
         val mapping = settingsStore.wheelMapping.value
         val wheels = WheelAssignment.assign(
@@ -630,9 +637,11 @@ class TpmsRepository @Inject constructor(
             showSpareWheel = settingsStore.showSpareWheel.value,
             emptySlots = _aa55EmptySlots.value
         )
-        val kept = WheelAssignment.retainSeen(_seenSensors.value, wheels, mapping, now)
-        if (kept.size != _seenSensors.value.size) _seenSensors.value = kept
-        alertTracker.retain(kept.keys)
+        if (pruneAt != null) {
+            val kept = WheelAssignment.retainSeen(_seenSensors.value, wheels, mapping, pruneAt)
+            if (kept.size != _seenSensors.value.size) _seenSensors.value = kept
+            alertTracker.retain(kept.keys)
+        }
         _wheels.value = wheels
         return before
     }

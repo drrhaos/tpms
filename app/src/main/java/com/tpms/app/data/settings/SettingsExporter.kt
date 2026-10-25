@@ -55,8 +55,9 @@ object SettingsExporter {
         put("widget_theme_mode", widgetThemeMode.name)
         put("diagnostic_log_enabled", diagnosticLogEnabled)
         put("debug_tools_enabled", debugToolsEnabled)
+        // All five slots: an SP mapping applies even with the spare hidden (wayfinder 11).
         put("wheel_mapping", JSONObject().apply {
-            WheelLayout.allSlots(showSpareWheel).forEach { slot ->
+            WheelLayout.allSlots(showSpareWheel = true).forEach { slot ->
                 put(slot, wheelMapping[slot].orEmpty())
             }
         })
@@ -72,7 +73,8 @@ object SettingsExporter {
         val protocolName = root.optString("dongle_protocol", DongleProtocolMode.AUTO.name)
         val wheelMappingJson = root.optJSONObject("wheel_mapping")
         val showSpare = root.optBoolean("show_spare_wheel", false)
-        val slots = WheelLayout.allSlots(showSpare)
+        // All five slots regardless of the spare toggle; a slot missing from an old file is blank ("Авто").
+        val slots = WheelLayout.allSlots(showSpareWheel = true)
 
         return ImportedSettings(
             pressureUnit = PressureUnit.entries.find { it.name == unitName } ?: PressureUnit.KPA,

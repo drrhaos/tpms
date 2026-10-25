@@ -294,7 +294,8 @@ class SettingsStore @Inject constructor(
             prefs[KEY_WIDGET_THEME_MODE] = imported.widgetThemeMode.name
             prefs[KEY_DIAGNOSTIC_LOG] = imported.diagnosticLogEnabled
             prefs[KEY_DEBUG_TOOLS] = imported.debugToolsEnabled
-            WheelLayout.allSlots(imported.showSpareWheel).forEach { slot ->
+            // All five slots: the SP mapping counts even with the spare hidden (wayfinder 11).
+            WheelLayout.allSlots(showSpareWheel = true).forEach { slot ->
                 prefs[wheelMappingKey(slot)] = imported.wheelMapping[slot].orEmpty()
             }
         }

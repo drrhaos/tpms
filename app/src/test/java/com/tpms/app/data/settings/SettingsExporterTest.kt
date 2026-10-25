@@ -36,4 +36,38 @@ class SettingsExporterTest {
         assertEquals(true, imported.diagnosticLogEnabled)
         assertEquals(true, imported.debugToolsEnabled)
     }
+
+    @Test
+    fun spareMapping_roundTripsWhileSpareIsHidden() {
+        val exported = SettingsExporter.export(
+            pressureUnit = PressureUnit.KPA,
+            thresholds = AlertThresholds(),
+            dongleProtocolMode = DongleProtocolMode.AUTO,
+            staleFrameTimeoutMs = 120_000L,
+            wheelMapping = mapOf("FL" to "ABC", "SP" to "XYZ"),
+            showSpareWheel = false,
+            minLiveWheelPressureKpa = 100f,
+            alertNotificationPrefs = AlertNotificationPrefs(),
+            teyesChecklist = TeyesChecklist()
+        )
+
+        val imported = SettingsExporter.import(exported)
+
+        assertEquals(false, imported.showSpareWheel)
+        assertEquals(
+            mapOf("FL" to "ABC", "FR" to "", "RL" to "", "RR" to "", "SP" to "XYZ"),
+            imported.wheelMapping
+        )
+    }
+
+    @Test
+    fun import_slotMissingFromOldFile_isBlank() {
+        val old = """{"version":2,"show_spare_wheel":false,"wheel_mapping":{"FL":"ABC","FR":"","RL":"","RR":""}}"""
+
+        val imported = SettingsExporter.import(old)
+
+        assertEquals(setOf("FL", "FR", "RL", "RR", "SP"), imported.wheelMapping.keys)
+        assertEquals("", imported.wheelMapping["SP"])
+        assertEquals("ABC", imported.wheelMapping["FL"])
+    }
 }
