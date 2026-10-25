@@ -16,6 +16,7 @@ import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.service.TpmsMonitorService
+import com.tpms.app.service.UsbPermissionRequester
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,7 +58,8 @@ class MainViewModel @Inject constructor(
     private val repository: TpmsRepository,
     settingsStore: SettingsStore,
     private val debugLog: UsbDebugLog,
-    private val uiBreadcrumbs: UiBreadcrumbs
+    private val uiBreadcrumbs: UiBreadcrumbs,
+    private val usbPermissionRequester: UsbPermissionRequester
 ) : AndroidViewModel(application) {
 
     /** Re-evaluates time-based staleness (per-wheel and overall) while nothing else changes. */
@@ -103,6 +105,12 @@ class MainViewModel @Inject constructor(
             delay(CHECK_NOW_REFRESH_MS)
             _isRefreshing.value = false
         }
+    }
+
+    /** Header tap while the fault is [UsbFault.NO_PERMISSION]: ask for USB permission again (even after a denial). */
+    fun requestUsbPermission() {
+        runCatching { usbPermissionRequester.requestExplicitly() }
+            .onFailure { debugLog.exception("MainScreen", it, "request USB permission") }
     }
 
     private fun buildUiState(

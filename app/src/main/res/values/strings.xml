@@ -19,9 +19,11 @@
     <string name="notification_service_stopped_body">Monitoring is off — tap to restart</string>
     <string name="usb_fault_dongle_silent">Dongle not responding — replug it</string>
     <string name="usb_fault_stuck">USB stuck — restart the head unit</string>
+    <string name="usb_fault_no_permission">No USB permission for the dongle</string>
     <string name="notification_protocol_warn">No valid sensor data</string>
     <string name="notification_usb_permission_title">USB permission required</string>
-    <string name="notification_usb_permission_body">Open TPMS Monitor to allow the TPMS dongle</string>
+    <string name="notification_action_request_usb_permission">Request permission</string>
+    <string name="notification_usb_permission_body">Tap “Request permission” and allow access to the TPMS dongle</string>
     <string name="notification_monitoring_blind_title">TPMS data unavailable</string>
     <string name="notification_monitoring_blind_body">No fresh tire pressure data — check dongle and sensors</string>
     <string name="notification_monitoring_offline_title">TPMS monitoring offline</string>

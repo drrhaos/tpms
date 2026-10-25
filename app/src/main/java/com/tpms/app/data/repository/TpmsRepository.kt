@@ -23,6 +23,8 @@ import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.RecoveryState
 import com.tpms.app.domain.SensorFreshness
 import com.tpms.app.domain.UsbFault
+import com.tpms.app.domain.UsbPermissionPolicy
+import com.tpms.app.domain.UsbPermissionState
 import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
@@ -59,7 +61,10 @@ class TpmsRepository @Inject constructor(
     private val _state = MutableStateFlow<TpmsState>(TpmsState.Disconnected)
     val state = _state.asStateFlow()
 
-    /** USB problem reopening is not fixing, shown in the header and the persistent notification. */
+    /**
+     * USB problem the user has to act on, shown in the header and the persistent notification:
+     * the recovery fault and the permission fault merged by [UsbPermissionPolicy.publishedFault].
+     */
     private val _usbFault = MutableStateFlow<UsbFault?>(null)
     val usbFault = _usbFault.asStateFlow()
 
@@ -69,6 +74,13 @@ class TpmsRepository @Inject constructor(
      */
     private val _recovery = MutableStateFlow(RecoveryState())
     val recovery: RecoveryState get() = _recovery.value
+
+    /**
+     * USB permission of the dongle in the device list (auto-request bookkeeping + NO_PERMISSION).
+     * Not recovery state: written only through [decideUsbPermission] (service loop, receivers, UI).
+     */
+    private val _usbPermission = MutableStateFlow(UsbPermissionState())
+    val usbPermission: UsbPermissionState get() = _usbPermission.value
 
     /**
      * Last confirmed reading (alert applied) of every sensor that passed the decoder, by id, whether
@@ -368,12 +380,27 @@ class TpmsRepository @Inject constructor(
     }
 
     /**
-     * Brings [usbFault] in line with the current recovery state. Loops until they agree, so a writer
-     * that publishes after a newer recovery write still ends on the newest fault, not its own.
+     * Atomically applies the pure [decide] to the current USB permission state and stores [stateOf]
+     * its result; retried like [decideRecovery], so each request decision is made exactly once.
+     */
+    fun <D> decideUsbPermission(decide: (UsbPermissionState) -> D, stateOf: (D) -> UsbPermissionState): D {
+        while (true) {
+            val current = _usbPermission.value
+            val decision = decide(current)
+            if (_usbPermission.compareAndSet(current, stateOf(decision))) {
+                publishUsbFault()
+                return decision
+            }
+        }
+    }
+
+    /**
+     * Brings [usbFault] in line with the current recovery and permission state. Loops until they
+     * agree, so a writer that publishes after a newer write still ends on the newest fault, not its own.
      */
     private fun publishUsbFault() {
         while (true) {
-            val fault = _recovery.value.fault
+            val fault = UsbPermissionPolicy.publishedFault(_recovery.value.fault, _usbPermission.value.fault)
             val published = _usbFault.value
             if (published == fault) return
             if (_usbFault.compareAndSet(published, fault)) {

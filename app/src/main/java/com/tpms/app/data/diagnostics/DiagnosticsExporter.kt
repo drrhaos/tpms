@@ -1,5 +1,6 @@
 package com.tpms.app.data.diagnostics
 
+import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
@@ -18,7 +19,8 @@ class DiagnosticsExporter @Inject constructor(
     private val systemDiagnostics: SystemDiagnostics,
     private val uiBreadcrumbs: UiBreadcrumbs,
     private val crashLogStore: CrashLogStore,
-    private val debugLog: UsbDebugLog
+    private val debugLog: UsbDebugLog,
+    private val heartbeatStore: ServiceHeartbeatStore
 ) {
 
     fun exportFullReport(
@@ -44,6 +46,9 @@ class DiagnosticsExporter @Inject constructor(
         appendLine("TPMS state: ${formatState(tpmsState)}")
         appendLine()
         serviceHealth.reportBlock()
+        appendLine()
+        appendLine("--- USB permission ---")
+        appendLine(usbPermissionLine())
         appendLine()
         appendLine("--- Settings ---")
         appendLine("show_spare_wheel: $showSpareWheel")
@@ -95,6 +100,14 @@ class DiagnosticsExporter @Inject constructor(
         append(debugLog.eventsText())
     }
 
+    /** Many requests on a firmware that forgets "use by default" show up here (wayfinder 14). */
+    private fun usbPermissionLine(): String {
+        val stats = heartbeatStore.usbPermissionStatsBlocking() ?: return "usb_permission_requests: unavailable"
+        val last = stats.lastRequestMs?.let { formatTime(it) } ?: "never"
+        return "usb_permission_requests: ${stats.requests} (explicit ${stats.explicitRequests}, " +
+            "auto ${stats.requests - stats.explicitRequests}) denials: ${stats.denials} last: $last"
+    }
+
     private fun formatState(state: TpmsState): String = when (state) {
         is TpmsState.Disconnected -> "Disconnected"
         is TpmsState.Connecting -> "Connecting (attempt ${state.attempt})"
@@ -118,6 +131,8 @@ class DiagnosticsExporter @Inject constructor(
         return "${sensor.id} label=${sensor.label} $pressure $temp batt=${sensor.batteryPercent?.let { "$it%" } ?: "?"} flags=${sensor.flags} $alert"
     }
 
-    private fun timestamp(): String =
-        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+    private fun timestamp(): String = formatTime(System.currentTimeMillis())
+
+    private fun formatTime(atMs: Long): String =
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(atMs))
 }

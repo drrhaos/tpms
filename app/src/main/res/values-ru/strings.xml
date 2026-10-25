@@ -19,9 +19,11 @@
     <string name="notification_service_stopped_body">Мониторинг выключен — нажмите, чтобы перезапустить</string>
     <string name="usb_fault_dongle_silent">Донгл не отвечает — переподключите</string>
     <string name="usb_fault_stuck">USB завис — нужна перезагрузка магнитолы</string>
+    <string name="usb_fault_no_permission">Нет разрешения USB для донгла</string>
     <string name="notification_protocol_warn">Нет валидных данных датчиков</string>
     <string name="notification_usb_permission_title">Нужно разрешение USB</string>
-    <string name="notification_usb_permission_body">Откройте TPMS Монитор, чтобы разрешить доступ к донглу</string>
+    <string name="notification_action_request_usb_permission">Запросить разрешение</string>
+    <string name="notification_usb_permission_body">Нажмите «Запросить разрешение» и разрешите доступ к донглу</string>
     <string name="notification_monitoring_blind_title">Данные TPMS недоступны</string>
     <string name="notification_monitoring_blind_body">Нет свежих данных давления — проверьте донгл и датчики</string>
     <string name="notification_monitoring_offline_title">Мониторинг TPMS офлайн</string>

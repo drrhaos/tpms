@@ -73,4 +73,5 @@ private fun usbFaultPresentation(fault: UsbFault, uiState: MainUiState): Pair<St
     withStaleSuffix(fault.label(), uiState) to when (fault) {
         UsbFault.DONGLE_SILENT -> StatusColors.warning
         UsbFault.USB_STUCK -> StatusColors.alert
+        UsbFault.NO_PERMISSION -> StatusColors.warning
     }

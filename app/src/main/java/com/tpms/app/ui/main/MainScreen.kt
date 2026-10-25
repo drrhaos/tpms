@@ -1,6 +1,7 @@
 package com.tpms.app.ui.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
+import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
@@ -93,6 +95,11 @@ fun MainScreen(
             isRefreshing = isRefreshing,
             compactToolbar = embedded.isEmbedded,
             onRefresh = { viewModel.checkNow() },
+            onStatusClick = if (uiState.usbFault == UsbFault.NO_PERMISSION) {
+                { viewModel.requestUsbPermission() }
+            } else {
+                null
+            },
             onNavigateToSettings = onNavigateToSettings,
             onNavigateToDebug = onNavigateToDebug,
             showDebug = uiState.advancedMode && uiState.debugToolsEnabled,
@@ -116,6 +123,7 @@ private fun MainScreenScaffold(
     isRefreshing: Boolean,
     compactToolbar: Boolean,
     onRefresh: () -> Unit,
+    onStatusClick: (() -> Unit)?,
     onNavigateToSettings: () -> Unit,
     onNavigateToDebug: () -> Unit,
     showDebug: Boolean,
@@ -129,7 +137,8 @@ private fun MainScreenScaffold(
                     StatusHeaderRow(
                         statusText = statusText,
                         statusColor = statusColor,
-                        compact = compactToolbar
+                        compact = compactToolbar,
+                        modifier = if (onStatusClick != null) Modifier.clickable(onClick = onStatusClick) else Modifier
                     )
                 },
                 actions = {

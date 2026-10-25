@@ -46,13 +46,11 @@ class UsbAttachedReceiver : BroadcastReceiver() {
             return
         }
 
-        val helper = entryPoint.usbPermissionHelper()
-        if (helper.hasPermission(device)) {
-            UsbPermissionNotifier.dismiss(context)
+        // The policy asks once per appearance, shared with UsbAttachActivity and the service scan:
+        // one attach shows one dialog. It also raises / clears NO_PERMISSION and its notification.
+        entryPoint.usbPermissionRequester().onDongleScanned(device)
+        if (entryPoint.usbPermissionHelper().hasPermission(device)) {
             TpmsMonitorService.wake(context, deviceAttached = true)
-        } else {
-            UsbPermissionNotifier.show(context)
-            helper.requestPermission(context, device)
         }
     }
 
@@ -68,6 +66,7 @@ class UsbAttachedReceiver : BroadcastReceiver() {
 
         val detector = entryPoint.dongleDetector()
         if (!detector.isSupportedDongle(device)) return
+        entryPoint.usbPermissionRequester().onDongleGone(device.deviceName)
 
         val serviceIntent = Intent(context, TpmsMonitorService::class.java).apply {
             action = TpmsMonitorService.ACTION_USB_DETACHED

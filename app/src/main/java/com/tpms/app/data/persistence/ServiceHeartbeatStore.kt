@@ -25,6 +25,15 @@ import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** USB permission requests since install (diagnostics: firmwares that forget "use by default"). */
+data class UsbPermissionStats(
+    val requests: Int,
+    /** Of [requests], asked by the user (header tap, notification action); the rest were automatic. */
+    val explicitRequests: Int,
+    val denials: Int,
+    val lastRequestMs: Long?
+)
+
 private val Context.heartbeatDataStore: DataStore<Preferences> by preferencesDataStore(name = "tpms_heartbeat")
 
 @Singleton
@@ -147,6 +156,35 @@ class ServiceHeartbeatStore @Inject constructor(
     val killedInSleepAtMs: Flow<Long?> =
         context.heartbeatDataStore.data.map { it[KEY_KILLED_IN_SLEEP_MS] }.distinctUntilChanged()
 
+    /** Counts one `requestPermission` call ([explicit]: asked by the user). */
+    suspend fun recordUsbPermissionRequest(explicit: Boolean, atMs: Long = System.currentTimeMillis()) {
+        context.heartbeatDataStore.edit {
+            it[KEY_USB_PERMISSION_REQUESTS] = (it[KEY_USB_PERMISSION_REQUESTS] ?: 0) + 1
+            if (explicit) it[KEY_USB_PERMISSION_EXPLICIT] = (it[KEY_USB_PERMISSION_EXPLICIT] ?: 0) + 1
+            it[KEY_USB_PERMISSION_LAST_MS] = atMs
+        }
+    }
+
+    suspend fun recordUsbPermissionDenied() {
+        context.heartbeatDataStore.edit {
+            it[KEY_USB_PERMISSION_DENIALS] = (it[KEY_USB_PERMISSION_DENIALS] ?: 0) + 1
+        }
+    }
+
+    suspend fun usbPermissionStats(): UsbPermissionStats {
+        val prefs = context.heartbeatDataStore.data.first()
+        return UsbPermissionStats(
+            requests = prefs[KEY_USB_PERMISSION_REQUESTS] ?: 0,
+            explicitRequests = prefs[KEY_USB_PERMISSION_EXPLICIT] ?: 0,
+            denials = prefs[KEY_USB_PERMISSION_DENIALS] ?: 0,
+            lastRequestMs = prefs[KEY_USB_PERMISSION_LAST_MS]
+        )
+    }
+
+    /** Main-thread [usbPermissionStats] (diagnostics export), bounded; null on timeout or failure. */
+    fun usbPermissionStatsBlocking(): UsbPermissionStats? =
+        boundedBlocking("usbPermissionStats") { usbPermissionStats() }
+
     companion object {
         private const val TAG = "ServiceHeartbeat"
         private const val MAIN_THREAD_TIMEOUT_MS = 500L
@@ -158,5 +196,9 @@ class ServiceHeartbeatStore @Inject constructor(
         private val KEY_LAST_SCREEN_OFF_MS = longPreferencesKey("last_screen_off_ms")
         private val KEY_LAST_SCREEN_ON_MS = longPreferencesKey("last_screen_on_ms")
         private val KEY_KILLED_IN_SLEEP_MS = longPreferencesKey("killed_in_sleep_ms")
+        private val KEY_USB_PERMISSION_REQUESTS = intPreferencesKey("usb_permission_requests")
+        private val KEY_USB_PERMISSION_EXPLICIT = intPreferencesKey("usb_permission_explicit_requests")
+        private val KEY_USB_PERMISSION_DENIALS = intPreferencesKey("usb_permission_denials")
+        private val KEY_USB_PERMISSION_LAST_MS = longPreferencesKey("usb_permission_last_request_ms")
     }
 }

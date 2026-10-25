@@ -9,9 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.ContextCompat
 import com.tpms.app.data.usb.UsbDebugLog
-import com.tpms.app.data.usb.UsbDeviceInfo
-import com.tpms.app.data.usb.UsbPermissionHelper
-import com.tpms.app.service.UsbPermissionNotifier
+import com.tpms.app.service.UsbPermissionRequester
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,11 +17,9 @@ import javax.inject.Singleton
 @Singleton
 class StartupPermissionCoordinator @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val usbPermissionHelper: UsbPermissionHelper,
+    private val usbPermissionRequester: UsbPermissionRequester,
     private val debugLog: UsbDebugLog
 ) {
-    private var usbPermissionRequestedThisSession = false
-
     /**
      * Run once when the main activity is created. Does not open system settings screens
      * automatically — battery / app-details are opened only from Settings UI.
@@ -33,7 +29,7 @@ class StartupPermissionCoordinator @Inject constructor(
         notificationPermissionLauncher: ActivityResultLauncher<String>
     ) {
         requestNotificationPermissionIfNeeded(activity, notificationPermissionLauncher)
-        requestUsbPermissionIfNeeded(activity, force = true)
+        requestUsbPermissionIfNeeded()
     }
 
     private fun requestNotificationPermissionIfNeeded(
@@ -49,19 +45,13 @@ class StartupPermissionCoordinator @Inject constructor(
         launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
-    private fun requestUsbPermissionIfNeeded(activity: Activity, force: Boolean) {
-        if (!force && usbPermissionRequestedThisSession) return
-        runCatching {
-            val device = usbPermissionHelper.findDongle() ?: return
-            if (usbPermissionHelper.hasPermission(device)) {
-                UsbPermissionNotifier.dismiss(activity)
-                return
-            }
-            usbPermissionRequestedThisSession = true
-            debugLog.usb("App", "Requesting USB permission for ${UsbDeviceInfo.shortLabel(device)}")
-            usbPermissionHelper.requestPermission(activity, device)
-        }.onFailure { error ->
-            debugLog.exception("App", error, "requestUsbPermissionIfNeeded")
-        }
+    /**
+     * A dongle without permission is asked for through the shared once-per-appearance policy, so
+     * opening the app does not stack a second dialog on the service's (or re-ask after a denial;
+     * the header tap does that).
+     */
+    private fun requestUsbPermissionIfNeeded() {
+        runCatching { usbPermissionRequester.scanNow() }
+            .onFailure { error -> debugLog.exception("App", error, "requestUsbPermissionIfNeeded") }
     }
 }

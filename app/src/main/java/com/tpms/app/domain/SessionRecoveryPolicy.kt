@@ -6,7 +6,10 @@ enum class UsbFault {
     DONGLE_SILENT,
 
     /** Reader threads stuck in the kernel and no process restart left: reboot the head unit. */
-    USB_STUCK
+    USB_STUCK,
+
+    /** A dongle is present but the app has no USB permission for it (see [UsbPermissionPolicy]). */
+    NO_PERMISSION
 }
 
 /** How a dongle session ended. */

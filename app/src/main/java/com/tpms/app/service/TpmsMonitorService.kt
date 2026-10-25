@@ -78,6 +78,7 @@ class TpmsMonitorService : Service() {
     @Inject lateinit var serviceHealth: ServiceHealth
     @Inject lateinit var floatingOverlayController: FloatingOverlayController
     @Inject lateinit var debugLog: UsbDebugLog
+    @Inject lateinit var usbPermissionRequester: UsbPermissionRequester
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var sessionJob: Job? = null
@@ -207,7 +208,6 @@ class TpmsMonitorService : Service() {
             ACTION_USB_DETACHED -> onUsbDetached(intent.getStringExtra(EXTRA_DEVICE_NAME))
             else -> {
                 ServiceStoppedNotifier.dismiss(this)
-                UsbPermissionNotifier.dismiss(this)
                 alertNotifier.clear()
                 monitoringHealthNotifier.clear()
                 BootStartScheduler.cancel(this)
@@ -309,6 +309,9 @@ class TpmsMonitorService : Service() {
                 // Before the search: a wake during findDongle/openSession must still cut the wait.
                 val searchSince = searchWakes.get()
                 val dongle = repository.findDongle()
+                // Without permission: asked once per dongle appearance, NO_PERMISSION + notification (wayfinder 14).
+                runCatchingCancellable { usbPermissionRequester.onDongleScanned(dongle) }
+                    .onFailure { debugLog.exception("Service", it, "permission policy") }
                 val session = if (dongle != null && repository.hasUsbPermission(dongle)) {
                     repository.openSession(dongle) ?: run {
                         onOpenFailed()

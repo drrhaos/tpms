@@ -39,14 +39,10 @@ class UsbAttachActivity : Activity() {
             if (intent?.action != UsbManager.ACTION_USB_DEVICE_ATTACHED) return
             val device = intent.usbDevice() ?: return
             if (!entryPoint.dongleDetector().isSupportedDongle(device)) return
-            val helper = entryPoint.usbPermissionHelper()
-            val granted = helper.hasPermission(device)
+            val granted = entryPoint.usbPermissionHelper().hasPermission(device)
             debugLog.usb(TAG, "Attach activity: ${device.deviceName} permission=$granted")
-            if (granted) {
-                UsbPermissionNotifier.dismiss(this)
-            } else {
-                helper.requestPermission(this, device)
-            }
+            // Shared once-per-appearance policy: the attach broadcast for the same device asks no second time.
+            entryPoint.usbPermissionRequester().onDongleScanned(device)
             TpmsMonitorService.wake(this, deviceAttached = true)
         }.onFailure { error ->
             debugLog.exception(TAG, error, "attach activity")

@@ -32,6 +32,7 @@ fun UsbFault.label(): String = stringResource(labelRes())
 private fun UsbFault.labelRes(): Int = when (this) {
     UsbFault.DONGLE_SILENT -> R.string.usb_fault_dongle_silent
     UsbFault.USB_STUCK -> R.string.usb_fault_stuck
+    UsbFault.NO_PERMISSION -> R.string.usb_fault_no_permission
 }
 
 fun AlertType.shortLabel(context: Context): String = when (this) {

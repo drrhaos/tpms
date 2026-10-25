@@ -107,6 +107,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.tpms.app.action.USB_PERMISSION" />
+                <action android:name="com.tpms.app.action.REQUEST_USB_PERMISSION" />
             </intent-filter>
         </receiver>
 
