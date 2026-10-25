@@ -45,7 +45,7 @@ class DiagnosticsExporter @Inject constructor(
         appendLine(serviceStatusLine)
         appendLine("TPMS state: ${formatState(tpmsState)}")
         appendLine()
-        serviceHealth.reportBlock()
+        append(serviceHealth.reportBlock())
         appendLine()
         appendLine("--- USB permission ---")
         appendLine(usbPermissionLine())
