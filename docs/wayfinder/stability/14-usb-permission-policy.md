@@ -2,7 +2,7 @@
 title: Как получать и сохранять USB-разрешение
 labels: [wayfinder:grilling]
 status: open
-assignee:
+assignee: drhaos+claude
 blocked_by: []
 ---
 
