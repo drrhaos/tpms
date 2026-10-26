@@ -16,6 +16,7 @@ labels: [wayfinder:map]
 - Охват: все устройства/протоколы; новые протоколы — вне.
 - Скиллы для сессий: `grilling`; для решений о границах модулей — `codebase-design`.
 - Когда тикетов не останется — собрать `docs/specs/stability.md` из Decisions so far.
+- Спецификация собрана: [docs/specs/stability.md](../../specs/stability.md) (2026-10-26).
 
 ## Decisions so far
 
