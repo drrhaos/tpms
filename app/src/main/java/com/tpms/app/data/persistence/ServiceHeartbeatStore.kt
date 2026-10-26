@@ -17,9 +17,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
@@ -210,13 +213,22 @@ class ServiceHeartbeatStore @Inject constructor(
         boundedBlocking("alertNotifications") { context.heartbeatDataStore.data.first()[KEY_ALERT_NOTIFICATIONS] ?: "" }
 
     /**
-     * Main-thread write of the notifier's memory, only when it changes (onset, new type, clear,
-     * swipe; not on silent updates). Bounded like the screen-off write: it should reach disk before
-     * a kill, and on timeout it finishes in the background, queued in order with later writes.
+     * Non-blocking write of the notifier's memory: only the newest value is written, in order, by
+     * one writer. Use it for the frequent changes; the main thread never waits on disk.
      */
-    fun recordAlertNotificationsBlocking(encoded: String) {
-        boundedBlocking("recordAlertNotifications") {
-            context.heartbeatDataStore.edit { it[KEY_ALERT_NOTIFICATIONS] = encoded }
+    fun recordAlertNotificationsAsync(encoded: String) {
+        pendingAlertNotifications.value = encoded
+    }
+
+    private val pendingAlertNotifications = MutableStateFlow<String?>(null)
+
+    init {
+        writeScope.launch {
+            pendingAlertNotifications.filterNotNull().collect { encoded ->
+                runCatching {
+                    context.heartbeatDataStore.edit { it[KEY_ALERT_NOTIFICATIONS] = encoded }
+                }.onFailure { Log.w(TAG, "recordAlertNotifications failed", it) }
+            }
         }
     }
 

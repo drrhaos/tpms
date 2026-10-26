@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.tpms.app.R
 import com.tpms.app.TpmsApplication
@@ -57,6 +58,9 @@ class AlertNotifier @Inject constructor(
     /** The book was loaded from the store (once per process; a failed load counts, memory starts empty). */
     private var loaded = false
 
+    /** Last load attempt (elapsedRealtime): a failed read is retried at most every [LOAD_RETRY_MS]. */
+    private var lastLoadAttemptMs = Long.MIN_VALUE / 2
+
     /** End of the mute window, wall clock; loaded from the store on first use. */
     private var mutedUntilMs: Long? = null
 
@@ -81,7 +85,7 @@ class AlertNotifier @Inject constructor(
      * knows nothing about (left by a process whose memory was lost).
      */
     fun onServiceCreated() {
-        ensureLoaded()
+        if (!ensureLoaded()) return
         runCatching {
             val known = book.keys()
             notificationManager.activeNotifications
@@ -222,14 +226,25 @@ class AlertNotifier @Inject constructor(
         persist()
     }
 
-    private fun ensureLoaded() {
-        if (loaded) return
+    /**
+     * Loads the persisted memory once. A timed-out or failed read leaves [loaded] false: the book
+     * works from empty for now, but nothing is swept or persisted until a later load succeeds, so
+     * a slow disk never wipes the stored memory.
+     */
+    private fun ensureLoaded(): Boolean {
+        if (loaded) return true
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastLoadAttemptMs < LOAD_RETRY_MS) return false
+        lastLoadAttemptMs = now
+        val stored = heartbeatStore.alertNotificationsBlocking() ?: return false
+        book.load(stored)
         loaded = true
-        book.load(heartbeatStore.alertNotificationsBlocking())
+        return true
     }
 
     private fun persist() {
-        heartbeatStore.recordAlertNotificationsBlocking(book.encode())
+        if (!loaded) return
+        heartbeatStore.recordAlertNotificationsAsync(book.encode())
     }
 
     private fun mutedUntil(): Long =
@@ -302,6 +317,7 @@ class AlertNotifier @Inject constructor(
     companion object {
         /** Shared by every wheel's alert notification; the tag (sensor id) tells them apart. */
         const val NOTIF_ID = 1200
+        private const val LOAD_RETRY_MS = 30_000L
         private const val URI_SCHEME = "tpms-alert"
         private const val REQUEST_OPEN = 0
         private const val REQUEST_MUTE = 2
