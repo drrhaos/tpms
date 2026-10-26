@@ -2,7 +2,7 @@
 title: Нужны ли отдельные уведомления о тревогах
 labels: [wayfinder:grilling]
 status: open
-assignee:
+assignee: drhaos+claude
 blocked_by: []
 ---
 
