@@ -11,8 +11,19 @@ class UsbPermissionPolicyTest {
     private val dev1 = "/dev/bus/usb/001/002"
     private val dev2 = "/dev/bus/usb/001/003"
 
-    private fun scan(state: UsbPermissionState, deviceName: String?, granted: Boolean = false) =
-        UsbPermissionPolicy.onScan(state, deviceName, granted)
+    private val grace = UsbPermissionPolicy.AUTO_REQUEST_GRACE_MS
+
+    /** Scan [deviceName] first at [firstMs], then again once the grace period is over: the automatic request is due. */
+    private fun scan(state: UsbPermissionState, deviceName: String?, granted: Boolean = false, firstMs: Long = 0L) =
+        UsbPermissionPolicy.onScan(
+            UsbPermissionPolicy.onScan(state, deviceName, granted, firstMs).state,
+            deviceName,
+            granted,
+            firstMs + grace
+        )
+
+    private fun scanAt(state: UsbPermissionState, deviceName: String?, nowMs: Long, granted: Boolean = false) =
+        UsbPermissionPolicy.onScan(state, deviceName, granted, nowMs)
 
     // --- Automatic request: once per appearance ---
 
@@ -87,6 +98,73 @@ class UsbPermissionPolicyTest {
     fun detachOfAnotherDevice_keepsState() {
         val asked = scan(UsbPermissionState(), dev1).state
         assertEquals(asked, UsbPermissionPolicy.onGone(asked, dev2))
+    }
+
+    // --- Grace period: the default-association grant may land after the attach ---
+
+    @Test
+    fun firstSight_waitsForGracePeriod() {
+        val first = scanAt(UsbPermissionState(), dev1, nowMs = 1_000L)
+        assertFalse(first.request)
+        assertFalse(first.state.fault)
+        assertEquals(dev1, first.state.firstSeenFor)
+        assertEquals(1_000L, first.state.firstSeenMs)
+        assertEquals(grace, first.recheckAfterMs)
+    }
+
+    @Test
+    fun withinGracePeriod_noRequestAndFirstSightKept() {
+        val first = scanAt(UsbPermissionState(), dev1, nowMs = 1_000L).state
+        val early = scanAt(first, dev1, nowMs = 1_000L + grace - 1)
+        assertFalse(early.request)
+        assertFalse(early.state.fault)
+        assertEquals(1_000L, early.state.firstSeenMs)
+        assertEquals(1L, early.recheckAfterMs)
+    }
+
+    @Test
+    fun afterGracePeriod_requestsAndRaisesFault() {
+        val first = scanAt(UsbPermissionState(), dev1, nowMs = 1_000L).state
+        val due = scanAt(first, dev1, nowMs = 1_000L + grace)
+        assertTrue(due.request)
+        assertTrue(due.state.fault)
+        assertEquals(dev1, due.state.requestedFor)
+        assertNull(due.recheckAfterMs)
+    }
+
+    @Test
+    fun defaultGrantWithinGracePeriod_noRequestNoFault() {
+        val first = scanAt(UsbPermissionState(), dev1, nowMs = 1_000L).state
+        val granted = scanAt(first, dev1, nowMs = 1_500L, granted = true)
+        assertFalse(granted.request)
+        assertFalse(granted.state.fault)
+        assertNull(granted.recheckAfterMs)
+    }
+
+    @Test
+    fun newDeviceNameWithinGracePeriod_restartsGracePeriod() {
+        val first = scanAt(UsbPermissionState(), dev1, nowMs = 1_000L).state
+        val other = scanAt(first, dev2, nowMs = 1_000L + grace)
+        assertFalse(other.request)
+        assertEquals(dev2, other.state.firstSeenFor)
+        assertEquals(1_000L + grace, other.state.firstSeenMs)
+    }
+
+    @Test
+    fun dongleGoneWithinGracePeriod_restartsGracePeriodOnReturn() {
+        val first = scanAt(UsbPermissionState(), dev1, nowMs = 1_000L).state
+        val gone = UsbPermissionPolicy.onGone(first, dev1)
+        assertEquals(UsbPermissionState(), gone)
+        assertFalse(scanAt(gone, dev1, nowMs = 1_000L + grace).request)
+    }
+
+    @Test
+    fun explicitRequest_ignoresGracePeriod() {
+        val first = scanAt(UsbPermissionState(), dev1, nowMs = 1_000L).state
+        val explicit = UsbPermissionPolicy.onExplicitRequest(first, dev1, granted = false)
+        assertTrue(explicit.request)
+        assertTrue(explicit.state.fault)
+        assertFalse(scanAt(explicit.state, dev1, nowMs = 1_000L + grace).request)
     }
 
     // --- Grant ---

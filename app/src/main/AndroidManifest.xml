@@ -108,6 +108,7 @@
             <intent-filter>
                 <action android:name="com.tpms.app.action.USB_PERMISSION" />
                 <action android:name="com.tpms.app.action.REQUEST_USB_PERMISSION" />
+                <action android:name="com.tpms.app.action.USB_PERMISSION_NOTIFICATION_SWIPED" />
             </intent-filter>
         </receiver>
 

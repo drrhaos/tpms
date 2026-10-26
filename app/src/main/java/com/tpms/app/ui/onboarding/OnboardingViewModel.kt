@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.service.TpmsMonitorService
+import com.tpms.app.service.UsbPermissionRequester
 import com.tpms.app.startup.HeadUnitSupport
 import com.tpms.app.ui.settings.TeyesPermissionHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,6 +30,7 @@ object OnboardingSteps {
 class OnboardingViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsStore: SettingsStore,
+    private val usbPermissionRequester: UsbPermissionRequester,
     headUnitSupport: HeadUnitSupport
 ) : ViewModel() {
 
@@ -45,8 +47,10 @@ class OnboardingViewModel @Inject constructor(
         _step.value = (_step.value + 1).coerceAtMost(lastStep)
     }
 
+    /** "Grant USB": an explicit request (asks even after a denial), and make sure monitoring runs. */
     fun requestUsbPermission() {
         TpmsMonitorService.start(context, userInitiated = true)
+        runCatching { usbPermissionRequester.requestExplicitly() }
         nextStep()
     }
 

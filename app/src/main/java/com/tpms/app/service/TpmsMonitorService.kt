@@ -212,6 +212,10 @@ class TpmsMonitorService : Service() {
                 monitoringHealthNotifier.clear()
                 BootStartScheduler.cancel(this)
                 ServiceLivenessScheduler.schedule(this)
+                // Re-post the USB permission notification if still needed (dismissed on the last stop,
+                // or notifications allowed since); a plain start comes with every app resume.
+                runCatching { usbPermissionRequester.resyncNotification() }
+                    .onFailure { debugLog.exception("Service", it, "permission notification resync") }
                 // App / FrontApp / widget tap: wake the search, but keep recovery and any running
                 // recovery pause (like a manual check). Periodic starts (START_STICKY, boot,
                 // liveness alarm, widget refresh) don't wake anything.
@@ -290,6 +294,8 @@ class TpmsMonitorService : Service() {
             ServiceStoppedNotifier.show(this)
         }
         floatingOverlayController.hide(this)
+        // The ongoing permission notification must not outlive monitoring; the next start re-syncs it.
+        runCatching { usbPermissionRequester.onMonitoringStopped() }
         runCatching { heartbeatStore.markRunEndedBlocking() }
         // After a refused foreground start the liveness alarm is what retries later.
         if (!foregroundRefused) ServiceLivenessScheduler.cancel(this)
