@@ -43,6 +43,15 @@ fun AlertType.shortLabel(context: Context): String = when (this) {
     AlertType.BATTERY_LOW -> context.getString(R.string.alert_short_low_battery)
 }
 
+/** Full sentence for the per-wheel alert notification (wayfinder 15). */
+fun AlertType.notificationText(context: Context): String = when (this) {
+    AlertType.LOW_PRESSURE -> context.getString(R.string.notification_alert_low_pressure)
+    AlertType.HIGH_PRESSURE -> context.getString(R.string.notification_alert_high_pressure)
+    AlertType.SENSOR_LOST -> context.getString(R.string.notification_alert_sensor_lost)
+    AlertType.HIGH_TEMP -> context.getString(R.string.notification_alert_high_temp)
+    AlertType.BATTERY_LOW -> context.getString(R.string.notification_alert_battery_low)
+}
+
 @Composable
 fun AlertType.shortLabel(): String = when (this) {
     AlertType.LOW_PRESSURE -> stringResource(R.string.alert_short_low)

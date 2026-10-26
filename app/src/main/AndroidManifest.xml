@@ -102,6 +102,11 @@
                 android:resource="@xml/device_filter" />
         </receiver>
 
+        <!-- Explicit delete intents of the per-wheel alert notifications (swipe). -->
+        <receiver
+            android:name=".service.AlertNotificationReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".service.UsbPermissionReceiver"
             android:exported="false">

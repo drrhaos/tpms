@@ -185,6 +185,21 @@ class ServiceHeartbeatStore @Inject constructor(
     fun usbPermissionStatsBlocking(): UsbPermissionStats? =
         boundedBlocking("usbPermissionStats") { usbPermissionStats() }
 
+    /**
+     * End of the alert mute window ("Mute 30 min", wayfinder 15), wall clock; persisted so the mute
+     * survives a service restart. Main-thread read, bounded: 0 (not muted) on timeout or failure.
+     */
+    fun alertMutedUntilMsBlocking(): Long =
+        boundedBlocking("alertMutedUntil") { context.heartbeatDataStore.data.first()[KEY_ALERT_MUTED_UNTIL_MS] ?: 0L }
+            ?: 0L
+
+    /** Main-thread write of the mute window end; bounded, on timeout it finishes in the background. */
+    fun recordAlertMutedUntilBlocking(untilMs: Long) {
+        boundedBlocking("recordAlertMutedUntil") {
+            context.heartbeatDataStore.edit { it[KEY_ALERT_MUTED_UNTIL_MS] = untilMs }
+        }
+    }
+
     companion object {
         private const val TAG = "ServiceHeartbeat"
         private const val MAIN_THREAD_TIMEOUT_MS = 500L
@@ -200,5 +215,6 @@ class ServiceHeartbeatStore @Inject constructor(
         private val KEY_USB_PERMISSION_EXPLICIT = intPreferencesKey("usb_permission_explicit_requests")
         private val KEY_USB_PERMISSION_DENIALS = intPreferencesKey("usb_permission_denials")
         private val KEY_USB_PERMISSION_LAST_MS = longPreferencesKey("usb_permission_last_request_ms")
+        private val KEY_ALERT_MUTED_UNTIL_MS = longPreferencesKey("alert_muted_until_ms")
     }
 }

@@ -11,6 +11,8 @@
     <string name="notification_alert_high_temp">High tire temperature detected</string>
     <string name="notification_alert_battery_low">TPMS sensor battery low</string>
     <string name="notification_alert_sensor_lost">TPMS sensor signal lost</string>
+    <string name="notification_alert_title_format">%1$s · %2$s</string>
+    <string name="notification_alert_pressure_format">Pressure: %1$s</string>
     <string name="notification_action_check">Check now</string>
     <string name="notification_action_open">Open</string>
     <string name="notification_action_mute">Mute 30m</string>

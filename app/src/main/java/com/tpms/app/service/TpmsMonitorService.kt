@@ -84,8 +84,10 @@ class TpmsMonitorService : Service() {
     private var sessionJob: Job? = null
     private var uiJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
-    private var muteUntil: Long = 0
     private var intentionalStop = false
+
+    /** Set in onDestroy: alert callbacks still queued on the main looper must not post any more. */
+    private var destroyed = false
     private var foregroundRefused = false
     private var lastHeartbeatAtMs = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -151,15 +153,16 @@ class TpmsMonitorService : Service() {
             setReferenceCounted(false)
         }
 
+        // Every alert change of a wheel (and every confirmed reading of an alert) goes to the
+        // notifier in order; it decides post / update / cancel (AlertNotificationPolicy).
         repository.onAlert { sensor ->
-            mainHandler.post {
-                if (System.currentTimeMillis() < muteUntil) return@post
-                alertNotifier.notify(sensor)
-            }
+            mainHandler.post { if (!destroyed) alertNotifier.onAlertChanged(sensor.id, sensor) }
         }
         repository.onSensorNormal { sensorId ->
-            mainHandler.post { alertNotifier.clearSensor(sensorId) }
+            mainHandler.post { if (!destroyed) alertNotifier.onAlertChanged(sensorId, null) }
         }
+        // Any start (also CHECK_NOW / MUTE after a process kill): adopt the alert notifications still shown.
+        runCatching { alertNotifier.adoptShown() }
 
         // Started during sleep (START_STICKY / liveness alarm): no SCREEN_OFF will come, seed the baseline.
         if (!pm.isInteractive) suspendDetector.onScreenOff()
@@ -190,10 +193,8 @@ class TpmsMonitorService : Service() {
         foregroundRefused = false
 
         when (intent?.action) {
-            ACTION_MUTE -> {
-                muteUntil = System.currentTimeMillis() + MUTE_DURATION_MS
-                return START_STICKY
-            }
+            // Mute only silences new / changed alert notifications; they are still posted (wayfinder 15).
+            ACTION_MUTE -> alertNotifier.mute(System.currentTimeMillis() + MUTE_DURATION_MS)
             ACTION_STOP -> {
                 intentionalStop = true
                 stopSelf()
@@ -208,7 +209,9 @@ class TpmsMonitorService : Service() {
             ACTION_USB_DETACHED -> onUsbDetached(intent.getStringExtra(EXTRA_DEVICE_NAME))
             else -> {
                 ServiceStoppedNotifier.dismiss(this)
-                alertNotifier.clear()
+                // Adopt alert notifications left by a killed process and show current alerts, silently.
+                runCatching { alertNotifier.resync() }
+                    .onFailure { debugLog.exception("Service", it, "alert notification resync") }
                 monitoringHealthNotifier.clear()
                 BootStartScheduler.cancel(this)
                 ServiceLivenessScheduler.schedule(this)
@@ -270,6 +273,7 @@ class TpmsMonitorService : Service() {
     }
 
     override fun onDestroy() {
+        destroyed = true
         sessionJob?.cancel()
         sessionJob = null
         uiJob?.cancel()
@@ -294,6 +298,8 @@ class TpmsMonitorService : Service() {
             ServiceStoppedNotifier.show(this)
         }
         floatingOverlayController.hide(this)
+        // Alert notifications must not outlive monitoring; the next start re-syncs them.
+        runCatching { alertNotifier.clear() }
         // The ongoing permission notification must not outlive monitoring; the next start re-syncs it.
         runCatching { usbPermissionRequester.onMonitoringStopped() }
         runCatching { heartbeatStore.markRunEndedBlocking() }

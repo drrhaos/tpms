@@ -11,6 +11,8 @@
     <string name="notification_alert_high_temp">Высокая температура шины</string>
     <string name="notification_alert_battery_low">Низкий заряд датчика TPMS</string>
     <string name="notification_alert_sensor_lost">Сигнал датчика TPMS потерян</string>
+    <string name="notification_alert_title_format">%1$s · %2$s</string>
+    <string name="notification_alert_pressure_format">Давление: %1$s</string>
     <string name="notification_action_check">Проверить</string>
     <string name="notification_action_open">Открыть</string>
     <string name="notification_action_mute">Без звука 30 мин</string>
