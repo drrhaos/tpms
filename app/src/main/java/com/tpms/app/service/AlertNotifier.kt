@@ -167,7 +167,7 @@ class AlertNotifier @Inject constructor(
                 PendingIntent.getService(
                     context,
                     REQUEST_MUTE,
-                    Intent(context, TpmsMonitorService::class.java).apply { action = TpmsMonitorService.ACTION_MUTE },
+                    Intent(context, TpmsMonitorService::class.java).setAction(TpmsMonitorService.ACTION_MUTE),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
             )
