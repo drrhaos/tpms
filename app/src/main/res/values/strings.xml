@@ -149,7 +149,8 @@
     <string name="settings_high_pressure">High Pressure (%1$s)</string>
     <string name="settings_high_temp">High Temp (°C)</string>
     <string name="settings_alert_notifications">Alert Notifications</string>
-    <string name="settings_alert_sound">Alert sound</string>
+    <string name="settings_alert_sound_configure">Configure alert sound</string>
+    <string name="settings_alert_sound_configure_hint">Sound, vibration and importance of alerts are set in the system notification settings</string>
     <string name="settings_teyes_permissions">Teyes Permissions</string>
     <string name="settings_teyes_auto_start">Auto start enabled (Settings → Apps → TPMS)</string>
     <string name="settings_teyes_auto_start_hint">Without this, monitoring will not survive the head unit\'s sleep.</string>

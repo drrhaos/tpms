@@ -38,10 +38,6 @@ data class TeyesChecklist(
     val frontAppHome: Boolean = false
 )
 
-data class AlertNotificationPrefs(
-    val soundEnabled: Boolean = true
-)
-
 @Singleton
 class SettingsStore @Inject constructor(
     @ApplicationContext private val context: Context
@@ -75,9 +71,6 @@ class SettingsStore @Inject constructor(
 
     private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
     val teyesChecklist = _teyesChecklist.asStateFlow()
-
-    private val _alertNotificationPrefs = MutableStateFlow(AlertNotificationPrefs())
-    val alertNotificationPrefs = _alertNotificationPrefs.asStateFlow()
 
     private val _settingsUiMode = MutableStateFlow(SettingsUiMode.USER)
     val settingsUiMode = _settingsUiMode.asStateFlow()
@@ -146,10 +139,6 @@ class SettingsStore @Inject constructor(
                     bootCompleted = prefs[KEY_TEYES_BOOT] ?: false,
                     autoRunAwake = prefs[KEY_TEYES_AUTO_RUN_AWAKE] ?: false,
                     frontAppHome = prefs[KEY_TEYES_FRONTAPP_HOME] ?: false
-                )
-
-                _alertNotificationPrefs.value = AlertNotificationPrefs(
-                    soundEnabled = prefs[KEY_ALERT_SOUND] ?: true
                 )
 
                 _settingsUiMode.value = SettingsUiMode.fromName(prefs[KEY_SETTINGS_UI_MODE])
@@ -224,12 +213,6 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_SETTINGS_UI_MODE] = mode.name }
     }
 
-    suspend fun setAlertNotificationPrefs(prefs: AlertNotificationPrefs) {
-        context.settingsDataStore.edit {
-            it[KEY_ALERT_SOUND] = prefs.soundEnabled
-        }
-    }
-
     suspend fun setOnboardingComplete(complete: Boolean) {
         context.settingsDataStore.edit { it[KEY_ONBOARDING_COMPLETE] = complete }
     }
@@ -278,7 +261,6 @@ class SettingsStore @Inject constructor(
             prefs[KEY_STALE_FRAME_TIMEOUT_MS] = imported.staleFrameTimeoutMs
             prefs[KEY_SHOW_SPARE_WHEEL] = imported.showSpareWheel
             prefs[KEY_MIN_LIVE_WHEEL_PRESSURE] = imported.minLiveWheelPressureKpa
-            prefs[KEY_ALERT_SOUND] = imported.alertNotificationPrefs.soundEnabled
             prefs[KEY_TEYES_AUTO_START] = imported.teyesChecklist.autoStart
             prefs[KEY_TEYES_BATTERY] = imported.teyesChecklist.batteryUnrestricted
             prefs[KEY_TEYES_LOCK] = imported.teyesChecklist.lockInRecents
@@ -328,7 +310,6 @@ class SettingsStore @Inject constructor(
         private val KEY_TEYES_BOOT = booleanPreferencesKey("teyes_boot")
         private val KEY_TEYES_AUTO_RUN_AWAKE = booleanPreferencesKey("teyes_auto_run_awake")
         private val KEY_TEYES_FRONTAPP_HOME = booleanPreferencesKey("teyes_frontapp_home")
-        private val KEY_ALERT_SOUND = booleanPreferencesKey("alert_sound")
         private val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         private val KEY_SILENT_STARTUP = booleanPreferencesKey("silent_startup")
         private val KEY_FLOATING_OVERLAY = booleanPreferencesKey("floating_overlay")

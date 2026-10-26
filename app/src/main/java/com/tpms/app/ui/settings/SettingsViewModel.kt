@@ -7,7 +7,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.data.repository.TpmsRepository
-import com.tpms.app.data.settings.AlertNotificationPrefs
 import com.tpms.app.data.settings.SettingsExporter
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
@@ -84,9 +83,6 @@ class SettingsViewModel @Inject constructor(
 
     private val _settingsUiMode = MutableStateFlow(SettingsUiMode.USER)
     val settingsUiMode: StateFlow<SettingsUiMode> = _settingsUiMode.asStateFlow()
-
-    private val _alertSoundEnabled = MutableStateFlow(true)
-    val alertSoundEnabled: StateFlow<Boolean> = _alertSoundEnabled.asStateFlow()
 
     private val _importExportMessage = MutableStateFlow<String?>(null)
     val importExportMessage: StateFlow<String?> = _importExportMessage.asStateFlow()
@@ -175,8 +171,6 @@ class SettingsViewModel @Inject constructor(
             _minLiveWheelPressure.value = settingsStore.minLiveWheelPressureKpa.value
             _wheelMapping.value = settingsStore.wheelMapping.value
             _settingsUiMode.value = settingsStore.settingsUiMode.value
-            val alertPrefs = settingsStore.alertNotificationPrefs.value
-            _alertSoundEnabled.value = alertPrefs.soundEnabled
         }
         viewModelScope.launch {
             settingsStore.wheelMapping.collect { _wheelMapping.value = it }
@@ -239,6 +233,7 @@ class SettingsViewModel @Inject constructor(
     fun openAppDetails() = TeyesPermissionHelper.openAppDetails(context)
     fun openBatterySettings() = TeyesPermissionHelper.openBatteryOptimization(context)
     fun openNotificationSettings() = TeyesPermissionHelper.openNotificationSettings(context)
+    fun openAlertChannelSettings() = TeyesPermissionHelper.openAlertChannelSettings(context)
     fun openTeyesSettings() = TeyesPermissionHelper.openTeyesSettings(context)
     fun openFrontAppStore() = TeyesPermissionHelper.openFrontApp(context)
     fun openOverlaySettings() = TeyesPermissionHelper.openOverlaySettings(context)
@@ -371,13 +366,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsStore.setSettingsUiMode(mode) }
     }
 
-    fun setAlertSoundEnabled(enabled: Boolean) {
-        _alertSoundEnabled.value = enabled
-        viewModelScope.launch {
-            settingsStore.setAlertNotificationPrefs(AlertNotificationPrefs(soundEnabled = enabled))
-        }
-    }
-
     fun cycleWheelMapping(slot: String, availableIds: List<String>) {
         val options = listOf("") + availableIds
         val current = _wheelMapping.value[slot].orEmpty()
@@ -401,9 +389,6 @@ class SettingsViewModel @Inject constructor(
             wheelMapping = _wheelMapping.value,
             showSpareWheel = _showSpareWheel.value,
             minLiveWheelPressureKpa = _minLiveWheelPressure.value,
-            alertNotificationPrefs = AlertNotificationPrefs(
-                soundEnabled = _alertSoundEnabled.value
-            ),
             teyesChecklist = settingsStore.teyesChecklist.value,
             onboardingComplete = settingsStore.onboardingComplete.value,
             silentStartup = _silentStartup.value,
@@ -462,9 +447,6 @@ class SettingsViewModel @Inject constructor(
                 highPressureKpa = unit.toKpa(_highPressure.value),
                 highTempCelsius = _highTemp.value
             )
-        )
-        settingsStore.setAlertNotificationPrefs(
-            AlertNotificationPrefs(soundEnabled = _alertSoundEnabled.value)
         )
     }
 

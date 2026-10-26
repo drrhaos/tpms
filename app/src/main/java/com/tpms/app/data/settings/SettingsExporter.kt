@@ -20,7 +20,6 @@ object SettingsExporter {
         wheelMapping: Map<String, String>,
         showSpareWheel: Boolean,
         minLiveWheelPressureKpa: Float,
-        alertNotificationPrefs: AlertNotificationPrefs,
         teyesChecklist: TeyesChecklist,
         onboardingComplete: Boolean = false,
         silentStartup: Boolean = false,
@@ -40,7 +39,6 @@ object SettingsExporter {
         put("stale_frame_timeout_ms", staleFrameTimeoutMs)
         put("show_spare_wheel", showSpareWheel)
         put("min_live_wheel_pressure_kpa", minLiveWheelPressureKpa.toDouble())
-        put("alert_sound", alertNotificationPrefs.soundEnabled)
         put("teyes_auto_start", teyesChecklist.autoStart)
         put("teyes_battery", teyesChecklist.batteryUnrestricted)
         put("teyes_lock", teyesChecklist.lockInRecents)
@@ -94,9 +92,7 @@ object SettingsExporter {
                 "min_live_wheel_pressure_kpa",
                 SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA.toDouble()
             ).toFloat(),
-            alertNotificationPrefs = AlertNotificationPrefs(
-                soundEnabled = root.optBoolean("alert_sound", true)
-            ),
+            // "alert_sound" from older files is ignored: the sound lives in the system channel settings.
             teyesChecklist = TeyesChecklist(
                 autoStart = root.optBoolean("teyes_auto_start", false),
                 batteryUnrestricted = root.optBoolean("teyes_battery", false),
@@ -127,7 +123,6 @@ data class ImportedSettings(
     val staleFrameTimeoutMs: Long,
     val showSpareWheel: Boolean,
     val minLiveWheelPressureKpa: Float,
-    val alertNotificationPrefs: AlertNotificationPrefs,
     val teyesChecklist: TeyesChecklist,
     val onboardingComplete: Boolean = false,
     val silentStartup: Boolean = false,

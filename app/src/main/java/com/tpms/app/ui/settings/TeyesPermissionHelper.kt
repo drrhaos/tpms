@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import com.tpms.app.R
+import com.tpms.app.TpmsApplication
 import com.tpms.app.startup.TeyesDeviceDetector
 
 object TeyesPermissionHelper {
@@ -59,6 +60,23 @@ object TeyesPermissionHelper {
         }
         if (tryStart(context, intent)) return
         if (openTeyesSettings(context)) return
+        showManualHint(context, R.string.settings_teyes_manual_notifications)
+    }
+
+    /**
+     * System settings of the alert channel (sound, vibration, importance are owned by the channel).
+     * Falls back to the app notification settings if the channel screen can't be resolved.
+     */
+    fun openAlertChannelSettings(context: Context) {
+        val channelIntent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            putExtra(Settings.EXTRA_CHANNEL_ID, TpmsApplication.CHANNEL_ALERT)
+        }
+        if (tryStart(context, channelIntent)) return
+        val appIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        }
+        if (tryStart(context, appIntent)) return
         showManualHint(context, R.string.settings_teyes_manual_notifications)
     }
 

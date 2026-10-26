@@ -4,6 +4,7 @@ import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class SettingsExporterTest {
@@ -18,7 +19,6 @@ class SettingsExporterTest {
             wheelMapping = mapOf("FL" to "ABC"),
             showSpareWheel = true,
             minLiveWheelPressureKpa = 110f,
-            alertNotificationPrefs = AlertNotificationPrefs(soundEnabled = false),
             teyesChecklist = TeyesChecklist(autoStart = true, batteryUnrestricted = true, lockInRecents = false, bootCompleted = true, autoRunAwake = true),
             diagnosticLogEnabled = true,
             debugToolsEnabled = true
@@ -47,7 +47,6 @@ class SettingsExporterTest {
             wheelMapping = mapOf("FL" to "ABC", "SP" to "XYZ"),
             showSpareWheel = false,
             minLiveWheelPressureKpa = 100f,
-            alertNotificationPrefs = AlertNotificationPrefs(),
             teyesChecklist = TeyesChecklist()
         )
 
@@ -69,5 +68,25 @@ class SettingsExporterTest {
         assertEquals(setOf("FL", "FR", "RL", "RR", "SP"), imported.wheelMapping.keys)
         assertEquals("", imported.wheelMapping["SP"])
         assertEquals("ABC", imported.wheelMapping["FL"])
+    }
+
+    @Test
+    fun import_legacyAlertSoundKey_isIgnoredAndNotExported() {
+        val old = """{"version":3,"pressure_unit":"BAR","alert_sound":false}"""
+
+        val imported = SettingsExporter.import(old)
+
+        assertEquals(PressureUnit.BAR, imported.pressureUnit)
+        val reexported = SettingsExporter.export(
+            pressureUnit = imported.pressureUnit,
+            thresholds = imported.thresholds,
+            dongleProtocolMode = imported.dongleProtocolMode,
+            staleFrameTimeoutMs = imported.staleFrameTimeoutMs,
+            wheelMapping = imported.wheelMapping,
+            showSpareWheel = imported.showSpareWheel,
+            minLiveWheelPressureKpa = imported.minLiveWheelPressureKpa,
+            teyesChecklist = imported.teyesChecklist
+        )
+        assertFalse(reexported.contains("alert_sound"))
     }
 }

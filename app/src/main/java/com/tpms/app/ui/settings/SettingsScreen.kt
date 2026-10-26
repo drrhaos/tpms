@@ -84,7 +84,6 @@ fun SettingsScreen(
     val knownSensorIds by viewModel.knownSensorIds.collectAsState()
     val mappableSensors by viewModel.mappableSensors.collectAsState()
     val wheelAssignment by viewModel.wheelAssignment.collectAsState()
-    val alertSoundEnabled by viewModel.alertSoundEnabled.collectAsState()
     val showSpareWheel by viewModel.showSpareWheel.collectAsState()
     val teyesChecklist by viewModel.teyesChecklist.collectAsState()
     val killedInSleep by viewModel.killedInSleep.collectAsState()
@@ -544,10 +543,10 @@ fun SettingsScreen(
                 SettingsSectionHeader(title = stringResource(R.string.settings_section_alerts))
                 Spacer(modifier = Modifier.height(8.dp))
                 SettingsGroup {
-                    SettingsSwitchRow(
-                        label = stringResource(R.string.settings_alert_sound),
-                        checked = alertSoundEnabled,
-                        onCheckedChange = { viewModel.setAlertSoundEnabled(it) }
+                    SettingsNavigationRow(
+                        label = stringResource(R.string.settings_alert_sound_configure),
+                        description = stringResource(R.string.settings_alert_sound_configure_hint),
+                        onClick = { viewModel.openAlertChannelSettings() }
                     )
                 }
             }
