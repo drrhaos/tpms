@@ -9,10 +9,13 @@ import com.tpms.app.domain.model.AlertType
  *
  * - Only ALERT severity (LOW_PRESSURE, HIGH_PRESSURE, SENSOR_LOST) gets a notification; a warning
  *   or no alert cancels what is shown.
- * - A new alert, or a change to another alert type, posts with sound, or silently while muted.
- * - The same alert type updates silently (content such as pressure may change).
- * - A swiped notification stays hidden until the type changes or the alert clears.
- * - A cleared alert, or a wheel that left its slot, cancels and forgets, swipe included.
+ * - **Episode**: from the wheel's first ALERT until the alert clears (or the wheel leaves its
+ *   slot). Each alert type rings once per episode: a type not seen yet in the episode posts with
+ *   sound (or silently while muted); the same type, or a return to a type already seen, updates
+ *   silently (content such as pressure may change). So SENSOR_LOST <-> LOW_PRESSURE flapping
+ *   rings at most twice.
+ * - A swiped notification stays hidden until a type new to the episode appears.
+ * - A cleared alert, or a wheel that left its slot, cancels and forgets, episode and swipe included.
  */
 object AlertNotificationPolicy {
 
@@ -35,10 +38,15 @@ object AlertNotificationPolicy {
     }
 
     /**
-     * Per-wheel memory: the alert [type] the wheel's notification was posted for, and whether
-     * the user [swiped] it away.
+     * Per-wheel memory: the alert [type] the wheel's notification shows now, every type seen in
+     * this [episode] (already rung, or posted while muted; includes [type]), and whether the user
+     * [swiped] it away.
      */
-    data class ShownAlert(val type: AlertType, val swiped: Boolean = false)
+    data class ShownAlert(
+        val type: AlertType,
+        val episode: Set<AlertType> = setOf(type),
+        val swiped: Boolean = false
+    )
 
     /** The [action] to take and the wheel's new memory; [shown] is null when nothing is kept. */
     data class NotificationDecision(val action: NotificationAction, val shown: ShownAlert?)
@@ -57,16 +65,16 @@ object AlertNotificationPolicy {
                 null
             )
         return when {
-            shown == null || shown.type != alert -> NotificationDecision(
+            shown == null || alert !in shown.episode -> NotificationDecision(
                 if (isMuted(mutedUntilMs, nowMs)) NotificationAction.POST_SILENTLY else NotificationAction.POST_WITH_SOUND,
-                ShownAlert(alert)
+                ShownAlert(alert, episode = shown?.episode.orEmpty() + alert)
             )
-            shown.swiped -> NotificationDecision(NotificationAction.NONE, shown)
-            else -> NotificationDecision(NotificationAction.UPDATE_SILENTLY, shown)
+            shown.swiped -> NotificationDecision(NotificationAction.NONE, shown.copy(type = alert))
+            else -> NotificationDecision(NotificationAction.UPDATE_SILENTLY, shown.copy(type = alert))
         }
     }
 
-    /** The user swiped the wheel's notification away: keep it hidden until the type changes. */
+    /** The user swiped the wheel's notification away: keep it hidden until a new type appears in the episode. */
     fun onSwiped(shown: ShownAlert): ShownAlert = shown.copy(swiped = true)
 
     /** True while [nowMs] is before [mutedUntilMs]. */

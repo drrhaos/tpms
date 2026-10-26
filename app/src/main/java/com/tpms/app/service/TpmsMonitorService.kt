@@ -155,14 +155,23 @@ class TpmsMonitorService : Service() {
 
         // Every alert change of a wheel (and every confirmed reading of an alert) goes to the
         // notifier in order; it decides post / update / cancel (AlertNotificationPolicy).
-        repository.onAlert { sensor ->
-            mainHandler.post { if (!destroyed) alertNotifier.onAlertChanged(sensor.id, sensor) }
+        // Only live data may ring: restored / reconnecting alerts come with live = false.
+        repository.onAlert { sensor, live ->
+            mainHandler.post { if (!destroyed) alertNotifier.onAlertChanged(sensor.id, sensor, live) }
         }
         repository.onSensorNormal { sensorId ->
             mainHandler.post { if (!destroyed) alertNotifier.onAlertChanged(sensorId, null) }
         }
-        // Any start (also CHECK_NOW / MUTE after a process kill): adopt the alert notifications still shown.
-        runCatching { alertNotifier.adoptShown() }
+        // Any start (also CHECK_NOW / MUTE after a process kill): load the persisted alert
+        // notification memory, drop orphaned alert notifications.
+        runCatching { alertNotifier.onServiceCreated() }
+            .onFailure { debugLog.exception("Service", it, "alert notifier start") }
+        // Sensors that swap slots: re-post their alert notifications silently with the new wheel label.
+        serviceScope.launch(Dispatchers.Main) {
+            repository.wheels.collect { wheels ->
+                if (!destroyed) runCatching { alertNotifier.onWheelsChanged(wheels) }
+            }
+        }
 
         // Started during sleep (START_STICKY / liveness alarm): no SCREEN_OFF will come, seed the baseline.
         if (!pm.isInteractive) suspendDetector.onScreenOff()
@@ -209,7 +218,7 @@ class TpmsMonitorService : Service() {
             ACTION_USB_DETACHED -> onUsbDetached(intent.getStringExtra(EXTRA_DEVICE_NAME))
             else -> {
                 ServiceStoppedNotifier.dismiss(this)
-                // Adopt alert notifications left by a killed process and show current alerts, silently.
+                // Show current alerts by the persisted memory (live data only: no re-ring after a restart).
                 runCatching { alertNotifier.resync() }
                     .onFailure { debugLog.exception("Service", it, "alert notification resync") }
                 monitoringHealthNotifier.clear()
@@ -298,8 +307,10 @@ class TpmsMonitorService : Service() {
             ServiceStoppedNotifier.show(this)
         }
         floatingOverlayController.hide(this)
-        // Alert notifications must not outlive monitoring; the next start re-syncs them.
-        runCatching { alertNotifier.clear() }
+        // Alert notifications must not outlive monitoring; the next start re-syncs them. An
+        // intentional stop also forgets their memory (the next monitoring session rings once again);
+        // a system stop keeps it, like a process death.
+        runCatching { alertNotifier.onMonitoringStopped(intentional = intentionalStop) }
         // The ongoing permission notification must not outlive monitoring; the next start re-syncs it.
         runCatching { usbPermissionRequester.onMonitoringStopped() }
         runCatching { heartbeatStore.markRunEndedBlocking() }

@@ -200,6 +200,26 @@ class ServiceHeartbeatStore @Inject constructor(
         }
     }
 
+    /**
+     * The alert notifier's per-wheel memory (wayfinder 15: episode types, current type, swipe), as
+     * encoded by `AlertNotificationBook.encode`; persisted so a process kill / START_STICKY restart
+     * neither re-rings an ongoing alert nor brings back a swiped one. Read once per process on the
+     * main thread, bounded: null on timeout or failure, "" when nothing is stored.
+     */
+    fun alertNotificationsBlocking(): String? =
+        boundedBlocking("alertNotifications") { context.heartbeatDataStore.data.first()[KEY_ALERT_NOTIFICATIONS] ?: "" }
+
+    /**
+     * Main-thread write of the notifier's memory, only when it changes (onset, new type, clear,
+     * swipe; not on silent updates). Bounded like the screen-off write: it should reach disk before
+     * a kill, and on timeout it finishes in the background, queued in order with later writes.
+     */
+    fun recordAlertNotificationsBlocking(encoded: String) {
+        boundedBlocking("recordAlertNotifications") {
+            context.heartbeatDataStore.edit { it[KEY_ALERT_NOTIFICATIONS] = encoded }
+        }
+    }
+
     companion object {
         private const val TAG = "ServiceHeartbeat"
         private const val MAIN_THREAD_TIMEOUT_MS = 500L
@@ -216,5 +236,6 @@ class ServiceHeartbeatStore @Inject constructor(
         private val KEY_USB_PERMISSION_DENIALS = intPreferencesKey("usb_permission_denials")
         private val KEY_USB_PERMISSION_LAST_MS = longPreferencesKey("usb_permission_last_request_ms")
         private val KEY_ALERT_MUTED_UNTIL_MS = longPreferencesKey("alert_muted_until_ms")
+        private val KEY_ALERT_NOTIFICATIONS = stringPreferencesKey("alert_notifications")
     }
 }

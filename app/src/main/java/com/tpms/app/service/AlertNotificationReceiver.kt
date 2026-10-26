@@ -9,7 +9,8 @@ import dagger.hilt.android.EntryPointAccessors
 
 /**
  * Delete intent of the per-wheel alert notifications (wayfinder 15): the user swiped one away, so
- * [AlertNotifier] keeps it hidden until that wheel's alert type changes. Explicit intents only.
+ * [AlertNotifier] keeps it hidden (persisted) until a type new to the wheel's alert episode appears.
+ * Explicit intents only.
  */
 class AlertNotificationReceiver : BroadcastReceiver() {
 

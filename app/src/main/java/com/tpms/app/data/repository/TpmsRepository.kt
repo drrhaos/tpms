@@ -114,9 +114,9 @@ class TpmsRepository @Inject constructor(
 
     /** Latest snapshot write (empty wheels = clear); conflated, written by one collector in order. */
     private val snapshotWrites = MutableStateFlow<SnapshotWrite?>(null)
-    /** Set on the main thread, invoked on the repository's threads. */
+    /** Set on the main thread, invoked on the repository's threads with the alert and whether it is live (see [onAlert]). */
     @Volatile
-    private var onAlertCallback: ((TireSensor) -> Unit)? = null
+    private var onAlertCallback: ((TireSensor, Boolean) -> Unit)? = null
 
     @Volatile
     private var onSensorNormalCallback: ((String) -> Unit)? = null
@@ -220,8 +220,12 @@ class TpmsRepository @Inject constructor(
         )
     }
 
-    /** [callback] runs under [wheelsLock] on the repository's threads: it must not block (post and return). */
-    fun onAlert(callback: (TireSensor) -> Unit) {
+    /**
+     * [callback] runs under [wheelsLock] on the repository's threads: it must not block (post and
+     * return). Its flag says whether the alert comes from live data (a reading, or a re-placement
+     * while a live session runs); false for restored / reconnecting data, which must not ring.
+     */
+    fun onAlert(callback: (sensor: TireSensor, live: Boolean) -> Unit) {
         onAlertCallback = callback
     }
 
@@ -243,12 +247,16 @@ class TpmsRepository @Inject constructor(
         val session = activeSession
         return SensorFreshness.ConnectionSnapshot(
             hasData = _wheels.value.isNotEmpty(),
-            hasLiveSession = session != null && !session.isClosed && !isReconnecting && !restoredFromSnapshot,
+            hasLiveSession = hasLiveSession(session),
             protocol = session?.protocol,
             sessionOpenedAtMs = dongleOpenedAtMs,
             lastValidFrameAtMs = lastValidFrameAtMs
         )
     }
+
+    /** The shown data comes from an open session (not restored, not reconnecting). */
+    private fun hasLiveSession(session: DongleSession? = activeSession): Boolean =
+        session != null && !session.isClosed && !isReconnecting && !restoredFromSnapshot
 
     /**
      * "Data outdated" for the header and widget: judged by the connection; never true while no
@@ -610,7 +618,7 @@ class TpmsRepository @Inject constructor(
         // Live data ends the snapshot state atomically with publishing the reading (see wheelsLock).
         restoredFromSnapshot = false
         lastLiveDataAtMs = sensor.timestamp
-        if (sensor.isAlert) emitAlert(sensor) else notifySensorNormal(sensor.id)
+        if (sensor.isAlert) emitAlert(sensor, live = true) else notifySensorNormal(sensor.id)
         refreshConnectionStateLocked(sensor.timestamp)
         requestSnapshotWriteLocked()
         return sensor
@@ -697,7 +705,9 @@ class TpmsRepository @Inject constructor(
         val beforeIds = before.values.mapTo(HashSet()) { it.id }
         val afterIds = after.values.mapTo(HashSet()) { it.id }
         (beforeIds - afterIds).forEach { notifySensorNormal(it) }
-        after.values.filter { it.id !in beforeIds && it.isAlert }.forEach { emitAlert(it) }
+        // Restored or reconnecting data (e.g. a mapping change while Disconnected) must not ring.
+        val live = hasLiveSession()
+        after.values.filter { it.id !in beforeIds && it.isAlert }.forEach { emitAlert(it, live) }
         val state = _state.value
         if (state is TpmsState.Connected || state is TpmsState.Alert) {
             refreshConnectionStateLocked(System.currentTimeMillis())
@@ -749,9 +759,9 @@ class TpmsRepository @Inject constructor(
         )
     }
 
-    private fun emitAlert(sensor: TireSensor) {
+    private fun emitAlert(sensor: TireSensor, live: Boolean) {
         try {
-            onAlertCallback?.invoke(sensor)
+            onAlertCallback?.invoke(sensor, live)
         } catch (e: Exception) {
             debugLog.warn("Repository", "emitAlert failed: ${e.message}")
         }

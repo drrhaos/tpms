@@ -62,7 +62,53 @@ class AlertNotificationPolicyTest {
     fun `alert type change posts again with sound`() {
         val decision = decide(shown = ShownAlert(AlertType.LOW_PRESSURE), current = AlertType.SENSOR_LOST)
         assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
-        assertEquals(ShownAlert(AlertType.SENSOR_LOST), decision.shown)
+        assertEquals(
+            ShownAlert(AlertType.SENSOR_LOST, episode = setOf(AlertType.LOW_PRESSURE, AlertType.SENSOR_LOST)),
+            decision.shown
+        )
+    }
+
+    @Test
+    fun `a new alert starts its episode with its own type`() {
+        assertEquals(setOf(AlertType.LOW_PRESSURE), decide(shown = null, current = AlertType.LOW_PRESSURE).shown!!.episode)
+    }
+
+    @Test
+    fun `returning to a type already seen in the episode updates silently`() {
+        val shown = ShownAlert(AlertType.SENSOR_LOST, episode = setOf(AlertType.LOW_PRESSURE, AlertType.SENSOR_LOST))
+        val decision = decide(shown = shown, current = AlertType.LOW_PRESSURE)
+        assertEquals(NotificationAction.UPDATE_SILENTLY, decision.action)
+        assertEquals(shown.copy(type = AlertType.LOW_PRESSURE), decision.shown)
+    }
+
+    @Test
+    fun `flapping between two types rings at most twice`() {
+        var shown: ShownAlert? = null
+        var rings = 0
+        repeat(5) {
+            for (type in listOf(AlertType.SENSOR_LOST, AlertType.LOW_PRESSURE)) {
+                val decision = decide(shown = shown, current = type)
+                if (decision.action == NotificationAction.POST_WITH_SOUND) rings++
+                shown = decision.shown
+            }
+        }
+        assertEquals(2, rings)
+    }
+
+    @Test
+    fun `a third type in the episode rings again`() {
+        val shown = ShownAlert(AlertType.SENSOR_LOST, episode = setOf(AlertType.LOW_PRESSURE, AlertType.SENSOR_LOST))
+        val decision = decide(shown = shown, current = AlertType.HIGH_PRESSURE)
+        assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
+        assertEquals(AlertType.values().filter { it.toSeverity() == AlertSeverity.ALERT }.toSet(), decision.shown!!.episode)
+    }
+
+    @Test
+    fun `a cleared episode rings again for a type it had seen`() {
+        val shown = ShownAlert(AlertType.SENSOR_LOST, episode = setOf(AlertType.LOW_PRESSURE, AlertType.SENSOR_LOST))
+        val cleared = decide(shown = shown, current = null)
+        assertNull(cleared.shown)
+        assertEquals(NotificationAction.POST_WITH_SOUND, decide(shown = cleared.shown, current = AlertType.LOW_PRESSURE).action)
     }
 
     @Test
@@ -98,12 +144,23 @@ class AlertNotificationPolicyTest {
     }
 
     @Test
-    fun `swiped alert posts again when the type changes`() {
+    fun `swiped alert posts again when a new type appears`() {
         val swiped = AlertNotificationPolicy.onSwiped(ShownAlert(AlertType.LOW_PRESSURE))
         val decision = decide(shown = swiped, current = AlertType.SENSOR_LOST)
         assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
-        assertEquals(ShownAlert(AlertType.SENSOR_LOST), decision.shown)
+        assertEquals(AlertType.SENSOR_LOST, decision.shown!!.type)
         assertFalse(decision.shown!!.swiped)
+    }
+
+    @Test
+    fun `swiped alert stays hidden when it returns to a type seen in the episode`() {
+        val swiped = AlertNotificationPolicy.onSwiped(
+            ShownAlert(AlertType.SENSOR_LOST, episode = setOf(AlertType.LOW_PRESSURE, AlertType.SENSOR_LOST))
+        )
+        val decision = decide(shown = swiped, current = AlertType.LOW_PRESSURE)
+        assertEquals(NotificationAction.NONE, decision.action)
+        assertEquals(swiped.copy(type = AlertType.LOW_PRESSURE), decision.shown)
+        assertTrue(decision.shown!!.swiped)
     }
 
     @Test
@@ -135,7 +192,9 @@ class AlertNotificationPolicyTest {
             mutedUntilMs = now + 30 * 60_000L
         )
         assertEquals(NotificationAction.POST_SILENTLY, decision.action)
-        assertEquals(ShownAlert(AlertType.SENSOR_LOST), decision.shown)
+        assertEquals(AlertType.SENSOR_LOST, decision.shown!!.type)
+        // Seen while muted: it does not ring once the mute ends.
+        assertEquals(NotificationAction.UPDATE_SILENTLY, decide(decision.shown, AlertType.SENSOR_LOST).action)
     }
 
     @Test
