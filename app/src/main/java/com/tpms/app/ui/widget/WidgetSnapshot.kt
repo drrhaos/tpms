@@ -14,6 +14,7 @@ import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.domain.model.WidgetThemeMode
 import com.tpms.app.ui.batteryLabel
+import com.tpms.app.ui.cardLabel
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.widgetStatusLabel
 
@@ -32,7 +33,9 @@ data class WidgetTireSlot(
     /** Minutes for the "N min" caption of a stale wheel (wayfinder 10), null when fresh. */
     val staleMinutes: Long? = null,
     /** Stale wheel without an active alert: drawn grey; alert colours win over muting. */
-    val muted: Boolean = false
+    val muted: Boolean = false,
+    /** Active alert in sentence case ("Low pressure"): the car widget shows it under the pressure. */
+    val alertText: String? = null
 ) {
     /** Status that drives colours: a muted wheel looks like an empty slot, values stay visible. */
     val displayStatus: WidgetTireStatus get() = if (muted) WidgetTireStatus.EMPTY else status
@@ -127,7 +130,8 @@ data class WidgetSnapshot(
                     pressureText = context.getString(R.string.label_lost),
                     temperatureText = context.getString(R.string.value_no_data_temp),
                     batteryText = context.getString(R.string.value_no_data_battery),
-                    status = WidgetTireStatus.ALERT
+                    status = WidgetTireStatus.ALERT,
+                    alertText = AlertType.SENSOR_LOST.cardLabel(context)
                 )
             }
             val pressureText = if (sensor.pressureKpa.isFinite()) {
@@ -147,7 +151,8 @@ data class WidgetSnapshot(
                 batteryText = sensor.batteryLabel(context),
                 batteryPercent = sensor.batteryPercent,
                 isLowBattery = sensor.isLowBattery,
-                status = sensor.toSeverity().toWidgetStatus()
+                status = sensor.toSeverity().toWidgetStatus(),
+                alertText = sensor.alertType?.cardLabel(context)
             )
         }
 

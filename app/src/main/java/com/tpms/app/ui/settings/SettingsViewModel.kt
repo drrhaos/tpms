@@ -1,20 +1,28 @@
 package com.tpms.app.ui.settings
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tpms.app.R
+import com.tpms.app.TpmsApplication
 import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.data.repository.TpmsRepository
+import com.tpms.app.data.settings.AppLanguage
+import com.tpms.app.data.settings.AppLocale
 import com.tpms.app.data.settings.SettingsExporter
 import com.tpms.app.data.settings.SettingsStore
-import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.data.usb.UsbConnection
+import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
+import com.tpms.app.domain.PressureTarget
+import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
-import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
@@ -25,6 +33,7 @@ import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.startup.HeadUnitSupport
 import com.tpms.app.startup.SetupStatus
 import com.tpms.app.startup.SetupStatusProvider
+import com.tpms.app.ui.wheelPositionLabel
 import com.tpms.app.ui.widget.TpmsWidgetHelper
 import com.tpms.app.ui.widget.WidgetPinResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +48,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Shared by the settings screens (main, sensors, system check, service menu). Every change is
+ * written at once, as in system settings; there is no "Save" step.
+ */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -54,90 +67,57 @@ class SettingsViewModel @Inject constructor(
 
     val isTeyesDevice: Boolean get() = headUnitSupport.isTeyesHeadUnit()
 
-    private val _pressureUnit = MutableStateFlow(PressureUnit.KPA)
-    val pressureUnit: StateFlow<PressureUnit> = _pressureUnit.asStateFlow()
+    val pressureUnit: StateFlow<PressureUnit> = settingsStore.pressureUnit
 
-    private val _lowPressure = MutableStateFlow(AlertThresholds().lowPressureKpa)
-    val lowPressure: StateFlow<Float> = _lowPressure.asStateFlow()
+    /** Optimistic copy, so quick stepper taps build on each other before the store echoes back. */
+    private val _targetPressureKpa = MutableStateFlow(settingsStore.targetPressureKpa.value)
+    val targetPressureKpa: StateFlow<Float> = _targetPressureKpa.asStateFlow()
 
-    private val _highPressure = MutableStateFlow(AlertThresholds().highPressureKpa)
-    val highPressure: StateFlow<Float> = _highPressure.asStateFlow()
-
-    private val _highTemp = MutableStateFlow(AlertThresholds().highTempCelsius)
+    private val _highTemp = MutableStateFlow(settingsStore.thresholds.value.highTempCelsius)
     val highTemp: StateFlow<Float> = _highTemp.asStateFlow()
 
-    private val _dongleProtocolMode = MutableStateFlow(DongleProtocolMode.AUTO)
-    val dongleProtocolMode: StateFlow<DongleProtocolMode> = _dongleProtocolMode.asStateFlow()
+    val dongleProtocolMode: StateFlow<DongleProtocolMode> = settingsStore.dongleProtocolMode
 
-    private val _staleFrameTimeoutSec = MutableStateFlow(90)
-    val staleFrameTimeoutSec: StateFlow<Int> = _staleFrameTimeoutSec.asStateFlow()
+    val staleFrameTimeoutSec: StateFlow<Int> = settingsStore.staleFrameTimeoutMs
+        .map { (it / 1000).toInt() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, (settingsStore.staleFrameTimeoutMs.value / 1000).toInt())
 
-    private val _showSpareWheel = MutableStateFlow(false)
-    val showSpareWheel: StateFlow<Boolean> = _showSpareWheel.asStateFlow()
+    val showSpareWheel: StateFlow<Boolean> = settingsStore.showSpareWheel
+    val minLiveWheelPressure: StateFlow<Float> = settingsStore.minLiveWheelPressureKpa
+    val wheelMapping: StateFlow<Map<String, String>> = settingsStore.wheelMapping
+    val teyesChecklist: StateFlow<TeyesChecklist> = settingsStore.teyesChecklist
+    val silentStartup: StateFlow<Boolean> = settingsStore.silentStartup
+    val floatingOverlayEnabled: StateFlow<Boolean> = settingsStore.floatingOverlayEnabled
+    val criticalAlertsFullscreen: StateFlow<Boolean> = settingsStore.criticalAlertsFullscreen
+    val themeMode: StateFlow<WidgetThemeMode> = settingsStore.widgetThemeMode
 
-    private val _minLiveWheelPressure = MutableStateFlow(100f)
-    val minLiveWheelPressure: StateFlow<Float> = _minLiveWheelPressure.asStateFlow()
+    private val _language = MutableStateFlow(AppLocale.current(context))
+    val language: StateFlow<AppLanguage> = _language.asStateFlow()
+    val diagnosticLogEnabled: StateFlow<Boolean> = settingsStore.diagnosticLogEnabled
+    val debugToolsEnabled: StateFlow<Boolean> = settingsStore.debugToolsEnabled
+    val preferredUsbVidPid: StateFlow<String?> = settingsStore.preferredUsbVidPid
 
-    private val _wheelMapping = MutableStateFlow<Map<String, String>>(emptyMap())
-    val wheelMapping: StateFlow<Map<String, String>> = _wheelMapping.asStateFlow()
+    /** The service menu is unlocked (stored as [SettingsUiMode.ADVANCED]). */
+    val serviceMenuUnlocked: StateFlow<Boolean> = settingsStore.settingsUiMode
+        .map { it == SettingsUiMode.ADVANCED }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, settingsStore.settingsUiMode.value == SettingsUiMode.ADVANCED)
 
-    private val _settingsUiMode = MutableStateFlow(SettingsUiMode.USER)
-    val settingsUiMode: StateFlow<SettingsUiMode> = _settingsUiMode.asStateFlow()
-
-    private val _importExportMessage = MutableStateFlow<String?>(null)
-    val importExportMessage: StateFlow<String?> = _importExportMessage.asStateFlow()
-
-    private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
-    val teyesChecklist: StateFlow<TeyesChecklist> = _teyesChecklist.asStateFlow()
+    /** One-shot text for the snackbar (calibration, import / export, service menu unlock). */
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
 
     /** The service was killed during the head unit's sleep and no sleep has been survived since. */
     val killedInSleep: StateFlow<Boolean> = heartbeatStore.killedInSleepAtMs
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    private val _batteryUnrestricted = MutableStateFlow(true)
-    val batteryUnrestricted: StateFlow<Boolean> = _batteryUnrestricted.asStateFlow()
-
-    private val _notificationsEnabled = MutableStateFlow(true)
-    val notificationsEnabled: StateFlow<Boolean> = _notificationsEnabled.asStateFlow()
-
-    private val _widgetActive = MutableStateFlow(false)
-    val widgetActive: StateFlow<Boolean> = _widgetActive.asStateFlow()
-
-    private val _silentStartup = MutableStateFlow(false)
-    val silentStartup: StateFlow<Boolean> = _silentStartup.asStateFlow()
-
-    private val _floatingOverlayEnabled = MutableStateFlow(false)
-    val floatingOverlayEnabled: StateFlow<Boolean> = _floatingOverlayEnabled.asStateFlow()
-
-    private val _criticalAlertsFullscreen = MutableStateFlow(true)
-    val criticalAlertsFullscreen: StateFlow<Boolean> = _criticalAlertsFullscreen.asStateFlow()
-
-    private val _widgetThemeMode = MutableStateFlow(WidgetThemeMode.AUTO)
-    val widgetThemeMode: StateFlow<WidgetThemeMode> = _widgetThemeMode.asStateFlow()
-
-    private val _diagnosticLogEnabled = MutableStateFlow(false)
-    val diagnosticLogEnabled: StateFlow<Boolean> = _diagnosticLogEnabled.asStateFlow()
-
-    private val _debugToolsEnabled = MutableStateFlow(false)
-    val debugToolsEnabled: StateFlow<Boolean> = _debugToolsEnabled.asStateFlow()
-
-    private val _preferredUsbVidPid = MutableStateFlow<String?>(null)
-    val preferredUsbVidPid: StateFlow<String?> = _preferredUsbVidPid.asStateFlow()
-
     private val _usbDongleOptions = MutableStateFlow<List<String>>(emptyList())
-    val usbDongleOptions: StateFlow<List<String>> = _usbDongleOptions.asStateFlow()
 
-    private val _serviceRunning = MutableStateFlow(false)
-    val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
-
-    private val _setupStatus = MutableStateFlow(
-        setupStatusProvider.current(context)
-    )
+    private val _setupStatus = MutableStateFlow(setupStatusProvider.current(context))
     val setupStatus: StateFlow<SetupStatus> = _setupStatus.asStateFlow()
 
     /**
-     * Sensors offered by the wheel-mapping rows: every seen sensor (on a wheel or not) with its last
+     * Sensors offered by the wheel mapping: every seen sensor (on a wheel or not) with its last
      * reading, sorted by id, except placeholder readings of an empty AA55 slot, which are never
      * admitted to a wheel (wayfinder 11).
      */
@@ -150,71 +130,31 @@ class SettingsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val knownSensorIds: StateFlow<List<String>> = mappableSensors
-        .map { it.keys.toList() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     /**
-     * Slot label → sensor currently placed there (what "Авто" resolves to for a blank mapping): the
-     * repository's published wheels, not a local re-derivation from the optimistic settings flows.
+     * Slot label → sensor currently placed there (what "Auto" resolves to for a blank mapping): the
+     * repository's published wheels, not a local re-derivation.
      */
     val wheelAssignment: StateFlow<Map<String, TireSensor>> = repository.wheels
+
+    private var versionTaps = 0
 
     init {
         viewModelScope.launch {
             settingsStore.awaitLoaded()
-            _pressureUnit.value = settingsStore.pressureUnit.value
-            loadThresholdsFromStore()
-            _dongleProtocolMode.value = settingsStore.dongleProtocolMode.value
-            _staleFrameTimeoutSec.value = (settingsStore.staleFrameTimeoutMs.value / 1000).toInt()
-            _showSpareWheel.value = settingsStore.showSpareWheel.value
-            _minLiveWheelPressure.value = settingsStore.minLiveWheelPressureKpa.value
-            _wheelMapping.value = settingsStore.wheelMapping.value
-            _settingsUiMode.value = settingsStore.settingsUiMode.value
+            _targetPressureKpa.value = settingsStore.targetPressureKpa.value
+            _highTemp.value = settingsStore.thresholds.value.highTempCelsius
         }
         viewModelScope.launch {
-            settingsStore.wheelMapping.collect { _wheelMapping.value = it }
+            settingsStore.targetPressureKpa.collect { _targetPressureKpa.value = it }
         }
         viewModelScope.launch {
-            settingsStore.settingsUiMode.collect { _settingsUiMode.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.showSpareWheel.collect { _showSpareWheel.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.teyesChecklist.collect { _teyesChecklist.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.silentStartup.collect { _silentStartup.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.floatingOverlayEnabled.collect { _floatingOverlayEnabled.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.criticalAlertsFullscreen.collect { _criticalAlertsFullscreen.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.widgetThemeMode.collect { _widgetThemeMode.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.preferredUsbVidPid.collect { _preferredUsbVidPid.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.diagnosticLogEnabled.collect { _diagnosticLogEnabled.value = it }
-        }
-        viewModelScope.launch {
-            settingsStore.debugToolsEnabled.collect { _debugToolsEnabled.value = it }
+            settingsStore.thresholds.collect { _highTemp.value = it.highTempCelsius }
         }
         refreshRuntimeSetupStatus()
     }
 
     fun refreshRuntimeSetupStatus() {
-        val status = setupStatusProvider.current(context)
-        _setupStatus.value = status
-        _batteryUnrestricted.value = status.batteryUnrestricted
-        _notificationsEnabled.value = status.notificationsEnabled
-        _widgetActive.value = status.widgetActive
-        _serviceRunning.value = status.serviceRunning
+        _setupStatus.value = setupStatusProvider.current(context)
         refreshUsbDongleOptions()
     }
 
@@ -226,245 +166,260 @@ class SettingsViewModel @Inject constructor(
         _usbDongleOptions.value = auto + devices
     }
 
-    fun setTeyesChecklistItem(key: String, checked: Boolean) {
-        viewModelScope.launch { settingsStore.setTeyesChecklistItem(key, checked) }
+    fun clearMessage() {
+        _message.value = null
     }
 
-    fun openAppDetails() = TeyesPermissionHelper.openAppDetails(context)
-    fun openBatterySettings() = TeyesPermissionHelper.openBatteryOptimization(context)
-    fun openNotificationSettings() = TeyesPermissionHelper.openNotificationSettings(context)
-    fun openAlertChannelSettings() = TeyesPermissionHelper.openAlertChannelSettings(context)
-    fun openTeyesSettings() = TeyesPermissionHelper.openTeyesSettings(context)
-    fun openFrontAppStore() = TeyesPermissionHelper.openFrontApp(context)
-    fun openOverlaySettings() = TeyesPermissionHelper.openOverlaySettings(context)
+    // --- Tyres ---
 
-    fun pinWidgetToHome(): WidgetPinResult = pinWidget(TpmsWidgetHelper::requestPinPanel)
+    fun setPressureUnit(unit: PressureUnit) {
+        viewModelScope.launch { settingsStore.setPressureUnit(unit) }
+    }
 
-    fun pinCompactWidget(): WidgetPinResult = pinWidget(TpmsWidgetHelper::requestPinCompact)
+    fun stepTargetPressure(up: Boolean) {
+        val next = PressureTarget.stepped(_targetPressureKpa.value, pressureUnit.value, up)
+        _targetPressureKpa.value = next
+        viewModelScope.launch { settingsStore.setTargetPressureKpa(next) }
+    }
 
-    private fun pinWidget(requestPin: (Context) -> WidgetPinResult): WidgetPinResult {
-        if (isTeyesDevice) {
-            TeyesPermissionHelper.openFrontApp(context)
-            return WidgetPinResult.NOT_SUPPORTED
+    /** "Accept current pressures as the norm" (BMW / Mercedes reset): only from live data. */
+    fun acceptCurrentPressures() {
+        val live = repository.connectionSnapshot().hasLiveSession
+        val result = if (live) PressureTarget.calibrate(repository.wheels.value) else PressureTarget.Calibration.MissingWheel
+        _message.value = when (result) {
+            is PressureTarget.Calibration.Accepted -> {
+                _targetPressureKpa.value = result.targetKpa
+                viewModelScope.launch { settingsStore.setTargetPressureKpa(result.targetKpa) }
+                val unit = pressureUnit.value
+                context.getString(
+                    R.string.settings_calibrate_done,
+                    unit.formatFromKpa(result.targetKpa),
+                    context.getString(unitLabelRes(unit))
+                )
+            }
+            PressureTarget.Calibration.MissingWheel -> context.getString(R.string.settings_calibrate_missing)
+            PressureTarget.Calibration.TooLow -> context.getString(R.string.settings_calibrate_too_low)
+            PressureTarget.Calibration.Uneven -> context.getString(R.string.settings_calibrate_uneven)
         }
-        val result = requestPin(context)
-        TpmsWidgetHelper.showPinResultToast(context, result, isTeyesDevice)
-        refreshRuntimeSetupStatus()
-        return result
     }
 
-    fun setSilentStartup(enabled: Boolean) {
-        _silentStartup.value = enabled
-        viewModelScope.launch { settingsStore.setSilentStartup(enabled) }
+    private fun unitLabelRes(unit: PressureUnit): Int = when (unit) {
+        PressureUnit.PSI -> R.string.unit_psi
+        PressureUnit.KPA -> R.string.unit_kpa
+        PressureUnit.BAR -> R.string.unit_bar
+    }
+
+    // --- Sensors ---
+
+    fun wheelSlots(): List<String> = WheelLayout.allSlots(showSpareWheel.value)
+
+    fun setWheelMapping(slot: String, sensorId: String) {
+        viewModelScope.launch { settingsStore.setWheelMapping(slot, sensorId) }
+    }
+
+    /** Tyre rotation: the sensors of wheels [a] and [b] trade places; a second tap swaps them back. */
+    fun swapWheels(a: String, b: String) {
+        val entries = WheelAssignment.swap(mappableSensors.value, wheelMapping.value, wheelAssignment.value, a, b)
+        viewModelScope.launch { settingsStore.setWheelMappings(entries) }
+        _message.value = context.getString(
+            R.string.settings_wheels_swapped,
+            wheelPositionLabel(context, a),
+            wheelPositionLabel(context, b)
+        )
+    }
+
+    fun setShowSpareWheel(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setShowSpareWheel(enabled) }
+    }
+
+    // --- Alerts and display ---
+
+    fun openAlertChannelSettings() = TeyesPermissionHelper.openAlertChannelSettings(context)
+
+    fun setCriticalAlertsFullscreen(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setCriticalAlertsFullscreen(enabled) }
     }
 
     fun setFloatingOverlayEnabled(enabled: Boolean) {
-        _floatingOverlayEnabled.value = enabled
         viewModelScope.launch {
             settingsStore.setFloatingOverlayEnabled(enabled)
             if (!enabled) {
                 floatingOverlayController.hide(context)
             } else if (!floatingOverlayController.canDrawOverlays(context)) {
-                openOverlaySettings()
+                TeyesPermissionHelper.openOverlaySettings(context)
             } else {
                 TpmsMonitorService.wake(context)
             }
         }
     }
 
-    fun setCriticalAlertsFullscreen(enabled: Boolean) {
-        _criticalAlertsFullscreen.value = enabled
-        viewModelScope.launch { settingsStore.setCriticalAlertsFullscreen(enabled) }
-    }
-
-    fun setWidgetThemeMode(mode: WidgetThemeMode) {
-        _widgetThemeMode.value = mode
+    /** App and widget appearance (day / night / auto). */
+    fun setThemeMode(mode: WidgetThemeMode) {
         viewModelScope.launch {
             settingsStore.setWidgetThemeMode(mode)
             TpmsMonitorService.wake(context)
         }
     }
 
-    fun setDiagnosticLogEnabled(enabled: Boolean) {
-        _diagnosticLogEnabled.value = enabled
+    /**
+     * Android 13+ re-localizes the whole process and recreates the activity itself; below that
+     * the channels, the activity and (via a service wake) the widgets are refreshed here.
+     */
+    fun setLanguage(language: AppLanguage, activityContext: Context) {
+        if (language == _language.value) return
+        _language.value = language
+        AppLocale.set(context, language)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            (context as? TpmsApplication)?.refreshNotificationChannels()
+            activityContext.findActivity()?.recreate()
+        }
+        TpmsMonitorService.wake(context)
+    }
+
+    private tailrec fun Context.findActivity(): Activity? = when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }
+
+    fun pinWidgetToHome(): WidgetPinResult {
+        if (isTeyesDevice) {
+            TeyesPermissionHelper.openFrontApp(context)
+            return WidgetPinResult.NOT_SUPPORTED
+        }
+        val result = TpmsWidgetHelper.requestPinPanel(context)
+        TpmsWidgetHelper.showPinResultToast(context, result, isTeyesDevice)
+        refreshRuntimeSetupStatus()
+        return result
+    }
+
+    // --- System check ---
+
+    fun openAppDetails() = TeyesPermissionHelper.openAppDetails(context)
+    fun openBatterySettings() = TeyesPermissionHelper.openBatteryOptimization(context)
+    fun openNotificationSettings() = TeyesPermissionHelper.openNotificationSettings(context)
+    fun openTeyesSettings() = TeyesPermissionHelper.openTeyesSettings(context)
+    fun openFrontAppStore() = TeyesPermissionHelper.openFrontApp(context)
+
+    fun setTeyesChecklistItem(key: String, checked: Boolean) {
         viewModelScope.launch {
-            settingsStore.setDiagnosticLogEnabled(enabled)
-            if (!enabled) {
-                usbDebugLog.clear()
-            }
+            settingsStore.setTeyesChecklistItem(key, checked)
+            refreshRuntimeSetupStatus()
         }
     }
 
-    fun setDebugToolsEnabled(enabled: Boolean) {
-        _debugToolsEnabled.value = enabled
-        viewModelScope.launch {
-            settingsStore.setDebugToolsEnabled(enabled)
+    // --- About / service menu ---
+
+    val versionName: String = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+    }.getOrNull().orEmpty()
+
+    /** Seven taps on the version unlock the service menu, as on Android's build number. */
+    fun onVersionTapped() {
+        if (serviceMenuUnlocked.value) return
+        versionTaps++
+        if (versionTaps >= SERVICE_UNLOCK_TAPS) {
+            versionTaps = 0
+            viewModelScope.launch { settingsStore.setSettingsUiMode(SettingsUiMode.ADVANCED) }
+            _message.value = context.getString(R.string.settings_service_unlocked)
         }
+    }
+
+    fun lockServiceMenu() {
+        viewModelScope.launch {
+            settingsStore.setSettingsUiMode(SettingsUiMode.USER)
+            if (settingsStore.debugToolsEnabled.value) settingsStore.setDebugToolsEnabled(false)
+        }
+    }
+
+    fun stepHighTemp(up: Boolean) {
+        val next = (_highTemp.value + if (up) HIGH_TEMP_STEP else -HIGH_TEMP_STEP).coerceIn(HIGH_TEMP_MIN, HIGH_TEMP_MAX)
+        _highTemp.value = next
+        viewModelScope.launch { settingsStore.setHighTempCelsius(next) }
+    }
+
+    fun setDongleProtocolMode(mode: DongleProtocolMode) {
+        viewModelScope.launch { settingsStore.setDongleProtocolMode(mode) }
+    }
+
+    fun stepStaleFrameTimeout(up: Boolean) {
+        val next = (staleFrameTimeoutSec.value + if (up) 10 else -10).coerceIn(30, 300)
+        viewModelScope.launch { settingsStore.setStaleFrameTimeoutMs(next * 1000L) }
+    }
+
+    fun stepMinLiveWheelPressure(up: Boolean) {
+        val next = (minLiveWheelPressure.value + if (up) 10f else -10f).coerceIn(0f, 500f)
+        viewModelScope.launch { settingsStore.setMinLiveWheelPressureKpa(next) }
     }
 
     fun cyclePreferredUsbDevice() {
+        refreshUsbDongleOptions()
         val options = _usbDongleOptions.value
         if (options.isEmpty()) return
-        val current = _preferredUsbVidPid.value.orEmpty()
+        val current = preferredUsbVidPid.value.orEmpty()
         val next = options[(options.indexOf(current).coerceAtLeast(0) + 1) % options.size]
-        val value = next.takeIf { it.isNotBlank() }
-        _preferredUsbVidPid.value = value
         viewModelScope.launch {
-            settingsStore.setPreferredUsbVidPid(value)
+            settingsStore.setPreferredUsbVidPid(next.takeIf { it.isNotBlank() })
             TpmsMonitorService.reconnectUsb(context)
         }
     }
 
-    private fun loadThresholdsFromStore() {
-        val thresholds = settingsStore.thresholds.value
-        val unit = _pressureUnit.value
-        _lowPressure.value = unit.fromKpa(thresholds.lowPressureKpa)
-        _highPressure.value = unit.fromKpa(thresholds.highPressureKpa)
-        _highTemp.value = thresholds.highTempCelsius
+    fun setSilentStartup(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setSilentStartup(enabled) }
     }
 
-    fun wheelSlots(): List<String> = WheelLayout.allSlots(_showSpareWheel.value)
-
-    fun setPressureUnit(unit: PressureUnit) {
-        if (_pressureUnit.value == unit) return
-        val lowKpa = _pressureUnit.value.toKpa(_lowPressure.value)
-        val highKpa = _pressureUnit.value.toKpa(_highPressure.value)
-        _pressureUnit.value = unit
-        _lowPressure.value = unit.fromKpa(lowKpa)
-        _highPressure.value = unit.fromKpa(highKpa)
-        viewModelScope.launch { settingsStore.setPressureUnit(unit) }
-    }
-
-    fun setLowPressure(v: Float) { _lowPressure.value = v }
-    fun setHighPressure(v: Float) { _highPressure.value = v }
-    fun setHighTemp(v: Float) { _highTemp.value = v }
-
-    fun setDongleProtocolMode(mode: DongleProtocolMode) {
-        _dongleProtocolMode.value = mode
-        viewModelScope.launch { settingsStore.setDongleProtocolMode(mode) }
-    }
-
-    fun setStaleFrameTimeoutSec(seconds: Int) {
-        val value = seconds.coerceIn(30, 300)
-        _staleFrameTimeoutSec.value = value
-        viewModelScope.launch { settingsStore.setStaleFrameTimeoutMs(value * 1000L) }
-    }
-
-    fun setShowSpareWheel(enabled: Boolean) {
-        _showSpareWheel.value = enabled
-        viewModelScope.launch { settingsStore.setShowSpareWheel(enabled) }
-    }
-
-    fun setMinLiveWheelPressure(v: Float) {
-        val value = v.coerceIn(0f, 500f)
-        _minLiveWheelPressure.value = value
-        viewModelScope.launch { settingsStore.setMinLiveWheelPressureKpa(value) }
-    }
-
-    fun setSettingsUiMode(mode: SettingsUiMode) {
-        _settingsUiMode.value = mode
-        viewModelScope.launch { settingsStore.setSettingsUiMode(mode) }
-    }
-
-    fun cycleWheelMapping(slot: String, availableIds: List<String>) {
-        val options = listOf("") + availableIds
-        val current = _wheelMapping.value[slot].orEmpty()
-        val next = options[(options.indexOf(current).coerceAtLeast(0) + 1) % options.size]
+    fun setDiagnosticLogEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            settingsStore.setWheelMapping(slot, next)
+            settingsStore.setDiagnosticLogEnabled(enabled)
+            if (!enabled) usbDebugLog.clear()
         }
     }
 
-    fun exportSettingsJson(): String {
-        val unit = _pressureUnit.value
-        return SettingsExporter.export(
-            pressureUnit = unit,
-            thresholds = AlertThresholds(
-                lowPressureKpa = unit.toKpa(_lowPressure.value),
-                highPressureKpa = unit.toKpa(_highPressure.value),
-                highTempCelsius = _highTemp.value
-            ),
-            dongleProtocolMode = _dongleProtocolMode.value,
-            staleFrameTimeoutMs = _staleFrameTimeoutSec.value * 1000L,
-            wheelMapping = _wheelMapping.value,
-            showSpareWheel = _showSpareWheel.value,
-            minLiveWheelPressureKpa = _minLiveWheelPressure.value,
-            teyesChecklist = settingsStore.teyesChecklist.value,
-            onboardingComplete = settingsStore.onboardingComplete.value,
-            silentStartup = _silentStartup.value,
-            floatingOverlayEnabled = _floatingOverlayEnabled.value,
-            criticalAlertsFullscreen = _criticalAlertsFullscreen.value,
-            preferredUsbVidPid = _preferredUsbVidPid.value,
-            widgetThemeMode = _widgetThemeMode.value,
-            diagnosticLogEnabled = _diagnosticLogEnabled.value,
-            debugToolsEnabled = _debugToolsEnabled.value
-        )
+    fun setDebugToolsEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setDebugToolsEnabled(enabled) }
     }
 
+    fun exportSettingsJson(): String = SettingsExporter.export(
+        pressureUnit = pressureUnit.value,
+        targetPressureKpa = _targetPressureKpa.value,
+        highTempCelsius = _highTemp.value,
+        dongleProtocolMode = dongleProtocolMode.value,
+        staleFrameTimeoutMs = settingsStore.staleFrameTimeoutMs.value,
+        wheelMapping = wheelMapping.value,
+        showSpareWheel = showSpareWheel.value,
+        minLiveWheelPressureKpa = minLiveWheelPressure.value,
+        teyesChecklist = teyesChecklist.value,
+        onboardingComplete = settingsStore.onboardingComplete.value,
+        silentStartup = silentStartup.value,
+        floatingOverlayEnabled = floatingOverlayEnabled.value,
+        criticalAlertsFullscreen = criticalAlertsFullscreen.value,
+        preferredUsbVidPid = preferredUsbVidPid.value,
+        widgetThemeMode = themeMode.value,
+        diagnosticLogEnabled = diagnosticLogEnabled.value,
+        debugToolsEnabled = debugToolsEnabled.value
+    )
+
     fun copySettingsToClipboard() {
-        val json = exportSettingsJson()
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("tpms_settings", json))
-        _importExportMessage.value = context.getString(com.tpms.app.R.string.settings_export_copied)
+        clipboard.setPrimaryClip(ClipData.newPlainText("tpms_settings", exportSettingsJson()))
+        _message.value = context.getString(R.string.settings_export_copied)
     }
 
     fun importSettingsJson(json: String) {
         viewModelScope.launch {
             runCatching {
-                val imported = SettingsExporter.import(json.trim())
-                settingsStore.applyImported(imported)
-                _pressureUnit.value = imported.pressureUnit
-                _lowPressure.value = imported.pressureUnit.fromKpa(imported.thresholds.lowPressureKpa)
-                _highPressure.value = imported.pressureUnit.fromKpa(imported.thresholds.highPressureKpa)
-                _highTemp.value = imported.thresholds.highTempCelsius
-                _dongleProtocolMode.value = imported.dongleProtocolMode
-                _staleFrameTimeoutSec.value = (imported.staleFrameTimeoutMs / 1000).toInt()
-                _showSpareWheel.value = imported.showSpareWheel
-                _minLiveWheelPressure.value = imported.minLiveWheelPressureKpa
-                _importExportMessage.value = context.getString(com.tpms.app.R.string.settings_import_ok)
+                settingsStore.applyImported(SettingsExporter.import(json.trim()))
+                _message.value = context.getString(R.string.settings_import_ok)
             }.onFailure { error ->
-                _importExportMessage.value = context.getString(
-                    com.tpms.app.R.string.settings_import_failed,
-                    error.message ?: "error"
-                )
+                _message.value = context.getString(R.string.settings_import_failed, error.message ?: "error")
             }
         }
     }
 
-    fun clearImportExportMessage() {
-        _importExportMessage.value = null
-    }
-
-    suspend fun saveSettings() {
-        val unit = _pressureUnit.value
-        settingsStore.setPressureUnit(unit)
-        settingsStore.setDongleProtocolMode(_dongleProtocolMode.value)
-        settingsStore.setStaleFrameTimeoutMs(_staleFrameTimeoutSec.value * 1000L)
-        settingsStore.setMinLiveWheelPressureKpa(_minLiveWheelPressure.value)
-        settingsStore.setThresholds(
-            AlertThresholds(
-                lowPressureKpa = unit.toKpa(_lowPressure.value),
-                highPressureKpa = unit.toKpa(_highPressure.value),
-                highTempCelsius = _highTemp.value
-            )
-        )
-    }
-
-    /** Persist threshold text fields when leaving the settings screen. */
-    fun savePendingThresholds() {
-        viewModelScope.launch {
-            val unit = _pressureUnit.value
-            settingsStore.setThresholds(
-                AlertThresholds(
-                    lowPressureKpa = unit.toKpa(_lowPressure.value),
-                    highPressureKpa = unit.toKpa(_highPressure.value),
-                    highTempCelsius = _highTemp.value
-                )
-            )
-        }
-    }
-
-    fun saveThresholds() {
-        viewModelScope.launch { saveSettings() }
+    private companion object {
+        const val SERVICE_UNLOCK_TAPS = 7
+        const val HIGH_TEMP_STEP = 5f
+        const val HIGH_TEMP_MIN = 60f
+        const val HIGH_TEMP_MAX = 120f
     }
 }

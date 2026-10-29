@@ -25,6 +25,9 @@ android {
         targetSdk = 35
         versionCode = project.findProperty("versionCode")?.toString()?.toIntOrNull() ?: 1
         versionName = project.findProperty("versionName")?.toString() ?: "1.1.2"
+        // The app ships English and Russian only (res/xml/locales_config.xml): drop the libraries'
+        // other translations so a Chinese head unit does not show a half-translated mix.
+        resourceConfigurations += listOf("en", "ru")
     }
 
     signingConfigs {

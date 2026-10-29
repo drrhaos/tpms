@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.tpms.app.R
 import com.tpms.app.domain.UsbFault
+import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
@@ -109,4 +110,35 @@ fun DongleProtocolMode.localizedLabel(): String = when (this) {
     DongleProtocolMode.HID_GENERIC -> stringResource(R.string.protocol_hid)
     DongleProtocolMode.SERIAL_AA55 -> stringResource(R.string.protocol_serial)
     DongleProtocolMode.DEELIFE -> stringResource(R.string.protocol_deelife)
+}
+
+/** Human name of a wheel slot ("Front left"); an unknown slot is shown as is. */
+fun wheelPositionLabel(context: Context, slot: String): String =
+    wheelPositionRes(slot)?.let { context.getString(it) } ?: slot
+
+@Composable
+fun wheelPositionLabel(slot: String): String =
+    wheelPositionRes(slot)?.let { stringResource(it) } ?: slot
+
+private fun wheelPositionRes(slot: String): Int? = when (slot) {
+    "FL" -> R.string.wheel_position_fl
+    "FR" -> R.string.wheel_position_fr
+    "RL" -> R.string.wheel_position_rl
+    "RR" -> R.string.wheel_position_rr
+    WheelLayout.SPARE_SLOT -> R.string.wheel_position_spare
+    else -> null
+}
+
+/** Sentence-case alert name for the main screen and the widget ("Low pressure"). */
+@Composable
+fun AlertType.cardLabel(): String = stringResource(cardLabelRes())
+
+fun AlertType.cardLabel(context: Context): String = context.getString(cardLabelRes())
+
+private fun AlertType.cardLabelRes(): Int = when (this) {
+    AlertType.LOW_PRESSURE -> R.string.alert_card_low
+    AlertType.HIGH_PRESSURE -> R.string.alert_card_high
+    AlertType.SENSOR_LOST -> R.string.alert_card_lost
+    AlertType.HIGH_TEMP -> R.string.alert_card_high_temp
+    AlertType.BATTERY_LOW -> R.string.alert_card_low_battery
 }

@@ -78,6 +78,30 @@ object WheelAssignment {
         return seen.filterValues { it.id in keep || now - it.timestamp <= maxAgeMs }
     }
 
+    /**
+     * Mapping entries that swap the sensors of wheels [a] and [b] (tyre rotation): each slot gets
+     * the other's sensor — the one on it now ([wheels]), else its mapped id. A sensor landing on its
+     * default slot is stored as "Авто" (blank); a wheel without a sensor hands over a blank.
+     * Fed back through [assign], the two wheels come out swapped.
+     */
+    fun swap(
+        seen: Map<String, TireSensor>,
+        wheelMapping: Map<String, String>,
+        wheels: Map<String, TireSensor>,
+        a: String,
+        b: String
+    ): Map<String, String> {
+        fun onWheel(slot: String) = wheels[slot]?.id ?: wheelMapping[slot]?.takeIf { it.isNotBlank() }
+        fun entry(slot: String, id: String?) = when {
+            id == null -> ""
+            seen[id]?.let(::defaultSlot) == slot -> ""
+            else -> id
+        }
+        val onA = onWheel(a)
+        val onB = onWheel(b)
+        return mapOf(a to entry(a, onB), b to entry(b, onA))
+    }
+
     /** Ids explicitly mapped to any slot, whether or not the slot is shown. */
     private fun mappedIds(wheelMapping: Map<String, String>): Set<String> =
         WheelLayout.allSlots(showSpareWheel = true)

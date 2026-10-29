@@ -22,6 +22,7 @@ import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.main.MainActivity
 import com.tpms.app.ui.notificationText
+import com.tpms.app.ui.wheelPositionLabel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -255,11 +256,11 @@ class AlertNotifier @Inject constructor(
 
     private fun build(sensorId: String, sensor: TireSensor, type: AlertType, action: NotificationAction, slot: String?) =
         NotificationCompat.Builder(context, TpmsApplication.CHANNEL_ALERT)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_stat_tpms)
             .setContentTitle(
                 context.getString(
                     R.string.notification_alert_title_format,
-                    slot ?: sensor.label.ifBlank { sensor.id },
+                    slot?.let { wheelPositionLabel(context, it) } ?: sensor.label.ifBlank { sensor.id },
                     type.notificationText(context)
                 )
             )

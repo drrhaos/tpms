@@ -234,4 +234,57 @@ class WheelAssignmentTest {
             WheelAssignment.unassigned(sensors, assignment).map { it.id }
         )
     }
+
+    private fun swapAndAssign(
+        sensors: Map<String, TireSensor>,
+        mapping: Map<String, String>,
+        a: String,
+        b: String
+    ): Pair<Map<String, String>, Map<String, String>> {
+        val wheels = WheelAssignment.assign(sensors, mapping, showSpareWheel = false)
+        val entries = WheelAssignment.swap(sensors, mapping, wheels, a, b)
+        return entries to WheelAssignment.assign(sensors, mapping + entries, showSpareWheel = false).ids()
+    }
+
+    @Test
+    fun swap_exchangesTwoDefaultWheels() {
+        val sensors = seen(aa55("FL"), aa55("FR"), aa55("RL"), aa55("RR"))
+
+        val (entries, wheels) = swapAndAssign(sensors, emptyMap(), "FL", "RL")
+
+        assertEquals(mapOf("FL" to "RL", "RL" to "FL"), entries)
+        assertEquals(mapOf("FL" to "RL", "FR" to "FR", "RL" to "FL", "RR" to "RR"), wheels)
+    }
+
+    @Test
+    fun swap_backToDefaultSlotsClearsMapping() {
+        val sensors = seen(aa55("FL"), aa55("FR"), aa55("RL"), aa55("RR"))
+        val swapped = mapOf("FL" to "RL", "RL" to "FL")
+
+        val (entries, wheels) = swapAndAssign(sensors, swapped, "FL", "RL")
+
+        assertEquals(mapOf("FL" to "", "RL" to ""), entries)
+        assertEquals(mapOf("FL" to "FL", "FR" to "FR", "RL" to "RL", "RR" to "RR"), wheels)
+    }
+
+    @Test
+    fun swap_withEmptyWheelMovesTheSensorOver() {
+        val sensors = seen(aa55("FL"), aa55("FR"), aa55("RR"))
+
+        val (entries, wheels) = swapAndAssign(sensors, emptyMap(), "FL", "RL")
+
+        assertEquals(mapOf("FL" to "", "RL" to "FL"), entries)
+        assertEquals(mapOf("FR" to "FR", "RL" to "FL", "RR" to "RR"), wheels)
+    }
+
+    @Test
+    fun swap_movesMappedSensorsWithoutDefaultSlot() {
+        val sensors = seen(sensor("A1B2C3"), sensor("D4E5F6"))
+        val mapping = mapOf("FR" to "A1B2C3", "RR" to "D4E5F6")
+
+        val (entries, wheels) = swapAndAssign(sensors, mapping, "FR", "RR")
+
+        assertEquals(mapOf("FR" to "D4E5F6", "RR" to "A1B2C3"), entries)
+        assertEquals(mapOf("FR" to "D4E5F6", "RR" to "A1B2C3"), wheels)
+    }
 }

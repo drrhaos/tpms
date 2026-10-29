@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
@@ -21,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -47,8 +49,13 @@ class SettingsStore @Inject constructor(
     private val _pressureUnit = MutableStateFlow(PressureUnit.KPA)
     val pressureUnit = _pressureUnit.asStateFlow()
 
-    private val _thresholds = MutableStateFlow(AlertThresholds())
-    val thresholds = _thresholds.asStateFlow()
+    private val _targetPressureKpa = MutableStateFlow(PressureTarget.DEFAULT_KPA)
+    /** Recommended (placard) pressure; the alert limits follow from it ([PressureTarget]). */
+    val targetPressureKpa = _targetPressureKpa.asStateFlow()
+
+    private val _thresholds: MutableStateFlow<AlertThresholds> =
+        MutableStateFlow(PressureTarget.thresholds(PressureTarget.DEFAULT_KPA))
+    val thresholds: StateFlow<AlertThresholds> = _thresholds.asStateFlow()
 
     private val _dongleProtocolMode = MutableStateFlow(DongleProtocolMode.AUTO)
     val dongleProtocolMode = _dongleProtocolMode.asStateFlow()
@@ -106,9 +113,11 @@ class SettingsStore @Inject constructor(
                     PressureUnit.entries.find { it.name == name }
                 } ?: PressureUnit.KPA
 
-                _thresholds.value = AlertThresholds(
-                    lowPressureKpa = prefs[KEY_LOW_PRESSURE] ?: AlertThresholds().lowPressureKpa,
-                    highPressureKpa = prefs[KEY_HIGH_PRESSURE] ?: AlertThresholds().highPressureKpa,
+                // Before the target existed only an absolute low limit was stored: derive the target from it.
+                val target = prefs[KEY_TARGET_PRESSURE] ?: PressureTarget.fromLegacyLow(prefs[KEY_LEGACY_LOW_PRESSURE])
+                _targetPressureKpa.value = target
+                _thresholds.value = PressureTarget.thresholds(
+                    targetKpa = target,
                     highTempCelsius = prefs[KEY_HIGH_TEMP] ?: AlertThresholds().highTempCelsius
                 )
 
@@ -162,12 +171,12 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_PRESSURE_UNIT] = unit.name }
     }
 
-    suspend fun setThresholds(thresholds: AlertThresholds) {
-        context.settingsDataStore.edit {
-            it[KEY_LOW_PRESSURE] = thresholds.lowPressureKpa
-            it[KEY_HIGH_PRESSURE] = thresholds.highPressureKpa
-            it[KEY_HIGH_TEMP] = thresholds.highTempCelsius
-        }
+    suspend fun setTargetPressureKpa(kpa: Float) {
+        context.settingsDataStore.edit { it[KEY_TARGET_PRESSURE] = PressureTarget.clamp(kpa) }
+    }
+
+    suspend fun setHighTempCelsius(celsius: Float) {
+        context.settingsDataStore.edit { it[KEY_HIGH_TEMP] = celsius }
     }
 
     suspend fun setDongleProtocolMode(mode: DongleProtocolMode) {
@@ -193,6 +202,13 @@ class SettingsStore @Inject constructor(
     suspend fun setWheelMapping(slot: String, sensorId: String) {
         context.settingsDataStore.edit { prefs ->
             prefs[wheelMappingKey(slot)] = sensorId
+        }
+    }
+
+    /** Several slots in one write (a wheel swap must never be seen half done). */
+    suspend fun setWheelMappings(entries: Map<String, String>) {
+        context.settingsDataStore.edit { prefs ->
+            entries.forEach { (slot, sensorId) -> prefs[wheelMappingKey(slot)] = sensorId }
         }
     }
 
@@ -254,9 +270,8 @@ class SettingsStore @Inject constructor(
     suspend fun applyImported(imported: ImportedSettings) {
         context.settingsDataStore.edit { prefs ->
             prefs[KEY_PRESSURE_UNIT] = imported.pressureUnit.name
-            prefs[KEY_LOW_PRESSURE] = imported.thresholds.lowPressureKpa
-            prefs[KEY_HIGH_PRESSURE] = imported.thresholds.highPressureKpa
-            prefs[KEY_HIGH_TEMP] = imported.thresholds.highTempCelsius
+            prefs[KEY_TARGET_PRESSURE] = PressureTarget.clamp(imported.targetPressureKpa)
+            prefs[KEY_HIGH_TEMP] = imported.highTempCelsius
             prefs[KEY_DONGLE_PROTOCOL] = imported.dongleProtocolMode.name
             prefs[KEY_STALE_FRAME_TIMEOUT_MS] = imported.staleFrameTimeoutMs
             prefs[KEY_SHOW_SPARE_WHEEL] = imported.showSpareWheel
@@ -296,8 +311,9 @@ class SettingsStore @Inject constructor(
         private val KEY_SETTINGS_UI_MODE = stringPreferencesKey("settings_ui_mode")
 
         private val KEY_PRESSURE_UNIT = stringPreferencesKey("pressure_unit")
-        private val KEY_LOW_PRESSURE = floatPreferencesKey("low_pressure_kpa")
-        private val KEY_HIGH_PRESSURE = floatPreferencesKey("high_pressure_kpa")
+        private val KEY_TARGET_PRESSURE = floatPreferencesKey("target_pressure_kpa")
+        /** Read once for the migration to [KEY_TARGET_PRESSURE]; never written any more. */
+        private val KEY_LEGACY_LOW_PRESSURE = floatPreferencesKey("low_pressure_kpa")
         private val KEY_HIGH_TEMP = floatPreferencesKey("high_temp_celsius")
         private val KEY_DONGLE_PROTOCOL = stringPreferencesKey("dongle_protocol")
         private val KEY_STALE_FRAME_TIMEOUT_MS = longPreferencesKey("stale_frame_timeout_ms")

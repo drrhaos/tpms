@@ -25,6 +25,7 @@ import com.tpms.app.TpmsApplication
 import com.tpms.app.data.diagnostics.ServiceHealth
 import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.data.repository.TpmsRepository
+import com.tpms.app.data.settings.AppLocale
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.DongleSession
 import com.tpms.app.data.usb.UsbDebugLog
@@ -145,6 +146,10 @@ class TpmsMonitorService : Service() {
         }
     }
     private var accReceiverRegistered = false
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -628,10 +633,7 @@ class TpmsMonitorService : Service() {
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setSmallIcon(
-                if (protocolUnhealthy) android.R.drawable.ic_dialog_alert
-                else android.R.drawable.ic_dialog_info
-            )
+            .setSmallIcon(R.drawable.ic_stat_tpms)
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(

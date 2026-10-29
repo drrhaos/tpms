@@ -8,6 +8,7 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.MonitoringHealthPolicy
+import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.SensorFreshness
 import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WheelLayout
@@ -40,6 +41,9 @@ data class MainUiState(
     /** Per slot: stale wheel drawn muted (an active alert keeps its colour instead). */
     val wheelMuted: List<Boolean> = emptyList(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
+    /** Recommended pressure, shown as the reference under the car. */
+    val targetPressureKpa: Float = PressureTarget.DEFAULT_KPA,
+    /** Service menu unlocked: technical details (sensor id, update time) and the debug shortcut. */
     val advancedMode: Boolean = false,
     val debugToolsEnabled: Boolean = false,
     val lastError: String? = null,
@@ -78,13 +82,15 @@ class MainViewModel @Inject constructor(
             settingsStore.pressureUnit,
             settingsStore.showSpareWheel,
             settingsStore.settingsUiMode,
-            settingsStore.debugToolsEnabled
-        ) { unit, spare, uiMode, debugTools ->
+            settingsStore.debugToolsEnabled,
+            settingsStore.targetPressureKpa
+        ) { unit, spare, uiMode, debugTools, target ->
             MainSettingsBundle(
                 unit,
                 spare,
                 uiMode == SettingsUiMode.ADVANCED,
-                debugTools
+                debugTools,
+                target
             )
         }
     ) { tpmsState, wheels, usbFault, settings ->
@@ -138,6 +144,7 @@ class MainViewModel @Inject constructor(
                 wheelStaleMinutes = wheelSlots.map { SensorFreshness.staleWheelMinutes(it, wheelProtocol, now) },
                 wheelMuted = wheelSlots.map { SensorFreshness.isWheelMuted(it, wheelProtocol, now) },
                 pressureUnit = settings.pressureUnit,
+                targetPressureKpa = settings.targetPressureKpa,
                 advancedMode = settings.advancedMode,
                 debugToolsEnabled = settings.debugToolsEnabled,
                 dataStale = stale,
@@ -172,5 +179,6 @@ private data class MainSettingsBundle(
     val pressureUnit: PressureUnit,
     val showSpareWheel: Boolean,
     val advancedMode: Boolean,
-    val debugToolsEnabled: Boolean
+    val debugToolsEnabled: Boolean,
+    val targetPressureKpa: Float
 )

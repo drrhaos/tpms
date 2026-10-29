@@ -1,6 +1,6 @@
 package com.tpms.app.data.settings
 
-import com.tpms.app.domain.model.AlertThresholds
+import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import org.junit.Assert.assertEquals
@@ -13,7 +13,8 @@ class SettingsExporterTest {
     fun exportAndImport_roundTrip() {
         val exported = SettingsExporter.export(
             pressureUnit = PressureUnit.BAR,
-            thresholds = AlertThresholds(lowPressureKpa = 170f, highPressureKpa = 280f, highTempCelsius = 70f),
+            targetPressureKpa = 250f,
+            highTempCelsius = 70f,
             dongleProtocolMode = DongleProtocolMode.SERIAL_AA55,
             staleFrameTimeoutMs = 120_000L,
             wheelMapping = mapOf("FL" to "ABC"),
@@ -27,7 +28,8 @@ class SettingsExporterTest {
         val imported = SettingsExporter.import(exported)
 
         assertEquals(PressureUnit.BAR, imported.pressureUnit)
-        assertEquals(170f, imported.thresholds.lowPressureKpa)
+        assertEquals(250f, imported.targetPressureKpa, 0.01f)
+        assertEquals(70f, imported.highTempCelsius, 0.01f)
         assertEquals(DongleProtocolMode.SERIAL_AA55, imported.dongleProtocolMode)
         assertEquals(120_000L, imported.staleFrameTimeoutMs)
         assertEquals("ABC", imported.wheelMapping["FL"])
@@ -41,7 +43,7 @@ class SettingsExporterTest {
     fun spareMapping_roundTripsWhileSpareIsHidden() {
         val exported = SettingsExporter.export(
             pressureUnit = PressureUnit.KPA,
-            thresholds = AlertThresholds(),
+            targetPressureKpa = PressureTarget.DEFAULT_KPA,
             dongleProtocolMode = DongleProtocolMode.AUTO,
             staleFrameTimeoutMs = 120_000L,
             wheelMapping = mapOf("FL" to "ABC", "SP" to "XYZ"),
@@ -79,7 +81,8 @@ class SettingsExporterTest {
         assertEquals(PressureUnit.BAR, imported.pressureUnit)
         val reexported = SettingsExporter.export(
             pressureUnit = imported.pressureUnit,
-            thresholds = imported.thresholds,
+            targetPressureKpa = imported.targetPressureKpa,
+            highTempCelsius = imported.highTempCelsius,
             dongleProtocolMode = imported.dongleProtocolMode,
             staleFrameTimeoutMs = imported.staleFrameTimeoutMs,
             wheelMapping = imported.wheelMapping,
@@ -88,5 +91,17 @@ class SettingsExporterTest {
             teyesChecklist = imported.teyesChecklist
         )
         assertFalse(reexported.contains("alert_sound"))
+    }
+
+    @Test
+    fun import_legacyAbsoluteLimits_deriveTheTarget() {
+        val old = """{"version":3,"low_pressure_kpa":200.0,"high_pressure_kpa":350.0}"""
+
+        assertEquals(250f, SettingsExporter.import(old).targetPressureKpa, 0.01f)
+    }
+
+    @Test
+    fun import_noPressureAtAll_isDefaultTarget() {
+        assertEquals(PressureTarget.DEFAULT_KPA, SettingsExporter.import("{}").targetPressureKpa, 0.01f)
     }
 }

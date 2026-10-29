@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.res.Configuration
 import android.util.Log
 import com.tpms.app.R
 import com.tpms.app.di.WidgetEntryPoint
@@ -86,7 +87,10 @@ object TpmsWidgetUpdater {
     ) {
         try {
             val views = when (layoutKind) {
-                WidgetLayoutKind.CAR -> WidgetRemoteViews.forWidgetCar(context, snapshot)
+                WidgetLayoutKind.CAR -> {
+                    val (widthDp, heightDp) = widgetSizeDp(context, manager, appWidgetId)
+                    WidgetRemoteViews.forWidgetCar(context, snapshot, widthDp, heightDp)
+                }
                 WidgetLayoutKind.COMPACT -> WidgetRemoteViews.forWidgetCompact(context, snapshot)
             }
             val intent = PendingIntent.getActivity(
@@ -100,6 +104,26 @@ object TpmsWidgetUpdater {
             Log.w(TAG, "Widget update failed for id=$appWidgetId", error)
         }
     }
+
+    /**
+     * The widget's size in dp as the launcher reports it: landscape (head units) = max width ×
+     * min height, portrait = min width × max height; the provider's minimum before the first report.
+     */
+    private fun widgetSizeDp(context: Context, manager: AppWidgetManager, appWidgetId: Int): Pair<Float, Float> {
+        val options = manager.getAppWidgetOptions(appWidgetId)
+        val landscape = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val width = options.getInt(
+            if (landscape) AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH else AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH
+        )
+        val height = options.getInt(
+            if (landscape) AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT else AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT
+        )
+        return if (width > 0 && height > 0) width.toFloat() to height.toFloat() else DEFAULT_CAR_WIDTH_DP to DEFAULT_CAR_HEIGHT_DP
+    }
+
+    /** tpms_widget_info.xml minWidth × minHeight. */
+    private const val DEFAULT_CAR_WIDTH_DP = 480f
+    private const val DEFAULT_CAR_HEIGHT_DP = 280f
 
     fun hasAnyActiveWidget(context: Context): Boolean =
         ALL_PROVIDERS.any { (providerClass, _) ->

@@ -1,6 +1,7 @@
 package com.tpms.app.data.settings
 
 import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
@@ -10,11 +11,12 @@ import org.json.JSONObject
 
 object SettingsExporter {
 
-    const val EXPORT_VERSION = 3
+    const val EXPORT_VERSION = 4
 
     fun export(
         pressureUnit: PressureUnit,
-        thresholds: AlertThresholds,
+        targetPressureKpa: Float,
+        highTempCelsius: Float = AlertThresholds().highTempCelsius,
         dongleProtocolMode: DongleProtocolMode,
         staleFrameTimeoutMs: Long,
         wheelMapping: Map<String, String>,
@@ -32,9 +34,8 @@ object SettingsExporter {
     ): String = JSONObject().apply {
         put("version", EXPORT_VERSION)
         put("pressure_unit", pressureUnit.name)
-        put("low_pressure_kpa", thresholds.lowPressureKpa.toDouble())
-        put("high_pressure_kpa", thresholds.highPressureKpa.toDouble())
-        put("high_temp_celsius", thresholds.highTempCelsius.toDouble())
+        put("target_pressure_kpa", targetPressureKpa.toDouble())
+        put("high_temp_celsius", highTempCelsius.toDouble())
         put("dongle_protocol", dongleProtocolMode.name)
         put("stale_frame_timeout_ms", staleFrameTimeoutMs)
         put("show_spare_wheel", showSpareWheel)
@@ -76,11 +77,15 @@ object SettingsExporter {
 
         return ImportedSettings(
             pressureUnit = PressureUnit.entries.find { it.name == unitName } ?: PressureUnit.KPA,
-            thresholds = AlertThresholds(
-                lowPressureKpa = root.optDouble("low_pressure_kpa", AlertThresholds().lowPressureKpa.toDouble()).toFloat(),
-                highPressureKpa = root.optDouble("high_pressure_kpa", AlertThresholds().highPressureKpa.toDouble()).toFloat(),
-                highTempCelsius = root.optDouble("high_temp_celsius", AlertThresholds().highTempCelsius.toDouble()).toFloat()
-            ),
+            // Files before version 4 carry absolute limits only: the target is derived from the low one.
+            targetPressureKpa = if (root.has("target_pressure_kpa")) {
+                PressureTarget.clamp(root.getDouble("target_pressure_kpa").toFloat())
+            } else {
+                PressureTarget.fromLegacyLow(
+                    root.optDouble("low_pressure_kpa").takeUnless { it.isNaN() }?.toFloat()
+                )
+            },
+            highTempCelsius = root.optDouble("high_temp_celsius", AlertThresholds().highTempCelsius.toDouble()).toFloat(),
             dongleProtocolMode = DongleProtocolMode.entries.find { it.name == protocolName }
                 ?: DongleProtocolMode.AUTO,
             staleFrameTimeoutMs = root.optLong(
@@ -118,7 +123,8 @@ object SettingsExporter {
 
 data class ImportedSettings(
     val pressureUnit: PressureUnit,
-    val thresholds: AlertThresholds,
+    val targetPressureKpa: Float,
+    val highTempCelsius: Float,
     val dongleProtocolMode: DongleProtocolMode,
     val staleFrameTimeoutMs: Long,
     val showSpareWheel: Boolean,

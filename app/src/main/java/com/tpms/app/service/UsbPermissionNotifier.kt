@@ -50,7 +50,7 @@ object UsbPermissionNotifier {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val notification = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_STATUS)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_tpms)
             .setContentTitle(context.getString(R.string.notification_usb_permission_title))
             .setContentText(context.getString(R.string.notification_usb_permission_body))
             .setPriority(NotificationCompat.PRIORITY_LOW)

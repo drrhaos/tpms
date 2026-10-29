@@ -7,8 +7,9 @@ import com.tpms.app.R
 import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.ui.label
-import com.tpms.app.ui.shortLabel
+import com.tpms.app.ui.cardLabel
 import com.tpms.app.ui.statusLabel
+import com.tpms.app.ui.wheelPositionLabel
 import com.tpms.app.ui.theme.StatusColors
 
 @Composable
@@ -32,14 +33,14 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
             return withStaleSuffix(state.statusLabel(), uiState) to StatusColors.warning
         }
         is TpmsState.Alert -> {
-            val wheel = MainUiHealth.wheelLabelOf(uiState, state.sensor)
-            val alertLabel = state.type.shortLabel()
+            val wheel = wheelPositionLabel(MainUiHealth.wheelLabelOf(uiState, state.sensor))
+            val alertLabel = state.type.cardLabel()
             val base = stringResource(R.string.status_alert_format, wheel, alertLabel)
             return withStaleSuffix(base, uiState) to StatusColors.alert
         }
         is TpmsState.Connected -> {
             MainUiHealth.firstMissingWheelLabel(uiState)?.let { label ->
-                val text = stringResource(R.string.status_no_sensor_format, label)
+                val text = stringResource(R.string.status_no_sensor_format, wheelPositionLabel(label))
                 return withStaleSuffix(text, uiState) to StatusColors.alert
             }
             // Data flows again, but a stuck reader is still leaked until the head unit reboots.
@@ -48,8 +49,9 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
                 val text = stringResource(R.string.notification_monitoring_blind_title)
                 return withStaleSuffix(text, uiState) to StatusColors.warning
             }
+            // Speak about the tyres, not the device: a healthy connection reads "pressure normal".
             val color = if (uiState.dataStale) StatusColors.warning else StatusColors.ok
-            return withStaleSuffix(state.statusLabel(), uiState) to color
+            return withStaleSuffix(stringResource(R.string.status_pressure_normal), uiState) to color
         }
     }
 }
