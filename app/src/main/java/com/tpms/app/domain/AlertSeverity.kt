@@ -20,3 +20,10 @@ fun TireSensor?.toSeverity(): AlertSeverity = when {
     this == null -> AlertSeverity.DISCONNECTED
     else -> alertType.toSeverity()
 }
+
+/**
+ * Gets a per-wheel alert notification ([AlertNotificationPolicy]): every ALERT, and HIGH_TEMP —
+ * an overheating tyre (bearing, brake) precedes a failure. BATTERY_LOW stays on screen only.
+ */
+fun AlertType?.notifies(): Boolean =
+    toSeverity() == AlertSeverity.ALERT || this == AlertType.HIGH_TEMP

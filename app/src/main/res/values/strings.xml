@@ -13,6 +13,10 @@
     <string name="notification_alert_sensor_lost">TPMS sensor signal lost</string>
     <string name="notification_alert_title_format">%1$s · %2$s</string>
     <string name="notification_alert_pressure_format">Pressure: %1$s</string>
+    <string name="notification_test_alert_title">Test tyre alert</string>
+    <string name="notification_test_alert_text">This is how a tyre alert sounds and looks</string>
+    <string name="notification_monitoring_blind_title">Tyre pressure monitoring is not working</string>
+    <string name="notification_monitoring_blind_text">No data from the TPMS receiver — check the dongle</string>
     <string name="notification_action_check">Check now</string>
     <string name="notification_action_mute">Mute 30m</string>
     <string name="notification_action_restart">Restart</string>
@@ -27,7 +31,8 @@
     <string name="notification_usb_permission_body">Tap “Request permission” and allow access to the TPMS dongle</string>
     <string name="notification_monitoring_blind_title">TPMS data unavailable</string>
     <string name="notification_monitoring_offline_title">TPMS monitoring offline</string>
-    <string name="widget_status_stale_format">%1$s · %2$d min ago</string>
+    <string name="widget_status_stale_format">%1$s · data from %2$s</string>
+    <string name="widget_status_live_format">%1$s · %2$s</string>
     <string name="widget_status_stale_short">%1$s · stale</string>
     <string name="wheel_stale_caption_format">%1$s · %2$d min</string>
     <string name="settings_teyes_auto_run_awake">Auto run when device awake (Settings → General)</string>
@@ -158,7 +163,7 @@
     <string name="settings_section_alerts">Alerts</string>
     <string name="settings_floating_overlay_hint">Tyre pressures over navigation and other apps</string>
     <string name="settings_silent_startup_hint">Start in background without opening the app window.</string>
-    <string name="settings_critical_alerts_fullscreen_hint">Critical pressure takes over the screen</string>
+    <string name="settings_critical_alerts_fullscreen_hint">A tyre alert opens the app over the screen (needs “Display over other apps”)</string>
 
     <!-- Protocol modes -->
     <string name="protocol_auto">Auto</string>
@@ -245,6 +250,12 @@
     <string name="settings_check_notifications">Notifications</string>
     <string name="settings_check_notifications_ok">Allowed</string>
     <string name="settings_check_notifications_bad">Blocked — tyre warnings will not reach you</string>
+    <string name="settings_check_alert_channel">Alert sound</string>
+    <string name="settings_check_alert_channel_ok">Tyre alerts pop up with sound</string>
+    <string name="settings_check_alert_channel_bad">Tyre alerts are silenced — set the “TPMS Alerts” category to pop up with sound</string>
+    <string name="settings_alert_test">Test alert</string>
+    <string name="settings_alert_test_hint">Plays a tyre alert now: check the volume and that it shows on top</string>
+    <string name="settings_alert_test_failed">Notifications are blocked — the alert cannot be shown</string>
     <string name="settings_section_about">About</string>
     <string name="settings_version">Version</string>
     <string name="settings_service_menu">Service menu</string>

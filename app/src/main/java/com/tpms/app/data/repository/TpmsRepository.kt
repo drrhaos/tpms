@@ -18,6 +18,7 @@ import com.tpms.app.data.usb.protocol.Aa55AuxFrame
 import com.tpms.app.data.usb.protocol.Aa55EmptySlots
 import com.tpms.app.data.usb.toHexPreview
 import com.tpms.app.data.settings.SettingsStore
+import com.tpms.app.domain.AlertSeverity
 import com.tpms.app.domain.AlertTracker
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.PressureCalibration
@@ -27,7 +28,9 @@ import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.UsbPermissionPolicy
 import com.tpms.app.domain.UsbPermissionState
 import com.tpms.app.domain.WheelAssignment
+import com.tpms.app.domain.WheelCrossCheck
 import com.tpms.app.domain.WheelLayout
+import com.tpms.app.domain.toSeverity
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -480,6 +483,7 @@ class TpmsRepository @Inject constructor(
      */
     suspend fun consume(session: DongleSession, onIteration: () -> Unit = {}): String {
         var presenceCheckedAtMs = 0L
+        var crossCheckedAtMs = 0L
         while (true) {
             val chunk = session.receive(RECEIVE_TICK_MS)
             serviceHealth.recordPollStart()
@@ -494,6 +498,12 @@ class TpmsRepository @Inject constructor(
                 serviceHealth.recordPollCompleted()
             }
             onIteration()
+
+            val checkNow = System.currentTimeMillis()
+            if (checkNow - crossCheckedAtMs >= CROSS_CHECK_INTERVAL_MS) {
+                crossCheckedAtMs = checkNow
+                crossCheckWheels(session, checkNow)
+            }
 
             session.closeReason?.let { return it }
             if (session.streamsContinuously &&
@@ -615,10 +625,13 @@ class TpmsRepository @Inject constructor(
      * applied when it is on a wheel, else null. Caller holds [wheelsLock].
      */
     private fun placeReadingLocked(reading: TireSensor): TireSensor? {
+        val previous = _seenSensors.value[reading.id]
         // Calibration first: limits, alerts, history and the snapshot all see the corrected pressure.
         val corrected = PressureCalibration.apply(reading, settingsStore.pressureOffsets.value[reading.id] ?: 0f)
+            .let { it.copy(valueSinceMs = valueSince(it, previous)) }
         // Memory for every seen sensor, so one placed later by a settings change shows its alert.
-        val sensor = alertTracker.apply(corrected, settingsStore.thresholds.value)
+        val own = alertTracker.apply(corrected, settingsStore.thresholds.value)
+        val sensor = crossCheckLocked(own, previous, streamingProtocol(), own.timestamp)
         _seenSensors.update { it + (sensor.id to sensor) }
         val before = recomputeWheelsLocked(pruneAt = sensor.timestamp)
         val after = _wheels.value
@@ -633,6 +646,52 @@ class TpmsRepository @Inject constructor(
         refreshConnectionStateLocked(sensor.timestamp)
         requestSnapshotWriteLocked()
         return sensor
+    }
+
+    /** Since when [reading]'s value is unchanged, carried over from [previous] while it stays the same. */
+    private fun valueSince(reading: TireSensor, previous: TireSensor?): Long {
+        if (previous == null) return reading.timestamp
+        val same = previous.rawPressureKpa == reading.rawPressureKpa &&
+            previous.temperatureCelsius == reading.temperatureCelsius &&
+            previous.flags == reading.flags
+        return if (same) previous.valueSinceMs.takeIf { it > 0L } ?: previous.timestamp else reading.timestamp
+    }
+
+    private fun streamingProtocol(): Boolean =
+        (activeSession?.protocol ?: lastSessionProtocol)?.streamsContinuously == true
+
+    /** [sensor] with [WheelCrossCheck] applied against the current wheels. Caller holds [wheelsLock]. */
+    private fun crossCheckLocked(sensor: TireSensor, previous: TireSensor?, streaming: Boolean, now: Long): TireSensor {
+        val wheels = _wheels.value
+        val slot = wheels.entries.firstOrNull { it.value.id == sensor.id }?.key
+        return WheelCrossCheck.apply(sensor, slot, wheels, previous, streaming, now)
+    }
+
+    /**
+     * Periodic [WheelCrossCheck] of the wheels of a live [session]: a sensor that stops transmitting
+     * (HID) produces no reading, so only this check can find it. Only raises alerts; a sensor's own
+     * next reading clears them.
+     */
+    private fun crossCheckWheels(session: DongleSession, now: Long) {
+        try {
+            synchronized(wheelsLock) {
+                if (activeSession !== session || !hasLiveSession(session)) return
+                val streaming = session.protocol.streamsContinuously
+                val raised = _wheels.value.values.mapNotNull { wheel ->
+                    val checked = crossCheckLocked(wheel, wheel, streaming, now)
+                    checked.takeIf { it.alertType != wheel.alertType && it.alertType.toSeverity() == AlertSeverity.ALERT }
+                }
+                if (raised.isEmpty()) return
+                _seenSensors.update { seen -> seen + raised.associateBy { it.id } }
+                recomputeWheelsLocked()
+                raised.forEach { emitAlert(it, live = true) }
+                refreshConnectionStateLocked(now)
+                requestSnapshotWriteLocked()
+                debugLog.warn("Repository", "Cross-check: ${raised.joinToString { "${it.id} ${it.alertType}" }}")
+            }
+        } catch (e: Exception) {
+            debugLog.warn("Repository", "crossCheckWheels failed: ${e.message}")
+        }
     }
 
     /** Records which AA55 receiver slots are empty (`09` answers) and re-places the wheels if that changed. */
@@ -815,6 +874,8 @@ class TpmsRepository @Inject constructor(
         private const val RAW_TAG = "TPMS_RAW"
         /** Upper bound on how long one consumer iteration waits for data. */
         private const val RECEIVE_TICK_MS = 1_000L
+        /** How often the wheels are cross-checked for silent / frozen sensors. */
+        private const val CROSS_CHECK_INTERVAL_MS = 5_000L
         /** Sensor history kept in the database; older readings are deleted. */
         private const val HISTORY_RETENTION_MS = 30L * 24 * 60 * 60 * 1000
         private const val HISTORY_PRUNE_INTERVAL_MS = 60L * 60 * 1000

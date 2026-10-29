@@ -29,6 +29,7 @@ import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.WidgetThemeMode
+import com.tpms.app.service.AlertNotifier
 import com.tpms.app.service.FloatingOverlayController
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.startup.HeadUnitSupport
@@ -63,6 +64,7 @@ class SettingsViewModel @Inject constructor(
     private val usbDebugLog: UsbDebugLog,
     private val usbConnection: UsbConnection,
     private val floatingOverlayController: FloatingOverlayController,
+    private val alertNotifier: AlertNotifier,
     heartbeatStore: ServiceHeartbeatStore
 ) : ViewModel() {
 
@@ -259,8 +261,17 @@ class SettingsViewModel @Inject constructor(
     fun openAlertChannelSettings() = TeyesPermissionHelper.openAlertChannelSettings(context)
 
     fun setCriticalAlertsFullscreen(enabled: Boolean) {
-        viewModelScope.launch { settingsStore.setCriticalAlertsFullscreen(enabled) }
+        viewModelScope.launch {
+            settingsStore.setCriticalAlertsFullscreen(enabled)
+            // Taking over the screen from the background needs "display over other apps".
+            if (enabled && !floatingOverlayController.canDrawOverlays(context)) {
+                TeyesPermissionHelper.openOverlaySettings(context)
+            }
+        }
     }
+
+    /** "Test alert": one alert-channel notification with sound; false if it could not be posted. */
+    fun postTestAlert(): Boolean = alertNotifier.postTest()
 
     fun setFloatingOverlayEnabled(enabled: Boolean) {
         viewModelScope.launch {

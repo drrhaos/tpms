@@ -29,12 +29,15 @@ import com.tpms.app.data.settings.AppLocale
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.DongleSession
 import com.tpms.app.data.usb.UsbDebugLog
+import com.tpms.app.domain.MonitoringHealthPolicy
+import com.tpms.app.domain.PreviousRun
 import com.tpms.app.domain.RecoveryAction
 import com.tpms.app.domain.RecoveryDecision
 import com.tpms.app.domain.SessionOutcome
 import com.tpms.app.domain.SessionRecoveryPolicy
 import com.tpms.app.domain.SleepKillDetector
 import com.tpms.app.domain.SuspendDetector
+import com.tpms.app.domain.TripBoundary
 import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WakeAction
 import com.tpms.app.domain.WakeDecision
@@ -119,6 +122,9 @@ class TpmsMonitorService : Service() {
     /** This process saw a SCREEN_OFF; its next SCREEN_ON means it survived a sleep. */
     @Volatile private var sawScreenOff = false
 
+    /** Wall time the screen went off (or this process started with it off); null while it is on. */
+    @Volatile private var screenOffAtMs: Long? = null
+
     // SCREEN_ON/OFF are only delivered to runtime-registered receivers.
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -127,6 +133,7 @@ class TpmsMonitorService : Service() {
                 Intent.ACTION_SCREEN_OFF -> {
                     suspendDetector.onScreenOff()
                     sawScreenOff = true
+                    screenOffAtMs = System.currentTimeMillis()
                     // Blocking (a tiny write): FYT may kill the process right after the screen goes off.
                     runCatching { heartbeatStore.recordScreenOffBlocking() }
                     debugLog.info("Power", "SCREEN_OFF")
@@ -187,7 +194,15 @@ class TpmsMonitorService : Service() {
         }
         reportPreviousRestart()
         // Before the screen receiver: the previous run must be read before this process records screen events.
-        checkPreviousRun()
+        val previousRun = checkPreviousRun()
+        if (!pm.isInteractive) screenOffAtMs = previousRun?.lastScreenOffMs ?: System.currentTimeMillis()
+        // Started after a sleep this process did not see end (killed in sleep, reboot): a new trip,
+        // alerts still active must ring again.
+        if (TripBoundary.startsOnProcessStart(previousRun, currentBootCount(), pm.isInteractive)) {
+            debugLog.info("Service", "New trip on start: alert episodes reset")
+            runCatching { alertNotifier.onNewTrip() }
+                .onFailure { debugLog.exception("Service", it, "alert new trip") }
+        }
         screenReceiverRegistered = runCatching {
             ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         }.isSuccess
@@ -207,7 +222,7 @@ class TpmsMonitorService : Service() {
         foregroundRefused = false
 
         when (intent?.action) {
-            // Mute only silences new / changed alert notifications; they are still posted (wayfinder 15).
+            // From an alert notification: mutes the wheels alerting now; they are still posted (wayfinder 15).
             ACTION_MUTE -> alertNotifier.mute(System.currentTimeMillis() + MUTE_DURATION_MS)
             ACTION_STOP -> {
                 intentionalStop = true
@@ -226,7 +241,6 @@ class TpmsMonitorService : Service() {
                 // Show current alerts by the persisted memory (live data only: no re-ring after a restart).
                 runCatching { alertNotifier.resync() }
                     .onFailure { debugLog.exception("Service", it, "alert notification resync") }
-                monitoringHealthNotifier.clear()
                 BootStartScheduler.cancel(this)
                 ServiceLivenessScheduler.schedule(this)
                 // Re-post the USB permission notification if still needed (dismissed on the last stop,
@@ -317,6 +331,7 @@ class TpmsMonitorService : Service() {
         // intentional stop also forgets their memory (the next monitoring session rings once again);
         // a system stop keeps it, like a process death.
         runCatching { alertNotifier.onMonitoringStopped(intentional = intentionalStop) }
+        runCatching { monitoringHealthNotifier.clear() }
         // The ongoing permission notification must not outlive monitoring; the next start re-syncs it.
         runCatching { usbPermissionRequester.onMonitoringStopped() }
         runCatching { heartbeatStore.markRunEndedBlocking() }
@@ -421,6 +436,14 @@ class TpmsMonitorService : Service() {
     private fun onScreenOn() {
         val suspended = suspendDetector.onScreenOn()
         val survivedSleep = sawScreenOff
+        val now = System.currentTimeMillis()
+        if (TripBoundary.startsOnScreenOn(suspended, screenOffAtMs, now)) {
+            debugLog.info("Service", "New trip on SCREEN_ON: alert episodes reset")
+            runCatching { alertNotifier.onNewTrip() }
+                .onFailure { debugLog.exception("Service", it, "alert new trip") }
+        }
+        screenOffAtMs = null
+        monitoringHealthNotifier.onScreenOn(now)
         serviceScope.launch { runCatchingCancellable { heartbeatStore.recordScreenOn(survivedSleep) } }
         val session = repository.activeSession()?.takeIf { !it.isClosed }
         val wakeSession = session?.let { WakeSession(it.streamsContinuously, it.silentForMs()) }
@@ -480,13 +503,15 @@ class TpmsMonitorService : Service() {
      * Blocking (one small read-and-write, bounded) so it lands before any screen event of this
      * process; on timeout the previous run is unknown and no verdict is made.
      */
-    private fun checkPreviousRun() {
+    /** Records this run's start and returns what the previous run left (null if unreadable). */
+    private fun checkPreviousRun(): PreviousRun? {
         val bootCount = currentBootCount()
-        val previous = heartbeatStore.beginRunBlocking(bootCount) ?: return
-        if (!SleepKillDetector.killedDuringSleep(previous, bootCount)) return
+        val previous = heartbeatStore.beginRunBlocking(bootCount) ?: return null
+        if (!SleepKillDetector.killedDuringSleep(previous, bootCount)) return previous
         debugLog.warn("Service", "Previous process was killed during sleep (screen off at ${previous.lastScreenOffMs})")
         serviceHealth.recordError("killed during sleep")
         serviceScope.launch { runCatchingCancellable { heartbeatStore.recordKilledInSleep(System.currentTimeMillis()) } }
+        return previous
     }
 
     private fun currentBootCount(): Int? =
@@ -577,19 +602,14 @@ class TpmsMonitorService : Service() {
     }
 
     private fun evaluateMonitoringHealth() {
-        if (repository.wheels.value.isEmpty() && !repository.isUsbConnected()) {
-            monitoringHealthNotifier.clear()
-            return
-        }
-        monitoringHealthNotifier.evaluate(
-            disconnectedSinceMs = if (repository.state.value is TpmsState.Disconnected) {
-                repository.disconnectedSinceMs()
-            } else {
-                null
-            },
-            dongleOpenedAtMs = repository.dongleOpenedAtMs(),
-            lastValidFrameAtMs = repository.lastValidFrameAtMs()
+        val connection = repository.connectionSnapshot()
+        val blind = MonitoringHealthPolicy.isBlind(
+            hasWheels = connection.hasData,
+            hasLiveSession = connection.hasLiveSession,
+            streamingWithoutFrames = connection.protocol?.streamsContinuously == true &&
+                repository.isProtocolUnhealthy()
         )
+        monitoringHealthNotifier.evaluate(blind, reason = repository.usbFault.value?.label(this))
     }
 
     private suspend fun updateWidget() {
@@ -650,15 +670,6 @@ class TpmsMonitorService : Service() {
                 PendingIntent.getService(
                     this, 1,
                     Intent(this, TpmsMonitorService::class.java).apply { action = ACTION_CHECK_NOW },
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-            )
-            .addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                getString(R.string.notification_action_mute),
-                PendingIntent.getService(
-                    this, 2,
-                    Intent(this, TpmsMonitorService::class.java).apply { action = ACTION_MUTE },
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
             )

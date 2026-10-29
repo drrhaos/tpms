@@ -11,7 +11,13 @@ data class TireSensor(
     val timestamp: Long,
     val flags: SensorFlags = SensorFlags.NONE,
     /** Calibration offset already included in [pressureKpa] ([com.tpms.app.domain.PressureCalibration]). */
-    val pressureOffsetKpa: Float = 0f
+    val pressureOffsetKpa: Float = 0f,
+    /**
+     * Since when the reported value (pressure, temperature, flags) is unchanged; 0 = unknown (then
+     * [timestamp] stands in). Set by the repository; a frozen value betrays a dead AA55 sensor
+     * ([com.tpms.app.domain.WheelCrossCheck]).
+     */
+    val valueSinceMs: Long = 0L
 ) {
     /** The pressure as the sensor reported it, before the calibration offset. */
     val rawPressureKpa: Float get() = pressureKpa - pressureOffsetKpa

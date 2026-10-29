@@ -108,6 +108,18 @@ fun SettingsScreen(
                 onClick = viewModel::openAlertChannelSettings
             )
             SettingsGroupDivider()
+            val testFailed = stringResource(R.string.settings_alert_test_failed)
+            val context = androidx.compose.ui.platform.LocalContext.current
+            SettingsNavigationRow(
+                label = stringResource(R.string.settings_alert_test),
+                description = stringResource(R.string.settings_alert_test_hint),
+                onClick = {
+                    if (!viewModel.postTestAlert()) {
+                        android.widget.Toast.makeText(context, testFailed, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+            SettingsGroupDivider()
             SettingsSwitchRow(
                 label = stringResource(R.string.settings_critical_alerts_fullscreen),
                 description = stringResource(R.string.settings_critical_alerts_fullscreen_hint),

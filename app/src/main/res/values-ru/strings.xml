@@ -13,6 +13,10 @@
     <string name="notification_alert_sensor_lost">Сигнал датчика TPMS потерян</string>
     <string name="notification_alert_title_format">%1$s · %2$s</string>
     <string name="notification_alert_pressure_format">Давление: %1$s</string>
+    <string name="notification_test_alert_title">Проверка тревоги по шине</string>
+    <string name="notification_test_alert_text">Так звучит и выглядит тревога по шине</string>
+    <string name="notification_monitoring_blind_title">Контроль давления не работает</string>
+    <string name="notification_monitoring_blind_text">Нет данных от приёмника TPMS — проверьте донгл</string>
     <string name="notification_action_check">Проверить</string>
     <string name="notification_action_mute">Без звука 30 мин</string>
     <string name="notification_action_restart">Перезапустить</string>
@@ -27,7 +31,8 @@
     <string name="notification_usb_permission_body">Нажмите «Запросить разрешение» и разрешите доступ к донглу</string>
     <string name="notification_monitoring_blind_title">Данные TPMS недоступны</string>
     <string name="notification_monitoring_offline_title">Мониторинг TPMS офлайн</string>
-    <string name="widget_status_stale_format">%1$s · %2$d мин назад</string>
+    <string name="widget_status_stale_format">%1$s · данные от %2$s</string>
+    <string name="widget_status_live_format">%1$s · %2$s</string>
     <string name="widget_status_stale_short">%1$s · устарело</string>
     <string name="wheel_stale_caption_format">%1$s · %2$d мин</string>
     <string name="settings_teyes_auto_run_awake">Автозапуск при пробуждении (Настройки → Общие)</string>
@@ -158,7 +163,7 @@
     <string name="settings_section_alerts">Оповещения</string>
     <string name="settings_floating_overlay_hint">Давление в шинах поверх навигации и других приложений</string>
     <string name="settings_silent_startup_hint">Запуск в фоне без открытия окна приложения.</string>
-    <string name="settings_critical_alerts_fullscreen_hint">При критическом давлении — на весь экран</string>
+    <string name="settings_critical_alerts_fullscreen_hint">Тревога по шине открывает приложение поверх экрана (нужно разрешение «Поверх других окон»)</string>
 
     <!-- Protocol modes -->
     <string name="protocol_auto">Авто</string>
@@ -245,6 +250,12 @@
     <string name="settings_check_notifications">Уведомления</string>
     <string name="settings_check_notifications_ok">Разрешены</string>
     <string name="settings_check_notifications_bad">Запрещены — предупреждения о шинах не придут</string>
+    <string name="settings_check_alert_channel">Звук тревог</string>
+    <string name="settings_check_alert_channel_ok">Тревоги по шинам всплывают со звуком</string>
+    <string name="settings_check_alert_channel_bad">Тревоги по шинам заглушены — включите для категории «Оповещения TPMS» всплывание и звук</string>
+    <string name="settings_alert_test">Проверить оповещение</string>
+    <string name="settings_alert_test_hint">Проигрывает тревогу по шине: проверьте громкость и что она видна поверх</string>
+    <string name="settings_alert_test_failed">Уведомления запрещены — тревогу показать нельзя</string>
     <string name="settings_section_about">О приложении</string>
     <string name="settings_version">Версия</string>
     <string name="settings_service_menu">Сервисное меню</string>

@@ -146,11 +146,23 @@ class AlertNotificationBookTest {
     }
 
     @Test
-    fun `muted onset posts silently`() {
-        assertEquals(
-            NotificationAction.POST_SILENTLY,
-            change(AlertType.LOW_PRESSURE, mutedUntilMs = now + 60_000)
-        )
+    fun `mute silences new types of the wheels shown, not a new wheel`() {
+        change(AlertType.LOW_PRESSURE)
+        assertTrue(book.onMuted())
+        val until = now + 60_000
+        assertEquals(NotificationAction.POST_SILENTLY, change(AlertType.SENSOR_LOST, nowMs = now + 1_000, mutedUntilMs = until))
+        assertEquals(NotificationAction.POST_WITH_SOUND, change(AlertType.LOW_PRESSURE, key = "B", mutedUntilMs = until))
+    }
+
+    @Test
+    fun `mute with nothing shown changes nothing`() {
+        assertFalse(book.onMuted())
+    }
+
+    @Test
+    fun `escalation passes the pressure through`() {
+        assertEquals(NotificationAction.POST_WITH_SOUND, book.onChange("A", AlertType.LOW_PRESSURE, notMuted, now, 180f))
+        assertEquals(NotificationAction.POST_WITH_SOUND, book.onChange("A", AlertType.LOW_PRESSURE, notMuted, now + 100, 150f))
     }
 
     // --- Persistence ---
@@ -176,11 +188,20 @@ class AlertNotificationBookTest {
     }
 
     @Test
+    fun `encode and load keep mute and escalation base`() {
+        book.onChange("A", AlertType.LOW_PRESSURE, notMuted, now, 180f)
+        book.onMuted()
+        val restored = AlertNotificationBook(updateIntervalMs = 1_000L)
+        restored.load(book.encode())
+        assertEquals(ShownAlert(AlertType.LOW_PRESSURE, muted = true, rungPressureKpa = 180f), restored.shown("A"))
+    }
+
+    @Test
     fun `load replaces the memory and skips what it cannot read`() {
         change(AlertType.LOW_PRESSURE, key = "old")
         book.load(
-            """{"A":{"type":"LOW_PRESSURE","episode":["LOW_PRESSURE","BOGUS","HIGH_TEMP"]},""" +
-                """"B":{"type":"HIGH_TEMP"},"C":{"type":"NOPE"},"D":42}"""
+            """{"A":{"type":"LOW_PRESSURE","episode":["LOW_PRESSURE","BOGUS","BATTERY_LOW"]},""" +
+                """"B":{"type":"BATTERY_LOW"},"C":{"type":"NOPE"},"D":42}"""
         )
         assertEquals(setOf("A"), book.keys())
         assertEquals(ShownAlert(AlertType.LOW_PRESSURE), book.shown("A"))

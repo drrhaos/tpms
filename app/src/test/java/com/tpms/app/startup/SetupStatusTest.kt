@@ -15,6 +15,7 @@ class SetupStatusTest {
             checklistComplete = true,
             batteryUnrestricted = true,
             notificationsEnabled = true,
+            alertChannelLoud = true,
             serviceRunning = false,
             widgetActive = true
         )
@@ -36,6 +37,7 @@ class SetupStatusTest {
             checklistComplete = true,
             batteryUnrestricted = true,
             notificationsEnabled = true,
+            alertChannelLoud = true,
             serviceRunning = false,
             widgetActive = true
         )
@@ -50,6 +52,7 @@ class SetupStatusTest {
             checklistComplete = false,
             batteryUnrestricted = true,
             notificationsEnabled = true,
+            alertChannelLoud = true,
             serviceRunning = true,
             widgetActive = false
         )
@@ -71,6 +74,7 @@ class SetupStatusTest {
             checklistComplete = true,
             batteryUnrestricted = true,
             notificationsEnabled = true,
+            alertChannelLoud = true,
             serviceRunning = true,
             widgetActive = false
         )

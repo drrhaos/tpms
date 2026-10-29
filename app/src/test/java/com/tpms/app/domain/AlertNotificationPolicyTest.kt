@@ -18,8 +18,9 @@ class AlertNotificationPolicyTest {
         shown: ShownAlert?,
         current: AlertType?,
         mutedUntilMs: Long = notMuted,
-        nowMs: Long = now
-    ) = AlertNotificationPolicy.decide(shown, current, mutedUntilMs, nowMs)
+        nowMs: Long = now,
+        pressureKpa: Float? = null
+    ) = AlertNotificationPolicy.decide(shown, current, mutedUntilMs, nowMs, pressureKpa)
 
     // --- Nothing shown ---
 
@@ -31,12 +32,17 @@ class AlertNotificationPolicyTest {
     }
 
     @Test
-    fun `warnings never get a notification`() {
-        for (warning in listOf(AlertType.HIGH_TEMP, AlertType.BATTERY_LOW)) {
-            val decision = decide(shown = null, current = warning)
-            assertEquals(NotificationAction.NONE, decision.action)
-            assertNull(decision.shown)
-        }
+    fun `low battery never gets a notification`() {
+        val decision = decide(shown = null, current = AlertType.BATTERY_LOW)
+        assertEquals(NotificationAction.NONE, decision.action)
+        assertNull(decision.shown)
+    }
+
+    @Test
+    fun `high temperature posts with sound`() {
+        val decision = decide(shown = null, current = AlertType.HIGH_TEMP)
+        assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
+        assertEquals(ShownAlert(AlertType.HIGH_TEMP), decision.shown)
     }
 
     @Test
@@ -119,10 +125,64 @@ class AlertNotificationPolicyTest {
     }
 
     @Test
-    fun `alert dropping to a warning cancels and forgets`() {
-        val decision = decide(shown = ShownAlert(AlertType.LOW_PRESSURE), current = AlertType.HIGH_TEMP)
+    fun `alert dropping to low battery cancels and forgets`() {
+        val decision = decide(shown = ShownAlert(AlertType.LOW_PRESSURE), current = AlertType.BATTERY_LOW)
         assertEquals(NotificationAction.CANCEL, decision.action)
         assertNull(decision.shown)
+    }
+
+    @Test
+    fun `alert turning into high temperature rings for the new type`() {
+        val decision = decide(shown = ShownAlert(AlertType.LOW_PRESSURE), current = AlertType.HIGH_TEMP)
+        assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
+        assertEquals(setOf(AlertType.LOW_PRESSURE, AlertType.HIGH_TEMP), decision.shown!!.episode)
+    }
+
+    // --- Escalation ---
+
+    @Test
+    fun `low pressure remembers the pressure it rang with`() {
+        val decision = decide(shown = null, current = AlertType.LOW_PRESSURE, pressureKpa = 180f)
+        assertEquals(180f, decision.shown!!.rungPressureKpa)
+    }
+
+    @Test
+    fun `a small further drop updates silently`() {
+        val shown = ShownAlert(AlertType.LOW_PRESSURE, rungPressureKpa = 180f)
+        val decision = decide(shown, AlertType.LOW_PRESSURE, pressureKpa = 180f - AlertNotificationPolicy.ESCALATION_STEP_KPA + 1f)
+        assertEquals(NotificationAction.UPDATE_SILENTLY, decision.action)
+        assertEquals(180f, decision.shown!!.rungPressureKpa)
+    }
+
+    @Test
+    fun `a further drop by the escalation step rings again and moves the base`() {
+        val shown = ShownAlert(AlertType.LOW_PRESSURE, rungPressureKpa = 180f)
+        val decision = decide(shown, AlertType.LOW_PRESSURE, pressureKpa = 150f)
+        assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
+        assertEquals(150f, decision.shown!!.rungPressureKpa)
+        // The next ring needs another full step from the new base.
+        assertEquals(NotificationAction.UPDATE_SILENTLY, decide(decision.shown, AlertType.LOW_PRESSURE, pressureKpa = 140f).action)
+    }
+
+    @Test
+    fun `escalation shows a swiped notification again and ignores the mute`() {
+        val shown = ShownAlert(AlertType.LOW_PRESSURE, swiped = true, muted = true, rungPressureKpa = 180f)
+        val decision = decide(shown, AlertType.LOW_PRESSURE, mutedUntilMs = now + 60_000L, pressureKpa = 150f)
+        assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
+        assertFalse(decision.shown!!.swiped)
+    }
+
+    @Test
+    fun `rising pressure never escalates`() {
+        val shown = ShownAlert(AlertType.LOW_PRESSURE, rungPressureKpa = 150f)
+        assertEquals(NotificationAction.UPDATE_SILENTLY, decide(shown, AlertType.LOW_PRESSURE, pressureKpa = 175f).action)
+    }
+
+    @Test
+    fun `other types keep the low pressure base`() {
+        val shown = ShownAlert(AlertType.LOW_PRESSURE, rungPressureKpa = 180f)
+        val lost = decide(shown, AlertType.SENSOR_LOST, pressureKpa = 0f)
+        assertEquals(180f, lost.shown!!.rungPressureKpa)
     }
 
     // --- Swiping ---
@@ -178,16 +238,31 @@ class AlertNotificationPolicyTest {
     // --- Mute window ---
 
     @Test
-    fun `new alert while muted posts silently`() {
+    fun `a wheel without a notification rings even while muted`() {
         val decision = decide(shown = null, current = AlertType.LOW_PRESSURE, mutedUntilMs = now + 1)
-        assertEquals(NotificationAction.POST_SILENTLY, decision.action)
+        assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
         assertEquals(ShownAlert(AlertType.LOW_PRESSURE), decision.shown)
     }
 
     @Test
-    fun `type change while muted posts silently`() {
+    fun `mute covers only wheels muted by the user`() {
         val decision = decide(
             shown = ShownAlert(AlertType.LOW_PRESSURE),
+            current = AlertType.SENSOR_LOST,
+            mutedUntilMs = now + 30 * 60_000L
+        )
+        assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
+    }
+
+    @Test
+    fun `onMuted marks the shown alert`() {
+        assertTrue(AlertNotificationPolicy.onMuted(ShownAlert(AlertType.LOW_PRESSURE)).muted)
+    }
+
+    @Test
+    fun `type change of a muted wheel posts silently`() {
+        val decision = decide(
+            shown = ShownAlert(AlertType.LOW_PRESSURE, muted = true),
             current = AlertType.SENSOR_LOST,
             mutedUntilMs = now + 30 * 60_000L
         )
@@ -199,16 +274,21 @@ class AlertNotificationPolicyTest {
 
     @Test
     fun `mute ends exactly at mutedUntil`() {
-        val atEnd = decide(shown = null, current = AlertType.LOW_PRESSURE, mutedUntilMs = now, nowMs = now)
+        val muted = ShownAlert(AlertType.LOW_PRESSURE, muted = true)
+        val atEnd = decide(shown = muted, current = AlertType.SENSOR_LOST, mutedUntilMs = now, nowMs = now)
         assertEquals(NotificationAction.POST_WITH_SOUND, atEnd.action)
 
-        val justBefore = decide(shown = null, current = AlertType.LOW_PRESSURE, mutedUntilMs = now, nowMs = now - 1)
+        val justBefore = decide(shown = muted, current = AlertType.SENSOR_LOST, mutedUntilMs = now, nowMs = now - 1)
         assertEquals(NotificationAction.POST_SILENTLY, justBefore.action)
     }
 
     @Test
     fun `expired mute posts with sound`() {
-        val decision = decide(shown = null, current = AlertType.LOW_PRESSURE, mutedUntilMs = now - 60_000L)
+        val decision = decide(
+            shown = ShownAlert(AlertType.LOW_PRESSURE, muted = true),
+            current = AlertType.SENSOR_LOST,
+            mutedUntilMs = now - 60_000L
+        )
         assertEquals(NotificationAction.POST_WITH_SOUND, decision.action)
     }
 

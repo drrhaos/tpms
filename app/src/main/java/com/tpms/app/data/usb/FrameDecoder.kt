@@ -28,7 +28,7 @@ data class DecodeResult(
  */
 class FrameDecoder(
     val protocol: DongleProtocol,
-    private val confirmation: ReadingConfirmationFilter = ReadingConfirmationFilter()
+    private val confirmation: ReadingConfirmationFilter = defaultConfirmation(protocol)
 ) {
     private val aa55 = Aa55SerialProtocol()
     private val hid = HidGenericProtocol()
@@ -51,6 +51,14 @@ class FrameDecoder(
             .mapNotNull { SensorValidator.sanitize(it, settings.minLiveWheelPressureKpa) }
             .mapNotNull { confirmation.offer(it) }
         return DecodeResult(sensors, aux)
+    }
+
+    companion object {
+        /** HID forwards each transmission once: see [ReadingConfirmationFilter.forHid]. */
+        fun defaultConfirmation(protocol: DongleProtocol): ReadingConfirmationFilter = when (protocol) {
+            DongleProtocol.HID_GENERIC -> ReadingConfirmationFilter.forHid()
+            DongleProtocol.SERIAL_AA55, DongleProtocol.DEELIFE -> ReadingConfirmationFilter()
+        }
     }
 
     /** Frames to send right after opening: heartbeat kick-start and sensor-ID query. */

@@ -23,6 +23,14 @@ All notable changes to TPMS Monitor. Versions follow the release tags (`vX.Y.Z`)
 ### Alerts
 - One notification per wheel for real alerts only (low / high pressure, signal lost); each alert type rings once per episode, swiping keeps it hidden, "Mute 30 min" survives restarts; only live data rings.
 - Debounced alerts: hysteresis on clear, leak flag held 15 s, battery warning latched 10 min.
+- Alerts sound on the alarm stream (new "TPMS Alerts" channel; earlier custom channel settings are reset), category alarm; "Full-screen warning" now works: a ringing alert opens the app over the screen (needs "Display over other apps").
+- A further pressure drop of 0.25 bar rings again, also after a swipe or a mute; high tyre temperature now gets a notification too.
+- "Mute 30 min" silences only the wheels alerting at that moment (another wheel still rings) and is gone from the persistent notification.
+- A new trip (wake after a sleep, or a start after the process was killed in it) rings ongoing alerts again.
+- New: "Tyre pressure monitoring is not working" with sound when known wheels get no live data for 2 min with the screen on.
+- New: signal lost for an HID sensor silent 10 min while the others transmit, and for an AA55 sensor whose value stays frozen 45 min while the others change; low pressure when a wheel is 0.4 bar below the other wheel of its axle.
+- HID readings confirm within 3 min with a small tolerance, so a falling pressure is no longer held back.
+- Settings → Alerts → "Test alert"; System check verifies the alert channel sound. Widgets show the clock time of the data instead of "N min ago".
 
 ### USB and background work
 - Recovery from stuck USB readers and silent dongles (reopen, process restart, fault in the header).

@@ -5,9 +5,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import com.tpms.app.R
 import com.tpms.app.TpmsApplication
@@ -17,6 +19,8 @@ import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.AlertNotificationBook
 import com.tpms.app.domain.AlertNotificationPolicy
 import com.tpms.app.domain.AlertNotificationPolicy.NotificationAction
+import com.tpms.app.domain.AlertSeverity
+import com.tpms.app.domain.toSeverity
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.ui.localizedLabel
@@ -32,13 +36,17 @@ import javax.inject.Singleton
  * [AlertNotificationBook]. One notification per wheel on [TpmsApplication.CHANNEL_ALERT], posted
  * under tag = sensor id and the shared id [NOTIF_ID] (so ids never collide with other notifications).
  *
- * - Each alert type rings once per episode (see [AlertNotificationPolicy]); the per-wheel memory is
+ * - Each alert type rings once per episode, a further LOW_PRESSURE drop rings again (see
+ *   [AlertNotificationPolicy]); a new trip ([onNewTrip]) starts new episodes. The per-wheel memory is
  *   persisted in [ServiceHeartbeatStore] whenever it changes, so a process kill / START_STICKY
  *   restart neither re-rings an ongoing alert nor brings back a swiped one. An intentional stop
  *   forgets it ([onMonitoringStopped]): the next monitoring session rings once again.
  * - Only live data may post: alerts from restored / reconnecting data are skipped (the next live
  *   reading posts them), like [resync] without a live session.
  * - The memory is committed only after a successful post, so a failed post rings on the next reading.
+ * - A ringing ALERT with "Full-screen warning" on also takes over the screen: full-screen intent,
+ *   and MainActivity started directly when the overlay permission allows a background start (a head
+ *   unit's screen is always on, so the full-screen intent alone would only be a heads-up).
  * - A throttled update is retried when the throttle window ends, so the last values are shown even
  *   if readings stop.
  *
@@ -119,10 +127,51 @@ class AlertNotifier @Inject constructor(
         cancelRetry(sensorId)
     }
 
-    /** "Mute 30 min": new or changed alerts post without sound or heads-up until [untilMs]. */
+    /**
+     * "Mute 30 min": the wheels alerting now post their new types without sound or heads-up until
+     * [untilMs]. Another wheel, or a further pressure drop, still rings.
+     */
     fun mute(untilMs: Long) {
+        ensureLoaded()
         mutedUntilMs = untilMs
         heartbeatStore.recordAlertMutedUntilBlocking(untilMs)
+        if (book.onMuted()) persist()
+    }
+
+    /**
+     * A new trip began (the head unit woke from a sleep, or this process starts after one): ongoing
+     * alerts must ring again, so every episode, swipe and mute is forgotten and the shown
+     * notifications are removed; the next live readings post them anew.
+     */
+    fun onNewTrip() {
+        cancelAll()
+        // A deliberate reset: the stored memory is replaced even if it could not be read yet.
+        book.clear()
+        loaded = true
+        persist()
+        mutedUntilMs = 0L
+        heartbeatStore.recordAlertMutedUntilBlocking(0L)
+        // A session that stayed live through the screen-off rings at once, not at its next reading.
+        resync()
+    }
+
+    /**
+     * "Test alert" from the settings: one notification on the alert channel with sound, removed after
+     * [TEST_VISIBLE_MS], so the user can check volume and heads-up on this head unit. False if refused.
+     */
+    fun postTest(): Boolean {
+        if (!NotificationHelper.canPostAlerts(context)) return false
+        val notification = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_ALERT)
+            .setSmallIcon(R.drawable.ic_stat_tpms)
+            .setContentTitle(context.getString(R.string.notification_test_alert_title))
+            .setContentText(context.getString(R.string.notification_test_alert_text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .build()
+        val posted = runCatching { notificationManager.notify(TEST_TAG, NOTIF_ID, notification) }.isSuccess
+        if (posted) handler.postDelayed({ notificationManager.cancel(TEST_TAG, NOTIF_ID) }, TEST_VISIBLE_MS)
+        return posted
     }
 
     /**
@@ -161,7 +210,7 @@ class AlertNotifier @Inject constructor(
             postedSlot.remove(sensorId)
             return
         }
-        val step = book.plan(sensorId, sensor?.alertType, mutedUntil(), System.currentTimeMillis())
+        val step = book.plan(sensorId, sensor?.alertType, mutedUntil(), System.currentTimeMillis(), sensor?.pressureKpa)
         val done = when (step.action) {
             NotificationAction.POST_WITH_SOUND,
             NotificationAction.POST_SILENTLY,
@@ -188,7 +237,37 @@ class AlertNotifier @Inject constructor(
             notificationManager.notify(sensorId, NOTIF_ID, build(sensorId, sensor, type, action, slot))
         }.isSuccess
         if (posted) postedSlot[sensorId] = slot
+        if (posted && takesOverScreen(type, action)) takeOverScreen()
         return posted
+    }
+
+    private fun takesOverScreen(type: AlertType, action: NotificationAction): Boolean =
+        action == NotificationAction.POST_WITH_SOUND &&
+            type.toSeverity() == AlertSeverity.ALERT &&
+            settingsStore.criticalAlertsFullscreen.value
+
+    /** Brings MainActivity forward; a background start is allowed only with the overlay permission. */
+    private fun takeOverScreen() {
+        if (!Settings.canDrawOverlays(context)) return
+        runCatching {
+            context.startActivity(MainActivity.fullScreenIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
+    /** Full-screen intent of a ringing ALERT; null when off or not allowed (Android 14+). */
+    private fun fullScreenIntent(type: AlertType, action: NotificationAction): PendingIntent? {
+        if (!takesOverScreen(type, action)) return null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+            !notificationManager.canUseFullScreenIntent()
+        ) {
+            return null
+        }
+        return PendingIntent.getActivity(
+            context,
+            REQUEST_FULL_SCREEN,
+            MainActivity.fullScreenIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
 
     /** Trailing update of a throttled wheel, from its reading at that time (live data only). */
@@ -266,7 +345,7 @@ class AlertNotifier @Inject constructor(
             )
             .setContentText(pressureText(sensor))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setWhen(sensor.timestamp.takeIf { it > 0L } ?: System.currentTimeMillis())
             .setShowWhen(true)
             .setAutoCancel(false)
@@ -284,6 +363,7 @@ class AlertNotifier @Inject constructor(
                 )
             )
             .setDeleteIntent(swipeIntent(sensorId))
+            .apply { fullScreenIntent(type, action)?.let { setFullScreenIntent(it, true) } }
             .addAction(
                 android.R.drawable.ic_lock_silent_mode,
                 context.getString(R.string.notification_action_mute),
@@ -319,9 +399,12 @@ class AlertNotifier @Inject constructor(
         /** Shared by every wheel's alert notification; the tag (sensor id) tells them apart. */
         const val NOTIF_ID = 1200
         private const val LOAD_RETRY_MS = 30_000L
+        private const val TEST_TAG = "test"
+        private const val TEST_VISIBLE_MS = 10_000L
         private const val URI_SCHEME = "tpms-alert"
         private const val REQUEST_OPEN = 0
         private const val REQUEST_MUTE = 2
+        private const val REQUEST_FULL_SCREEN = 3
         private const val REQUEST_SWIPED = 1200
     }
 }

@@ -3,6 +3,7 @@ package com.tpms.app.startup
 import android.content.Context
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.settings.TeyesChecklist
+import com.tpms.app.service.NotificationHelper
 import com.tpms.app.service.ServiceRunningChecker
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.ui.widget.TpmsWidgetUpdater
@@ -15,6 +16,8 @@ data class SetupStatus(
     val checklistComplete: Boolean,
     val batteryUnrestricted: Boolean,
     val notificationsEnabled: Boolean,
+    /** The tyre alert channel is on and may pop up with sound (importance HIGH or more). */
+    val alertChannelLoud: Boolean,
     val serviceRunning: Boolean,
     val widgetActive: Boolean
 ) {
@@ -22,6 +25,7 @@ data class SetupStatus(
         !serviceRunning ||
             !batteryUnrestricted ||
             !notificationsEnabled ||
+            !alertChannelLoud ||
             (isTeyesDevice && !checklistComplete)
 
     val showFrontAppHint: Boolean = isTeyesDevice && !checklist.frontAppHome
@@ -40,6 +44,7 @@ class SetupStatusProvider @Inject constructor(
             checklistComplete = settingsStore.isTeyesChecklistComplete(),
             batteryUnrestricted = isBatteryUnrestricted(context),
             notificationsEnabled = areNotificationsEnabled(context),
+            alertChannelLoud = NotificationHelper.isAlertChannelLoud(context),
             serviceRunning = ServiceRunningChecker.isRunning(context, TpmsMonitorService::class.java),
             widgetActive = TpmsWidgetUpdater.hasAnyActiveWidget(context)
         )

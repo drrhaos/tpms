@@ -18,7 +18,7 @@ import org.json.JSONObject
  *   wheel; a throttled step carries [Step.retryInMs], when the notifier must try again so the
  *   latest values are shown even if readings stop. Posts, type changes and cancels are never
  *   throttled.
- * - **Persistence**: [encode] / [load] (episode types, current type, swipe), so the memory survives
+ * - **Persistence**: [encode] / [load] (episode types, current type, swipe, mute, escalation base), so the memory survives
  *   a process kill. The throttle clock is not persisted.
  */
 class AlertNotificationBook(private val updateIntervalMs: Long = UPDATE_INTERVAL_MS) {
@@ -36,10 +36,13 @@ class AlertNotificationBook(private val updateIntervalMs: Long = UPDATE_INTERVAL
         internal val nowMs: Long
     )
 
-    /** What to do with [key]'s notification now that its alert is [current] (null = normal / left its slot). */
-    fun plan(key: String, current: AlertType?, mutedUntilMs: Long, nowMs: Long): Step {
+    /**
+     * What to do with [key]'s notification now that its alert is [current] (null = normal / left its
+     * slot); [pressureKpa] is the wheel's pressure, for the LOW_PRESSURE escalation.
+     */
+    fun plan(key: String, current: AlertType?, mutedUntilMs: Long, nowMs: Long, pressureKpa: Float? = null): Step {
         val previous = shown[key]
-        val decision = AlertNotificationPolicy.decide(previous, current, mutedUntilMs, nowMs)
+        val decision = AlertNotificationPolicy.decide(previous, current, mutedUntilMs, nowMs, pressureKpa)
         val throttled = decision.action == NotificationAction.UPDATE_SILENTLY &&
             decision.shown?.type == previous?.type &&
             updatedRecently(key, nowMs)
@@ -74,14 +77,21 @@ class AlertNotificationBook(private val updateIntervalMs: Long = UPDATE_INTERVAL
     }
 
     /** [plan] and [commit] in one go (the post cannot fail); returns the action. */
-    fun onChange(key: String, current: AlertType?, mutedUntilMs: Long, nowMs: Long): NotificationAction =
-        plan(key, current, mutedUntilMs, nowMs).also { commit(it) }.action
+    fun onChange(key: String, current: AlertType?, mutedUntilMs: Long, nowMs: Long, pressureKpa: Float? = null): NotificationAction =
+        plan(key, current, mutedUntilMs, nowMs, pressureKpa).also { commit(it) }.action
 
     /** The user swiped [key]'s notification away; false if nothing is known about it (or already swiped). */
     fun onSwiped(key: String): Boolean {
         val current = shown[key] ?: return false
         if (current.swiped) return false
         shown[key] = AlertNotificationPolicy.onSwiped(current)
+        return true
+    }
+
+    /** The user muted: every wheel shown now is muted for the rest of its episode; false if none is shown. */
+    fun onMuted(): Boolean {
+        if (shown.isEmpty()) return false
+        shown.replaceAll { _, alert -> AlertNotificationPolicy.onMuted(alert) }
         return true
     }
 
@@ -111,6 +121,8 @@ class AlertNotificationBook(private val updateIntervalMs: Long = UPDATE_INTERVAL
                     .put(FIELD_TYPE, alert.type.name)
                     .put(FIELD_EPISODE, JSONArray(alert.episode.map { it.name }))
                     .put(FIELD_SWIPED, alert.swiped)
+                    .put(FIELD_MUTED, alert.muted)
+                    .apply { alert.rungPressureKpa?.let { put(FIELD_RUNG_PRESSURE, it.toDouble()) } }
             )
         }
     }.toString()
@@ -143,17 +155,26 @@ class AlertNotificationBook(private val updateIntervalMs: Long = UPDATE_INTERVAL
             add(type)
             if (names != null) for (i in 0 until names.length()) alertTypeOf(names.optString(i))?.let { add(it) }
         }
-        return ShownAlert(type, episode, entry.optBoolean(FIELD_SWIPED, false))
+        val rung = entry.optDouble(FIELD_RUNG_PRESSURE, Double.NaN).toFloat().takeIf { it.isFinite() }
+        return ShownAlert(
+            type,
+            episode,
+            swiped = entry.optBoolean(FIELD_SWIPED, false),
+            muted = entry.optBoolean(FIELD_MUTED, false),
+            rungPressureKpa = rung
+        )
     }
 
-    /** Only ALERT types are kept; anything else (old names, warnings) is dropped. */
+    /** Only notified types are kept; anything else (old names, BATTERY_LOW) is dropped. */
     private fun alertTypeOf(name: String?): AlertType? =
-        AlertType.entries.firstOrNull { it.name == name }?.takeIf { it.toSeverity() == AlertSeverity.ALERT }
+        AlertType.entries.firstOrNull { it.name == name }?.takeIf { it.notifies() }
 
     companion object {
         const val UPDATE_INTERVAL_MS = 1_000L
         private const val FIELD_TYPE = "type"
         private const val FIELD_EPISODE = "episode"
         private const val FIELD_SWIPED = "swiped"
+        private const val FIELD_MUTED = "muted"
+        private const val FIELD_RUNG_PRESSURE = "rung_kpa"
     }
 }

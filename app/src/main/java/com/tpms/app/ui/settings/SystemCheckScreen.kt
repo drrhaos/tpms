@@ -61,6 +61,16 @@ fun SystemCheckScreen(
                 ok = setupStatus.notificationsEnabled,
                 onClick = viewModel::openNotificationSettings
             )
+            SettingsGroupDivider()
+            SettingsStatusRow(
+                label = stringResource(R.string.settings_check_alert_channel),
+                description = stringResource(
+                    if (setupStatus.alertChannelLoud) R.string.settings_check_alert_channel_ok
+                    else R.string.settings_check_alert_channel_bad
+                ),
+                ok = setupStatus.alertChannelLoud,
+                onClick = viewModel::openAlertChannelSettings
+            )
         }
 
         if (setupStatus.isTeyesDevice) {

@@ -69,6 +69,31 @@ class ReadingConfirmationFilterTest {
         assertEquals("FL", filter.offer(reading(240f, id = "FL", at = 200L))!!.id)
     }
 
+    @Test
+    fun hid_singleTransmissionsOfAFallingPressureStillConfirm() {
+        val hid = ReadingConfirmationFilter.forHid()
+        assertNull(hid.offer(reading(230f, at = 0L)))
+        // One transmission a minute, each a few kPa lower: never the same value twice.
+        assertEquals(226f, hid.offer(reading(226f, at = 60_000L))!!.pressureKpa, 0.01f)
+        assertEquals(221f, hid.offer(reading(221f, at = 120_000L))!!.pressureKpa, 0.01f)
+    }
+
+    @Test
+    fun hid_bigJumpStillNeedsASecondCloseReading() {
+        val hid = ReadingConfirmationFilter.forHid()
+        hid.offer(reading(230f, at = 0L))
+        hid.offer(reading(230f, at = 60_000L))
+        assertNull(hid.offer(reading(30f, at = 120_000L)))
+        assertEquals(31f, hid.offer(reading(31f, at = 180_000L))!!.pressureKpa, 0.01f)
+    }
+
+    @Test
+    fun hid_secondReadingOutsideTheWindowIsNotConfirmed() {
+        val hid = ReadingConfirmationFilter.forHid()
+        assertNull(hid.offer(reading(230f, at = 0L)))
+        assertNull(hid.offer(reading(230f, at = ReadingConfirmationFilter.HID_WINDOW_MS + 1)))
+    }
+
     private fun reading(
         pressureKpa: Float,
         id: String = "FL",

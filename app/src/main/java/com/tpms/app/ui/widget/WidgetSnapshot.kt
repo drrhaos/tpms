@@ -2,6 +2,7 @@ package com.tpms.app.ui.widget
 
 import android.content.Context
 import android.content.res.Configuration
+import android.text.format.DateFormat
 import com.tpms.app.R
 import com.tpms.app.domain.AlertSeverity
 import com.tpms.app.domain.SensorFreshness
@@ -17,6 +18,7 @@ import com.tpms.app.ui.batteryLabel
 import com.tpms.app.ui.cardLabel
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.widgetStatusLabel
+import java.util.Date
 
 enum class WidgetTireStatus {
     OK, WARNING, ALERT, EMPTY
@@ -72,13 +74,18 @@ data class WidgetSnapshot(
             }
 
             val baseStatus = state.widgetStatusLabel(context)
+            // Clock time of the data, not "N min ago": a widget drawn by a process that died
+            // afterwards keeps its text, and only an absolute time stays true then.
+            val dataTime = dataAgeSec?.let {
+                DateFormat.getTimeFormat(context).format(Date(now - it * 1000))
+            }
             val status = when {
-                dataStale && dataAgeSec != null -> {
-                    val minutes = (dataAgeSec / 60).coerceAtLeast(1)
-                    context.getString(R.string.widget_status_stale_format, baseStatus, minutes)
-                }
+                dataStale && dataTime != null ->
+                    context.getString(R.string.widget_status_stale_format, baseStatus, dataTime)
                 dataStale ->
                     context.getString(R.string.widget_status_stale_short, baseStatus)
+                dataTime != null && wheels.isNotEmpty() ->
+                    context.getString(R.string.widget_status_live_format, baseStatus, dataTime)
                 else -> baseStatus
             }
 
