@@ -80,16 +80,6 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
-    fun markFrontAppHome() {
-        viewModelScope.launch {
-            settingsStore.setTeyesChecklistItem("frontapp_home", true)
-        }
-    }
-
-    fun openBattery() {
-        TeyesPermissionHelper.openBatteryOptimization(context)
-    }
-
     fun complete(onDone: () -> Unit) {
         viewModelScope.launch {
             settingsStore.setOnboardingComplete(true)

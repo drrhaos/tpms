@@ -1,6 +1,5 @@
 package com.tpms.app.data.usb
 
-import com.tpms.app.data.diagnostics.SystemDiagnostics
 import com.tpms.app.data.settings.SettingsStore
 import io.mockk.every
 import io.mockk.mockk
@@ -22,7 +21,7 @@ class UsbDebugLogTest {
         settingsStore = mockk(relaxed = true)
         every { settingsStore.diagnosticLogEnabled } returns logEnabled
         every { settingsStore.debugToolsEnabled } returns debugEnabled
-        log = UsbDebugLog(mockk<SystemDiagnostics>(relaxed = true), settingsStore)
+        log = UsbDebugLog(settingsStore)
     }
 
     @Test

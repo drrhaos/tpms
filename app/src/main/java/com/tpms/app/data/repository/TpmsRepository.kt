@@ -28,7 +28,6 @@ import com.tpms.app.domain.UsbPermissionPolicy
 import com.tpms.app.domain.UsbPermissionState
 import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
-import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -37,7 +36,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -553,11 +551,6 @@ class TpmsRepository @Inject constructor(
         }
         _state.value = state
     }
-
-    fun getThresholds(): AlertThresholds = settingsStore.thresholds.value
-
-    fun recentHistory(limit: Int = 20): Flow<List<SensorReading>> =
-        sensorDao.recentReadings(limit)
 
     private suspend fun handleChunk(session: DongleSession, raw: ByteArray) {
         val timestamp = System.currentTimeMillis()

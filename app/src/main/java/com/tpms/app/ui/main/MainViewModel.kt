@@ -164,11 +164,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun logUiError(component: String, error: Throwable) {
-        debugLog.error("MainScreen/$component", uiBreadcrumbs.describe())
-        debugLog.exception("MainScreen/$component", error)
-    }
-
     companion object {
         private const val CHECK_NOW_REFRESH_MS = 1500L
         private const val FRESHNESS_TICK_MS = 30_000L

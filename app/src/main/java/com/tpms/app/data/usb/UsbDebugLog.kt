@@ -1,7 +1,6 @@
 package com.tpms.app.data.usb
 
 import com.tpms.app.data.diagnostics.CrashReportFormatter
-import com.tpms.app.data.diagnostics.SystemDiagnostics
 import com.tpms.app.data.settings.SettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +13,6 @@ import javax.inject.Singleton
 
 @Singleton
 class UsbDebugLog @Inject constructor(
-    private val systemDiagnostics: SystemDiagnostics,
     private val settingsStore: SettingsStore
 ) {
 
@@ -53,10 +51,6 @@ class UsbDebugLog @Inject constructor(
         _entries.value = (_entries.value + entry).takeLast(MAX_ENTRIES)
     }
 
-    fun isLogRecordingEnabled(): Boolean = settingsStore.diagnosticLogEnabled.value
-
-    fun isDebugToolsEnabled(): Boolean = settingsStore.debugToolsEnabled.value
-
     private fun shouldRecord(level: Level): Boolean {
         val logOn = settingsStore.diagnosticLogEnabled.value
         val debugOn = settingsStore.debugToolsEnabled.value
@@ -69,14 +63,6 @@ class UsbDebugLog @Inject constructor(
 
     fun clear() {
         _entries.value = emptyList()
-    }
-
-    fun exportText(): String = buildString {
-        appendLine("=== TPMS Debug Log ===")
-        append(systemDiagnostics.systemInfoBlock())
-        appendLine("Exported: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
-        appendLine()
-        append(eventsText())
     }
 
     fun eventsText(): String = buildString {

@@ -50,10 +50,6 @@ class ServiceHeartbeatStore @Inject constructor(
         context.heartbeatDataStore.edit { it[KEY_LAST_BEAT_MS] = atMs }
     }
 
-    fun recordBeatBlocking(atMs: Long = System.currentTimeMillis()) {
-        runBlocking { recordBeat(atMs) }
-    }
-
     suspend fun lastBeatMs(): Long =
         context.heartbeatDataStore.data.first()[KEY_LAST_BEAT_MS] ?: 0L
 

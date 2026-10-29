@@ -13,10 +13,6 @@ class ServiceHealth @Inject constructor() {
         private set
     @Volatile var staleReconnectCount: Long = 0
         private set
-    @Volatile var readTimeoutCount: Long = 0
-        private set
-    @Volatile var watchdogRestartCount: Long = 0
-        private set
     @Volatile var lastPollCompletedAtMs: Long = 0
         private set
     @Volatile var lastError: String? = null
@@ -37,16 +33,6 @@ class ServiceHealth @Inject constructor() {
     fun recordStaleReconnect() {
         staleReconnectCount++
         reconnectCount++
-    }
-
-    fun recordReadTimeout() {
-        readTimeoutCount++
-        lastError = "USB read timeout"
-    }
-
-    fun recordWatchdogRestart() {
-        watchdogRestartCount++
-        lastError = "Polling watchdog restart"
     }
 
     fun recordError(message: String) {
@@ -70,7 +56,7 @@ class ServiceHealth @Inject constructor() {
             else -> "critical"
         }
         val err = lastError?.let { " err=$it" }.orEmpty()
-        return "health=$health uptime=${uptimeSeconds()}s polls=$pollCount reconn=$reconnectCount stale=$staleReconnectCount timeouts=$readTimeoutCount wd=$watchdogRestartCount$err"
+        return "health=$health uptime=${uptimeSeconds()}s polls=$pollCount reconn=$reconnectCount stale=$staleReconnectCount$err"
     }
 
     fun reportBlock(): String = buildString {
@@ -79,8 +65,6 @@ class ServiceHealth @Inject constructor() {
         appendLine("poll_count: $pollCount")
         appendLine("reconnect_count: $reconnectCount")
         appendLine("stale_reconnect_count: $staleReconnectCount")
-        appendLine("read_timeout_count: $readTimeoutCount")
-        appendLine("watchdog_restart_count: $watchdogRestartCount")
         appendLine("last_poll_completed_ms: $lastPollCompletedAtMs")
         lastError?.let { appendLine("last_error: $it") }
     }

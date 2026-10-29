@@ -22,9 +22,6 @@ object TpmsWidgetHelper {
     fun requestPinPanel(context: Context): WidgetPinResult =
         requestPin(context, TpmsWidget::class.java)
 
-    fun requestPinCompact(context: Context): WidgetPinResult =
-        requestPin(context, TpmsWidgetCompact::class.java)
-
     private fun requestPin(context: Context, providerClass: Class<*>): WidgetPinResult {
         if (!isPinSupported(context)) {
             return WidgetPinResult.NOT_SUPPORTED
@@ -49,7 +46,4 @@ object TpmsWidgetHelper {
         }
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
-
-    fun hasActiveWidgets(context: Context): Boolean =
-        TpmsWidgetUpdater.hasAnyActiveWidget(context)
 }

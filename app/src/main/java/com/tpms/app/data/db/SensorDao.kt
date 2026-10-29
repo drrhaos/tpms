@@ -11,9 +11,6 @@ interface SensorDao {
     @Insert
     suspend fun insert(reading: SensorReading)
 
-    @Query("SELECT * FROM sensor_readings WHERE sensorId = :sensorId ORDER BY timestamp DESC LIMIT 1")
-    suspend fun lastReading(sensorId: String): SensorReading?
-
     @Query("SELECT * FROM sensor_readings WHERE sensorId = :sensorId ORDER BY timestamp DESC LIMIT 100")
     fun history(sensorId: String): Flow<List<SensorReading>>
 

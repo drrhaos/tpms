@@ -194,10 +194,6 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_STALE_FRAME_TIMEOUT_MS] = timeoutMs }
     }
 
-    suspend fun setSilenceTimeoutMs(timeoutMs: Long) {
-        context.settingsDataStore.edit { it[KEY_SILENCE_TIMEOUT_MS] = timeoutMs }
-    }
-
     suspend fun setShowSpareWheel(enabled: Boolean) {
         context.settingsDataStore.edit { it[KEY_SHOW_SPARE_WHEEL] = enabled }
     }
