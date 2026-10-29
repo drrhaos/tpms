@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
@@ -69,6 +70,10 @@ class SettingsStore @Inject constructor(
 
     private val _wheelMapping = MutableStateFlow<Map<String, String>>(emptyMap())
     val wheelMapping = _wheelMapping.asStateFlow()
+
+    private val _pressureOffsets = MutableStateFlow<Map<String, Float>>(emptyMap())
+    /** Sensor id → calibration offset in kPa ([PressureCalibration]); no entry = no correction. */
+    val pressureOffsets = _pressureOffsets.asStateFlow()
 
     private val _showSpareWheel = MutableStateFlow(false)
     val showSpareWheel = _showSpareWheel.asStateFlow()
@@ -138,6 +143,8 @@ class SettingsStore @Inject constructor(
                     prefs[wheelMappingKey(slot)] ?: ""
                 }
 
+                _pressureOffsets.value = PressureCalibration.decode(prefs[KEY_PRESSURE_OFFSETS])
+
                 _minLiveWheelPressureKpa.value =
                     prefs[KEY_MIN_LIVE_WHEEL_PRESSURE] ?: SensorValidatorDefaults.MIN_LIVE_WHEEL_PRESSURE_KPA
 
@@ -187,10 +194,6 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_STALE_FRAME_TIMEOUT_MS] = timeoutMs }
     }
 
-    suspend fun setSilenceTimeoutMs(timeoutMs: Long) {
-        context.settingsDataStore.edit { it[KEY_SILENCE_TIMEOUT_MS] = timeoutMs }
-    }
-
     suspend fun setShowSpareWheel(enabled: Boolean) {
         context.settingsDataStore.edit { it[KEY_SHOW_SPARE_WHEEL] = enabled }
     }
@@ -209,6 +212,16 @@ class SettingsStore @Inject constructor(
     suspend fun setWheelMappings(entries: Map<String, String>) {
         context.settingsDataStore.edit { prefs ->
             entries.forEach { (slot, sensorId) -> prefs[wheelMappingKey(slot)] = sensorId }
+        }
+    }
+
+    /** Sets one sensor's offset (clamped); 0 removes the correction. Read-modify-write in one edit. */
+    suspend fun setPressureOffset(sensorId: String, offsetKpa: Float) {
+        context.settingsDataStore.edit { prefs ->
+            val offsets = PressureCalibration.decode(prefs[KEY_PRESSURE_OFFSETS]).toMutableMap()
+            val clamped = PressureCalibration.clamp(offsetKpa)
+            if (clamped == 0f) offsets.remove(sensorId) else offsets[sensorId] = clamped
+            prefs[KEY_PRESSURE_OFFSETS] = PressureCalibration.encode(offsets)
         }
     }
 
@@ -291,6 +304,7 @@ class SettingsStore @Inject constructor(
             prefs[KEY_WIDGET_THEME_MODE] = imported.widgetThemeMode.name
             prefs[KEY_DIAGNOSTIC_LOG] = imported.diagnosticLogEnabled
             prefs[KEY_DEBUG_TOOLS] = imported.debugToolsEnabled
+            prefs[KEY_PRESSURE_OFFSETS] = PressureCalibration.encode(imported.pressureOffsets)
             // All five slots: the SP mapping counts even with the spare hidden (wayfinder 11).
             WheelLayout.allSlots(showSpareWheel = true).forEach { slot ->
                 prefs[wheelMappingKey(slot)] = imported.wheelMapping[slot].orEmpty()
@@ -318,6 +332,7 @@ class SettingsStore @Inject constructor(
         private val KEY_DONGLE_PROTOCOL = stringPreferencesKey("dongle_protocol")
         private val KEY_STALE_FRAME_TIMEOUT_MS = longPreferencesKey("stale_frame_timeout_ms")
         private val KEY_SILENCE_TIMEOUT_MS = longPreferencesKey("silence_timeout_ms")
+        private val KEY_PRESSURE_OFFSETS = stringPreferencesKey("sensor_pressure_offsets")
         private val KEY_SHOW_SPARE_WHEEL = booleanPreferencesKey("show_spare_wheel")
         private val KEY_MIN_LIVE_WHEEL_PRESSURE = floatPreferencesKey("min_live_wheel_pressure_kpa")
         private val KEY_TEYES_AUTO_START = booleanPreferencesKey("teyes_auto_start")

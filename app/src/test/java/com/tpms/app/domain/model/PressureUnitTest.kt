@@ -28,10 +28,4 @@ class PressureUnitTest {
         val kpa = PressureUnit.PSI.toKpa(psi)
         assertEquals(psi, PressureUnit.PSI.fromKpa(kpa), 0.01f)
     }
-
-    @Test
-    fun formatThresholdValue_barUsesOneDecimal() {
-        assertEquals("1.5", PressureUnit.BAR.formatThresholdValue(1.5f))
-        assertEquals("32", PressureUnit.PSI.formatThresholdValue(32f))
-    }
 }

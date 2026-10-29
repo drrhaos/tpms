@@ -255,11 +255,12 @@ class TpmsMonitorService : Service() {
     private fun promoteToForeground(notification: Notification): Boolean = try {
         when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                // connectedDevice only: on Android 15+ a dataSync service is limited to 6 h a day
+                // (onTimeout, then the process is killed), and a USB dongle is a connected device.
                 startForeground(
                     NOTIF_ID,
                     notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
                 )
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {

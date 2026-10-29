@@ -13,7 +13,7 @@ Android app for continuous tire pressure monitoring via generic USB TPMS dongles
 - **Background monitoring** — foreground service with reconnect on USB detach, boot auto-start, and liveness checks
 - **Recommended pressure** — set one target pressure (or accept the current pressures as the norm); low / high limits follow it (80 % / 135 %)
 - **Alerts** — low/high pressure, high temperature, low sensor battery, signal lost
-- **Sensors** — swap the sensors of two wheels with one tap after a tyre rotation, or pick a sensor per wheel by its live pressure
+- **Sensors** — swap the sensors of two wheels with one tap after a tyre rotation, or pick a sensor per wheel by its live pressure; per-sensor calibration offset (±1 bar) against a reference gauge
 - **Widgets** — the same car scene as a home-screen widget, plus a compact widget (when the launcher supports pinning)
 - **Languages** — English and Russian, switchable in Settings (system default otherwise)
 - **History** — local Room database for sensor readings
@@ -116,7 +116,7 @@ Tag format: `vX.Y.Z` (e.g. `v1.2.0`, not `v.1.2.0`). The [Release workflow](.git
 ./gradlew :app:assembleDebug        # debug APK
 ```
 
-Key source paths: `service/TpmsMonitorService.kt`, `data/usb/TpmsProtocolRouter.kt`, `data/repository/TpmsRepository.kt`, `ui/main/CarTopDown.kt` (main screen scene), `ui/widget/WidgetCarRenderer.kt` (car widget), `ui/onboarding/OnboardingScreen.kt`.
+Key source paths: `service/TpmsMonitorService.kt`, `data/usb/DongleSession.kt` + `data/usb/FrameDecoder.kt` (USB read and decode), `data/repository/TpmsRepository.kt`, `ui/main/CarTopDown.kt` + `ui/main/CarStage.kt` (main screen scene), `ui/widget/WidgetCarRenderer.kt` (car widget), `ui/onboarding/OnboardingScreen.kt`.
 
 ### Car renders
 

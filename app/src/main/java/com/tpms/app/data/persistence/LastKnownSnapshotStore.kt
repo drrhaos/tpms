@@ -77,6 +77,7 @@ class LastKnownSnapshotStore @Inject constructor(
                     put("lowBattery", sensor.flags.lowBattery)
                     put("alertType", sensor.alertType?.name)
                     put("timestamp", sensor.timestamp)
+                    put("pressureOffsetKpa", sensor.pressureOffsetKpa.toDouble())
                 }
             )
         }
@@ -101,7 +102,8 @@ class LastKnownSnapshotStore @Inject constructor(
                         noSignal = obj.optBoolean("noSignal"),
                         leak = obj.optBoolean("leak"),
                         lowBattery = obj.optBoolean("lowBattery")
-                    )
+                    ),
+                    pressureOffsetKpa = obj.optDouble("pressureOffsetKpa", 0.0).toFloat()
                 )
                 put(sensor.id, sensor)
             }

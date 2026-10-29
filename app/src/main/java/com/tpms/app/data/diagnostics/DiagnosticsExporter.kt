@@ -34,7 +34,8 @@ class DiagnosticsExporter @Inject constructor(
         pressureUnit: PressureUnit,
         usbScan: String,
         serviceStatusLine: String,
-        serviceHealth: ServiceHealth
+        serviceHealth: ServiceHealth,
+        pressureOffsets: Map<String, Float> = emptyMap()
     ): String = buildString {
         appendLine("=== TPMS Full Diagnostic Report ===")
         appendLine("Generated: ${timestamp()}")
@@ -66,6 +67,13 @@ class DiagnosticsExporter @Inject constructor(
             }
         } else {
             appendLine("  (automatic)")
+        }
+        appendLine()
+        appendLine("--- Pressure calibration ---")
+        if (pressureOffsets.isEmpty()) {
+            appendLine("  (none)")
+        } else {
+            pressureOffsets.toSortedMap().forEach { (id, kpa) -> appendLine("  $id: %+.1f kPa".format(kpa)) }
         }
         appendLine()
         appendLine("--- Sensors (${seenSensors.size} seen) ---")

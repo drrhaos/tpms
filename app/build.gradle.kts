@@ -24,7 +24,7 @@ android {
         minSdk = 28 // Android 9 — applies to debug and release
         targetSdk = 35
         versionCode = project.findProperty("versionCode")?.toString()?.toIntOrNull() ?: 1
-        versionName = project.findProperty("versionName")?.toString() ?: "1.1.2"
+        versionName = project.findProperty("versionName")?.toString() ?: "1.1.4-dev"
         // The app ships English and Russian only (res/xml/locales_config.xml): drop the libraries'
         // other translations so a Chinese head unit does not show a half-translated mix.
         resourceConfigurations += listOf("en", "ru")

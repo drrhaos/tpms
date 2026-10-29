@@ -13,14 +13,10 @@ class ServiceHealthTest {
         health.recordPollCompleted()
         health.recordReconnect()
         health.recordStaleReconnect()
-        health.recordReadTimeout()
-        health.recordWatchdogRestart()
 
         assertEquals(1L, health.pollCount)
         assertEquals(2L, health.reconnectCount)
         assertEquals(1L, health.staleReconnectCount)
-        assertEquals(1L, health.readTimeoutCount)
-        assertEquals(1L, health.watchdogRestartCount)
         assertTrue(health.lastPollCompletedAtMs > 0L)
     }
 

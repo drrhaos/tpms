@@ -14,7 +14,6 @@
     <string name="notification_alert_title_format">%1$s · %2$s</string>
     <string name="notification_alert_pressure_format">Pressure: %1$s</string>
     <string name="notification_action_check">Check now</string>
-    <string name="notification_action_open">Open</string>
     <string name="notification_action_mute">Mute 30m</string>
     <string name="notification_action_restart">Restart</string>
     <string name="notification_service_stopped_title">TPMS monitor stopped</string>
@@ -27,9 +26,7 @@
     <string name="notification_action_request_usb_permission">Request permission</string>
     <string name="notification_usb_permission_body">Tap “Request permission” and allow access to the TPMS dongle</string>
     <string name="notification_monitoring_blind_title">TPMS data unavailable</string>
-    <string name="notification_monitoring_blind_body">No fresh tire pressure data — check dongle and sensors</string>
     <string name="notification_monitoring_offline_title">TPMS monitoring offline</string>
-    <string name="notification_monitoring_offline_body">USB dongle disconnected — tire monitoring is not active</string>
     <string name="widget_status_stale_format">%1$s · %2$d min ago</string>
     <string name="widget_status_stale_short">%1$s · stale</string>
     <string name="wheel_stale_caption_format">%1$s · %2$d min</string>
@@ -38,10 +35,6 @@
     <string name="settings_runtime_battery_restricted">Battery: restricted — tap to fix</string>
     <string name="settings_runtime_notifications_ok">Notifications: enabled</string>
     <string name="settings_runtime_notifications_denied">Notifications: disabled — tap to fix</string>
-    <string name="settings_teyes_runtime_battery_ok">@string/settings_runtime_battery_ok</string>
-    <string name="settings_teyes_runtime_battery_restricted">@string/settings_runtime_battery_restricted</string>
-    <string name="settings_teyes_runtime_notifications_ok">@string/settings_runtime_notifications_ok</string>
-    <string name="settings_teyes_runtime_notifications_denied">@string/settings_runtime_notifications_denied</string>
     <string name="settings_teyes_checklist_hint">Complete all items for stable background monitoring on Teyes CC3.</string>
 
     <!-- Status -->
@@ -52,17 +45,13 @@
     <string name="label_disconnected">Disconnected</string>
     <string name="label_connecting">Connecting…</string>
     <string name="label_monitoring">Monitoring</string>
-    <string name="label_connected">Connected</string>
     <string name="label_alert">Alert</string>
-    <string name="label_ok">OK</string>
     <string name="label_warning">Warning</string>
     <string name="label_lost">LOST</string>
     <string name="value_em_dash">—</string>
     <string name="value_no_data_pressure">-- %1$s</string>
     <string name="value_no_data_temp">--°C</string>
     <string name="value_no_data_battery">--%</string>
-    <string name="wheel_status_ok">Wheel OK</string>
-    <string name="wheel_status_problem">Wheel problem</string>
 
     <!-- Alert short labels -->
     <string name="alert_short_low">LOW</string>
@@ -75,24 +64,16 @@
     <string name="widget_no_data">No sensor data</string>
     <string name="widget_description">TPMS dashboard (car top-down view)</string>
     <string name="widget_car_content_description">Car top-down view</string>
-    <string name="widget_teyes_panel_hint">On Teyes CC3 the stock launcher cannot pin App Widgets. Install FrontApp for Teyes, open it, and add TPMS Monitor to the home screen from there.</string>
     <string name="settings_teyes_frontapp_hint">On Teyes CC3, only FrontApp for Teyes can place TPMS on the launcher home screen. Open FrontApp → add TPMS Monitor shortcut to the map/car panel.</string>
     <string name="settings_teyes_frontapp_done">Added to home screen via FrontApp</string>
-    <string name="main_teyes_frontapp_hint">Add TPMS to the Teyes home screen with FrontApp for Teyes (Settings → Teyes home screen).</string>
-    <string name="widget_pin_to_panel">Add dashboard to home screen</string>
-    <string name="widget_pin_not_supported">Widget pinning is not supported on this device</string>
     <string name="widget_pin_failed">Could not pin widget — add manually from the launcher widget list</string>
     <string name="widget_status_offline">Offline</string>
     <string name="widget_status_connecting">Connecting</string>
     <string name="widget_status_monitoring">Monitoring</string>
     <string name="widget_status_alert">Alert</string>
-    <string name="widget_dashboard_active">Dashboard active on home screen</string>
-    <string name="widget_dashboard_inactive">Show TPMS on map / car panel</string>
     <string name="widget_pin_manual_hint">Widget pinning is not supported on this device. Add manually from the launcher widget list.</string>
     <string name="widget_pin_success">Widget added — check your home screen</string>
-    <string name="widget_pin_compact_failed">Could not pin compact widget — add manually from Widgets</string>
     <string name="widget_description_compact">Compact TPMS strip for home screen</string>
-    <string name="widget_pin_compact">Add compact widget to home screen</string>
 
     <!-- Onboarding -->
     <string name="onboarding_title">Quick setup</string>
@@ -104,19 +85,16 @@
     <string name="onboarding_step_widget">Add TPMS to the home screen with FrontApp for Teyes.</string>
     <string name="onboarding_grant_usb">Start</string>
     <string name="onboarding_open_notifications">Allow notifications</string>
-    <string name="onboarding_open_battery">Fix battery limits</string>
     <string name="onboarding_open_teyes_settings">Open Teyes settings</string>
     <string name="onboarding_autostart_title">Auto start after sleep</string>
     <string name="onboarding_autostart_explanation">Without this, monitoring will not survive the head unit\'s sleep: after you switch the ignition back on, tire pressure stays unmonitored until you open the app yourself. In the Teyes (FYT) settings, enable both options below for TPMS Monitor: firmware versions differ in which one keeps apps alive in sleep.</string>
     <string name="onboarding_teyes_more">Also in the Teyes settings: Battery → No restrictions, and lock TPMS Monitor in recent apps. You can finish these later in Settings.</string>
     <string name="onboarding_open_frontapp">Open FrontApp for Teyes</string>
-    <string name="onboarding_frontapp_done">Added via FrontApp</string>
     <string name="onboarding_next">Continue</string>
     <string name="onboarding_finish">Done</string>
     <string name="onboarding_skip">Skip setup</string>
 
     <!-- Main screen -->
-    <string name="title_main">TPMS Monitor</string>
     <string name="cd_debug_log">Debug log</string>
     <string name="cd_settings">Settings</string>
     <string name="cd_back">Back</string>
@@ -125,7 +103,6 @@
     <string name="detail_temperature">Temperature</string>
     <string name="detail_battery">Battery</string>
     <string name="detail_last_update">Last update</string>
-    <string name="detail_alert">Alert</string>
     <string name="ui_error_logged">UI error logged: %1$s</string>
 
     <!-- Settings -->
@@ -140,17 +117,10 @@
     <string name="settings_teyes_home_title">Teyes Home Screen</string>
     <string name="settings_pressure_unit">Pressure Unit</string>
     <string name="settings_dongle_protocol">Dongle Protocol</string>
-    <string name="settings_protocol_hint_ch340">For 100-a1-xl-v01 / CH340 dongles use Auto or Serial 0x55AA.</string>
     <string name="settings_protocol_hint_modes">Auto: HID for HID dongles, Serial for CH340. Use Deelife for MU7J/MU9F modules.</string>
-    <string name="settings_wheel_mapping">Wheel Mapping</string>
-    <string name="settings_wheel_mapping_hint">Assign sensor IDs to wheel positions. Tap to cycle: Auto → sensor IDs.</string>
     <string name="settings_no_sensors">No sensors yet — connect the receiver and wait for data</string>
     <string name="settings_auto">Auto</string>
-    <string name="settings_alert_thresholds">Alert Thresholds</string>
-    <string name="settings_low_pressure">Low Pressure (%1$s)</string>
-    <string name="settings_high_pressure">High Pressure (%1$s)</string>
     <string name="settings_high_temp">Tyre overheating limit</string>
-    <string name="settings_alert_notifications">Alert Notifications</string>
     <string name="settings_alert_sound_configure">Sound and vibration</string>
     <string name="settings_alert_sound_configure_hint">Sound, vibration and importance of alerts are set in the system notification settings</string>
     <string name="settings_teyes_permissions">Teyes head unit</string>
@@ -161,31 +131,18 @@
     <string name="settings_teyes_battery">Battery → No restrictions</string>
     <string name="settings_teyes_lock">Locked in recent apps</string>
     <string name="settings_teyes_boot">Boot completed allowed</string>
-    <string name="main_teyes_checklist_incomplete">Complete Teyes permissions in Settings for stable background monitoring.</string>
     <string name="main_setup_service_stopped">TPMS service is not running — open Settings to fix permissions.</string>
-    <string name="main_teyes_service_stopped">@string/main_setup_service_stopped</string>
-    <string name="main_teyes_widget_hint">Add TPMS to the Teyes home screen with FrontApp for Teyes.</string>
-    <string name="main_open_settings">Settings</string>
-    <string name="settings_teyes_service_running">Background service: running</string>
-    <string name="settings_teyes_service_stopped">Background service: stopped</string>
     <string name="settings_teyes_auto_run_hint">Also add TPMS in Settings → General → Auto run when device awake. Avoid “main interface only” if you need background monitoring.</string>
-    <string name="settings_frontapp_hint">FrontApp for Teyes — add TPMS to home screen</string>
     <string name="settings_open_frontapp">Open FrontApp for Teyes</string>
     <string name="settings_open_teyes_settings">Open Teyes system settings</string>
     <string name="settings_teyes_manual_app">Open Teyes Settings → Apps → TPMS Monitor manually.</string>
     <string name="settings_teyes_manual_battery">Open Teyes Settings → Apps → TPMS → Battery → No restrictions.</string>
     <string name="settings_teyes_manual_notifications">Open Teyes Settings → Apps → TPMS → allow notifications.</string>
     <string name="settings_teyes_manual_overlay">Open Teyes Settings → Apps → TPMS → Display over other apps.</string>
-    <string name="settings_widget_theme">Home screen widget theme</string>
-    <string name="settings_widget_theme_auto">Match system day/night</string>
-    <string name="settings_widget_theme_light">Light</string>
-    <string name="settings_widget_theme_dark">Dark</string>
-    <string name="settings_teyes_experience">Teyes driving experience</string>
     <string name="settings_silent_startup">Silent start on boot</string>
     <string name="settings_floating_overlay">Mini panel over other apps</string>
     <string name="settings_critical_alerts_fullscreen">Full-screen warning</string>
     <string name="settings_preferred_usb_dongle">Preferred USB dongle</string>
-    <string name="settings_stability">Stability</string>
     <string name="settings_stale_frame_timeout">Reconnect without valid frames</string>
     <string name="settings_min_live_wheel_pressure">Min. live wheel pressure, kPa</string>
     <string name="settings_show_spare_wheel">Show spare wheel (SP)</string>
@@ -196,41 +153,12 @@
     <string name="settings_export_copied">Settings copied to clipboard</string>
     <string name="settings_import_ok">Settings imported</string>
     <string name="settings_import_failed">Import failed: %1$s</string>
-    <string name="settings_open_app_details">Open app settings (auto-start)</string>
-    <string name="settings_open_battery_settings">Open battery optimization</string>
-    <string name="settings_open_notification_settings">Open notification settings</string>
-    <string name="settings_mode_title">Experience level</string>
-    <string name="settings_mode_user">Simple</string>
-    <string name="settings_mode_advanced">Expert</string>
-    <string name="settings_mode_user_hint">Only what you need day to day. Alert limits use safe defaults.</string>
-    <string name="settings_mode_advanced_hint">USB protocol, wheel mapping, thresholds, diagnostics, and backup.</string>
-    <string name="settings_section_general_hint_simple">Choose how pressure is shown on screen.</string>
-    <string name="settings_thresholds_simple_hint">Low and high pressure alerts use recommended defaults. Switch to Expert to change them.</string>
-    <string name="settings_section_background_hint_simple">Tap a red item to fix it. The app must keep running in the background.</string>
     <string name="settings_section_widget_hint_simple">Tyre pressures right on the home screen</string>
     <string name="settings_widget_add_simple">Home screen widget</string>
-    <string name="settings_section_background">Background monitoring</string>
-    <string name="settings_section_background_hint">Keep TPMS running reliably while the app is in the background.</string>
-    <string name="settings_section_widget">Home screen widget</string>
-    <string name="settings_section_widget_hint">Pin a TPMS panel to your launcher home screen.</string>
-    <string name="settings_section_general">General</string>
-    <string name="settings_section_general_hint">Units and alert thresholds</string>
-    <string name="settings_section_wheels">Wheels</string>
-    <string name="settings_section_wheels_hint">Map sensors to wheel positions</string>
     <string name="settings_section_alerts">Alerts</string>
-    <string name="settings_section_advanced">Expert tools</string>
-    <string name="settings_section_experimental">Experimental</string>
-    <string name="settings_section_experimental_hint">Unstable extras — enable only if you know why.</string>
-    <string name="settings_experimental_warning">These features may behave differently on your device. Leave off unless you need them.</string>
     <string name="settings_floating_overlay_hint">Tyre pressures over navigation and other apps</string>
     <string name="settings_silent_startup_hint">Start in background without opening the app window.</string>
     <string name="settings_critical_alerts_fullscreen_hint">Critical pressure takes over the screen</string>
-    <string name="settings_section_advanced_hint">For dongle troubleshooting and power users</string>
-    <string name="settings_low_pressure_short">Low (%1$s)</string>
-    <string name="settings_high_pressure_short">High (%1$s)</string>
-    <string name="action_save">Save</string>
-    <string name="action_save_settings">Save settings</string>
-    <string name="settings_saved">Settings saved</string>
 
     <!-- Protocol modes -->
     <string name="protocol_auto">Auto</string>
@@ -252,26 +180,13 @@
     <string name="debug_event_log">Event log (%1$d)</string>
     <string name="debug_no_events">No events yet. Connect dongle and tap Scan USB.</string>
     <string name="debug_clipboard_label">TPMS debug log</string>
-    <string name="debug_share_subject">TPMS USB Debug Log</string>
     <string name="debug_share_full_subject">TPMS Full Diagnostic Report</string>
     <string name="debug_share_chooser">Share debug log</string>
 
     <!-- Legacy / unused in UI but kept -->
-    <string name="label_pressure">Pressure</string>
-    <string name="label_temperature">Temperature</string>
-    <string name="label_battery">Battery</string>
-    <string name="setting_units">Pressure units</string>
-    <string name="setting_thresholds">Alert thresholds</string>
-    <string name="setting_notifications">Notifications</string>
-    <string name="setting_sensor_names">Sensor names</string>
-    <string name="setting_tyes_permissions">Tyes permissions</string>
     <string name="unit_psi">PSI</string>
     <string name="unit_kpa">kPa</string>
     <string name="unit_bar">Bar</string>
-    <string name="sensor_fl">Front Left</string>
-    <string name="sensor_fr">Front Right</string>
-    <string name="sensor_rl">Rear Left</string>
-    <string name="sensor_rr">Rear Right</string>
     <!-- Commercial UI: tyres, sensors, system check, service menu -->
     <string name="alert_card_low">Low pressure</string>
     <string name="alert_card_high">High pressure</string>
@@ -309,6 +224,9 @@
     <string name="settings_appearance_light">Light</string>
     <string name="settings_wheels_swapped">%1$s ↔ %2$s: sensors swapped</string>
     <string name="settings_wheels_swap_hint">Tap a double arrow to swap the sensors of two wheels, as when you rotate the tyres.</string>
+    <string name="settings_sensor_calibration">Sensor calibration</string>
+    <string name="settings_sensor_calibration_footer">Check a tyre with an accurate gauge and correct its sensor by the difference. The correction belongs to the sensor and moves with it when tyres are rotated; it applies from the sensor\'s next reading. Up to ±1 bar.</string>
+    <string name="settings_sensor_calibration_preview">%1$s · sensor %2$s → %3$s %4$s</string>
     <string name="settings_wheels_swapped_cross">Sensors swapped crosswise</string>
     <string name="settings_wheels_swap_cross_action">Swap crosswise</string>
     <string name="settings_wheels_swap_action">%1$s ↔ %2$s</string>

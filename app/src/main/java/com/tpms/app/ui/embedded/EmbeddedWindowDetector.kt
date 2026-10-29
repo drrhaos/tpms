@@ -1,7 +1,6 @@
 package com.tpms.app.ui.embedded
 
 import android.app.Activity
-import android.graphics.Rect
 import android.util.DisplayMetrics
 import kotlin.math.roundToInt
 
@@ -76,10 +75,4 @@ object EmbeddedWindowDetector {
 
     private fun pxToDp(px: Int, density: Float): Int =
         if (density <= 0f) 0 else (px / density).roundToInt()
-
-    fun windowBoundsPx(activity: Activity): Rect {
-        val rect = Rect()
-        activity.window.decorView.getWindowVisibleDisplayFrame(rect)
-        return rect
-    }
 }

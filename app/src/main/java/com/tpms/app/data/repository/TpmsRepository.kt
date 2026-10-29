@@ -20,6 +20,7 @@ import com.tpms.app.data.usb.toHexPreview
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.AlertTracker
 import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.RecoveryState
 import com.tpms.app.domain.SensorFreshness
 import com.tpms.app.domain.UsbFault
@@ -27,7 +28,6 @@ import com.tpms.app.domain.UsbPermissionPolicy
 import com.tpms.app.domain.UsbPermissionState
 import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
-import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -36,7 +36,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -126,6 +125,10 @@ class TpmsRepository @Inject constructor(
 
     @Volatile
     private var lastFrameAtMs: Long = 0L
+
+    /** Wall time of the last history prune; 0 = not yet in this process, so the first insert prunes. */
+    @Volatile
+    private var lastHistoryPruneAtMs: Long = 0L
 
     @Volatile
     private var lastValidFrameAtMs: Long = 0L
@@ -338,6 +341,7 @@ class TpmsRepository @Inject constructor(
         seenSensors = _seenSensors.value,
         aa55EmptySlots = _aa55EmptySlots.value,
         wheelMapping = settingsStore.wheelMapping.value,
+        pressureOffsets = settingsStore.pressureOffsets.value,
         showSpareWheel = settingsStore.showSpareWheel.value,
         settingsUiMode = settingsStore.settingsUiMode.value,
         pressureUnit = settingsStore.pressureUnit.value,
@@ -552,11 +556,6 @@ class TpmsRepository @Inject constructor(
         _state.value = state
     }
 
-    fun getThresholds(): AlertThresholds = settingsStore.thresholds.value
-
-    fun recentHistory(limit: Int = 20): Flow<List<SensorReading>> =
-        sensorDao.recentReadings(limit)
-
     private suspend fun handleChunk(session: DongleSession, raw: ByteArray) {
         val timestamp = System.currentTimeMillis()
         lastFrameAtMs = timestamp
@@ -595,9 +594,19 @@ class TpmsRepository @Inject constructor(
             val onWheel = synchronized(wheelsLock) { placeReadingLocked(reading) } ?: return
             runCatching { sensorDao.insert(onWheel.toReading()) }
                 .onFailure { debugLog.warn("Repository", "DB insert failed: ${it.message}") }
+            pruneHistoryIfDue()
         } catch (e: Exception) {
             debugLog.warn("Repository", "applySensorUpdate failed: ${e.message}")
         }
+    }
+
+    /** Keeps [SensorDao] bounded: drops readings older than [HISTORY_RETENTION_MS], at most once per [HISTORY_PRUNE_INTERVAL_MS]. */
+    private suspend fun pruneHistoryIfDue() {
+        val now = System.currentTimeMillis()
+        if (now - lastHistoryPruneAtMs in 0 until HISTORY_PRUNE_INTERVAL_MS) return
+        lastHistoryPruneAtMs = now
+        runCatching { sensorDao.deleteOlderThan(now - HISTORY_RETENTION_MS) }
+            .onFailure { debugLog.warn("Repository", "DB prune failed: ${it.message}") }
     }
 
     /**
@@ -606,8 +615,10 @@ class TpmsRepository @Inject constructor(
      * applied when it is on a wheel, else null. Caller holds [wheelsLock].
      */
     private fun placeReadingLocked(reading: TireSensor): TireSensor? {
+        // Calibration first: limits, alerts, history and the snapshot all see the corrected pressure.
+        val corrected = PressureCalibration.apply(reading, settingsStore.pressureOffsets.value[reading.id] ?: 0f)
         // Memory for every seen sensor, so one placed later by a settings change shows its alert.
-        val sensor = alertTracker.apply(reading, settingsStore.thresholds.value)
+        val sensor = alertTracker.apply(corrected, settingsStore.thresholds.value)
         _seenSensors.update { it + (sensor.id to sensor) }
         val before = recomputeWheelsLocked(pruneAt = sensor.timestamp)
         val after = _wheels.value
@@ -804,5 +815,8 @@ class TpmsRepository @Inject constructor(
         private const val RAW_TAG = "TPMS_RAW"
         /** Upper bound on how long one consumer iteration waits for data. */
         private const val RECEIVE_TICK_MS = 1_000L
+        /** Sensor history kept in the database; older readings are deleted. */
+        private const val HISTORY_RETENTION_MS = 30L * 24 * 60 * 60 * 1000
+        private const val HISTORY_PRUNE_INTERVAL_MS = 60L * 60 * 1000
     }
 }

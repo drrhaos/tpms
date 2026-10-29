@@ -107,8 +107,6 @@ class DongleDetector @Inject constructor(
     fun isSerialCapable(device: UsbDevice): Boolean =
         isCdcAcmDevice(device) || isKnownSerialBridge(device) || isVendorBulkSerial(device)
 
-    fun isSerialDongle(device: UsbDevice): Boolean = isSerialCapable(device)
-
     private fun isMassStorage(device: UsbDevice): Boolean =
         (0 until device.interfaceCount).any { i ->
             device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_MASS_STORAGE

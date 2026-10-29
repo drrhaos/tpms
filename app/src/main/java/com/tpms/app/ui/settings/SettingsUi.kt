@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -49,7 +48,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -403,15 +401,4 @@ fun SettingsCheckRow(
         )
         RowText(label, description, Modifier.weight(1f).padding(start = 4.dp, top = 8.dp, bottom = 8.dp))
     }
-}
-
-/** Small coloured dot + text, for the summary of a status page. */
-@Composable
-fun StatusDot(ok: Boolean, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(8.dp)
-            .clip(CircleShape)
-            .background(if (ok) StatusColors.ok else StatusColors.warning)
-    )
 }

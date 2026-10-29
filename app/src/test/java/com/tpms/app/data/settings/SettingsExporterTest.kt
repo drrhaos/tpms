@@ -40,6 +40,24 @@ class SettingsExporterTest {
     }
 
     @Test
+    fun pressureOffsets_roundTrip_andMissingInOldFiles() {
+        val exported = SettingsExporter.export(
+            pressureUnit = PressureUnit.BAR,
+            targetPressureKpa = PressureTarget.DEFAULT_KPA,
+            dongleProtocolMode = DongleProtocolMode.AUTO,
+            staleFrameTimeoutMs = 120_000L,
+            wheelMapping = emptyMap(),
+            showSpareWheel = false,
+            minLiveWheelPressureKpa = 100f,
+            teyesChecklist = TeyesChecklist(),
+            pressureOffsets = mapOf("ABC" to 5f, "SENSOR_02" to -12f)
+        )
+
+        assertEquals(mapOf("ABC" to 5f, "SENSOR_02" to -12f), SettingsExporter.import(exported).pressureOffsets)
+        assertEquals(emptyMap<String, Float>(), SettingsExporter.import("""{"version":4}""").pressureOffsets)
+    }
+
+    @Test
     fun spareMapping_roundTripsWhileSpareIsHidden() {
         val exported = SettingsExporter.export(
             pressureUnit = PressureUnit.KPA,

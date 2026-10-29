@@ -21,9 +21,4 @@ enum class PressureUnit(val label: String, val toKpa: Float) {
     } else {
         "—"
     }
-
-    fun formatThresholdValue(value: Float): String = when (this) {
-        BAR -> String.format(Locale.US, "%.1f", value)
-        else -> String.format(Locale.US, "%.0f", value)
-    }
 }
