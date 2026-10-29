@@ -14,7 +14,8 @@ All notable changes to TPMS Monitor. Versions follow the release tags (`vX.Y.Z`)
 ### Settings
 - Restructured, autosaving settings without a Save button: Tyres, Sensors, Alerts, Display, System check, About.
 - Recommended pressure: one target pressure with a stepper, or "accept current pressures as the norm"; low / high alert limits follow it (80 % / 135 %). The old absolute low limit is migrated; settings export v4.
-- Sensors: swap the sensors of two wheels with one tap on the car picture (tyre rotation); per-wheel sensor choice by live pressure stays below.
+- Sensors: swap the sensors of two wheels with one tap on the car picture (tyre rotation), or all four crosswise; per-wheel sensor choice by live pressure stays below.
+- Sensor calibration: a per-sensor pressure offset (up to ±1 bar) set against an accurate gauge; it follows the sensor through a tyre rotation, applies to alerts, history and widgets, and is included in settings export v5 and the diagnostic report.
 - Language: System / English / Русский (Android 13+ also in the system "App language" page); the APK ships only English and Russian resources.
 - Expert options moved to a service menu, unlocked by tapping the version seven times.
 - System check (service, battery, notifications, Teyes steps) on its own screen.
