@@ -53,7 +53,8 @@ class ServiceHeartbeatStore @Inject constructor(
     suspend fun lastBeatMs(): Long =
         context.heartbeatDataStore.data.first()[KEY_LAST_BEAT_MS] ?: 0L
 
-    fun lastBeatMsBlocking(): Long = runBlocking { lastBeatMs() }
+    /** Main-thread read (liveness receiver), bounded: 0 = unknown on timeout, so no restart verdict. */
+    fun lastBeatMsBlocking(): Long = boundedBlocking("lastBeatMs") { lastBeatMs() } ?: 0L
 
     /** Persisted so the restart limit, and why it happened, survive the restart they describe. */
     suspend fun recordProcessRestart(reason: String, atMs: Long = System.currentTimeMillis()) {

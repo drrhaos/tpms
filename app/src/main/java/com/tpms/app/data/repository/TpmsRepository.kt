@@ -126,6 +126,10 @@ class TpmsRepository @Inject constructor(
     @Volatile
     private var lastFrameAtMs: Long = 0L
 
+    /** Wall time of the last history prune; 0 = not yet in this process, so the first insert prunes. */
+    @Volatile
+    private var lastHistoryPruneAtMs: Long = 0L
+
     @Volatile
     private var lastValidFrameAtMs: Long = 0L
 
@@ -590,9 +594,19 @@ class TpmsRepository @Inject constructor(
             val onWheel = synchronized(wheelsLock) { placeReadingLocked(reading) } ?: return
             runCatching { sensorDao.insert(onWheel.toReading()) }
                 .onFailure { debugLog.warn("Repository", "DB insert failed: ${it.message}") }
+            pruneHistoryIfDue()
         } catch (e: Exception) {
             debugLog.warn("Repository", "applySensorUpdate failed: ${e.message}")
         }
+    }
+
+    /** Keeps [SensorDao] bounded: drops readings older than [HISTORY_RETENTION_MS], at most once per [HISTORY_PRUNE_INTERVAL_MS]. */
+    private suspend fun pruneHistoryIfDue() {
+        val now = System.currentTimeMillis()
+        if (now - lastHistoryPruneAtMs in 0 until HISTORY_PRUNE_INTERVAL_MS) return
+        lastHistoryPruneAtMs = now
+        runCatching { sensorDao.deleteOlderThan(now - HISTORY_RETENTION_MS) }
+            .onFailure { debugLog.warn("Repository", "DB prune failed: ${it.message}") }
     }
 
     /**
@@ -801,5 +815,8 @@ class TpmsRepository @Inject constructor(
         private const val RAW_TAG = "TPMS_RAW"
         /** Upper bound on how long one consumer iteration waits for data. */
         private const val RECEIVE_TICK_MS = 1_000L
+        /** Sensor history kept in the database; older readings are deleted. */
+        private const val HISTORY_RETENTION_MS = 30L * 24 * 60 * 60 * 1000
+        private const val HISTORY_PRUNE_INTERVAL_MS = 60L * 60 * 1000
     }
 }

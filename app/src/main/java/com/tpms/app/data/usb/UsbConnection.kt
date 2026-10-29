@@ -57,9 +57,15 @@ class UsbConnection @Inject constructor(
             debugLog.error(TAG, "usbManager.openDevice() returned null")
             return null
         }
-        val claim = when (protocol) {
-            DongleProtocol.HID_GENERIC -> claimHid(conn, device)
-            DongleProtocol.SERIAL_AA55, DongleProtocol.DEELIFE -> claimSerial(conn, device)
+        // A dongle pulled mid-open throws from claim / control transfers: close, never leak the fd.
+        val claim = try {
+            when (protocol) {
+                DongleProtocol.HID_GENERIC -> claimHid(conn, device)
+                DongleProtocol.SERIAL_AA55, DongleProtocol.DEELIFE -> claimSerial(conn, device)
+            }
+        } catch (e: Exception) {
+            debugLog.error(TAG, "Claim threw: ${e.message}")
+            null
         }
         if (claim == null) {
             debugLog.error(TAG, "Failed to claim endpoints for ${protocol.displayName}")
