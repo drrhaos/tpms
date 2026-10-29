@@ -20,6 +20,7 @@ import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
+import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelLayout
@@ -85,6 +86,10 @@ class SettingsViewModel @Inject constructor(
     val showSpareWheel: StateFlow<Boolean> = settingsStore.showSpareWheel
     val minLiveWheelPressure: StateFlow<Float> = settingsStore.minLiveWheelPressureKpa
     val wheelMapping: StateFlow<Map<String, String>> = settingsStore.wheelMapping
+
+    /** Optimistic copy, so quick stepper taps build on each other before the store echoes back. */
+    private val _pressureOffsets = MutableStateFlow(settingsStore.pressureOffsets.value)
+    val pressureOffsets: StateFlow<Map<String, Float>> = _pressureOffsets.asStateFlow()
     val teyesChecklist: StateFlow<TeyesChecklist> = settingsStore.teyesChecklist
     val silentStartup: StateFlow<Boolean> = settingsStore.silentStartup
     val floatingOverlayEnabled: StateFlow<Boolean> = settingsStore.floatingOverlayEnabled
@@ -146,6 +151,9 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsStore.targetPressureKpa.collect { _targetPressureKpa.value = it }
+        }
+        viewModelScope.launch {
+            settingsStore.pressureOffsets.collect { _pressureOffsets.value = it }
         }
         viewModelScope.launch {
             settingsStore.thresholds.collect { _highTemp.value = it.highTempCelsius }
@@ -233,6 +241,13 @@ class SettingsViewModel @Inject constructor(
         val entries = WheelAssignment.swapCross(mappableSensors.value, wheelMapping.value, wheelAssignment.value)
         viewModelScope.launch { settingsStore.setWheelMappings(entries) }
         _message.value = context.getString(R.string.settings_wheels_swapped_cross)
+    }
+
+    /** One stepper click of [sensorId]'s calibration offset; applies from the sensor's next reading. */
+    fun stepPressureOffset(sensorId: String, up: Boolean) {
+        val next = PressureCalibration.stepped(_pressureOffsets.value[sensorId] ?: 0f, pressureUnit.value, up)
+        _pressureOffsets.value = (_pressureOffsets.value - sensorId).let { if (next == 0f) it else it + (sensorId to next) }
+        viewModelScope.launch { settingsStore.setPressureOffset(sensorId, next) }
     }
 
     fun setShowSpareWheel(enabled: Boolean) {
@@ -403,7 +418,8 @@ class SettingsViewModel @Inject constructor(
         preferredUsbVidPid = preferredUsbVidPid.value,
         widgetThemeMode = themeMode.value,
         diagnosticLogEnabled = diagnosticLogEnabled.value,
-        debugToolsEnabled = debugToolsEnabled.value
+        debugToolsEnabled = debugToolsEnabled.value,
+        pressureOffsets = _pressureOffsets.value
     )
 
     fun copySettingsToClipboard() {

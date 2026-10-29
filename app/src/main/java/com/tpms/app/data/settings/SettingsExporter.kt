@@ -1,6 +1,7 @@
 package com.tpms.app.data.settings
 
 import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
@@ -11,7 +12,7 @@ import org.json.JSONObject
 
 object SettingsExporter {
 
-    const val EXPORT_VERSION = 4
+    const val EXPORT_VERSION = 5
 
     fun export(
         pressureUnit: PressureUnit,
@@ -30,7 +31,8 @@ object SettingsExporter {
         preferredUsbVidPid: String? = null,
         widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO,
         diagnosticLogEnabled: Boolean = false,
-        debugToolsEnabled: Boolean = false
+        debugToolsEnabled: Boolean = false,
+        pressureOffsets: Map<String, Float> = emptyMap()
     ): String = JSONObject().apply {
         put("version", EXPORT_VERSION)
         put("pressure_unit", pressureUnit.name)
@@ -60,6 +62,7 @@ object SettingsExporter {
                 put(slot, wheelMapping[slot].orEmpty())
             }
         })
+        put("pressure_offsets", PressureCalibration.toJson(pressureOffsets))
     }.toString(2)
 
     fun import(json: String): ImportedSettings {
@@ -116,7 +119,9 @@ object SettingsExporter {
             debugToolsEnabled = root.optBoolean("debug_tools_enabled", false),
             wheelMapping = slots.associateWith { slot ->
                 wheelMappingJson?.optString(slot, "").orEmpty()
-            }
+            },
+            // Files before version 5 have no calibration: no correction.
+            pressureOffsets = PressureCalibration.fromJson(root.optJSONObject("pressure_offsets"))
         )
     }
 }
@@ -138,7 +143,8 @@ data class ImportedSettings(
     val widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO,
     val diagnosticLogEnabled: Boolean = false,
     val debugToolsEnabled: Boolean = false,
-    val wheelMapping: Map<String, String>
+    val wheelMapping: Map<String, String>,
+    val pressureOffsets: Map<String, Float> = emptyMap()
 )
 
 object SensorValidatorDefaults {

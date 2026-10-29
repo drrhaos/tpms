@@ -20,6 +20,7 @@ import com.tpms.app.data.usb.toHexPreview
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.AlertTracker
 import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.RecoveryState
 import com.tpms.app.domain.SensorFreshness
 import com.tpms.app.domain.UsbFault
@@ -338,6 +339,7 @@ class TpmsRepository @Inject constructor(
         seenSensors = _seenSensors.value,
         aa55EmptySlots = _aa55EmptySlots.value,
         wheelMapping = settingsStore.wheelMapping.value,
+        pressureOffsets = settingsStore.pressureOffsets.value,
         showSpareWheel = settingsStore.showSpareWheel.value,
         settingsUiMode = settingsStore.settingsUiMode.value,
         pressureUnit = settingsStore.pressureUnit.value,
@@ -606,8 +608,10 @@ class TpmsRepository @Inject constructor(
      * applied when it is on a wheel, else null. Caller holds [wheelsLock].
      */
     private fun placeReadingLocked(reading: TireSensor): TireSensor? {
+        // Calibration first: limits, alerts, history and the snapshot all see the corrected pressure.
+        val corrected = PressureCalibration.apply(reading, settingsStore.pressureOffsets.value[reading.id] ?: 0f)
         // Memory for every seen sensor, so one placed later by a settings change shows its alert.
-        val sensor = alertTracker.apply(reading, settingsStore.thresholds.value)
+        val sensor = alertTracker.apply(corrected, settingsStore.thresholds.value)
         _seenSensors.update { it + (sensor.id to sensor) }
         val before = recomputeWheelsLocked(pruneAt = sensor.timestamp)
         val after = _wheels.value

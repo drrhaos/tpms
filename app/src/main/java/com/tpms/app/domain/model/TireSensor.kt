@@ -9,8 +9,12 @@ data class TireSensor(
     val batteryPercent: Int?,
     val alertType: AlertType?,
     val timestamp: Long,
-    val flags: SensorFlags = SensorFlags.NONE
+    val flags: SensorFlags = SensorFlags.NONE,
+    /** Calibration offset already included in [pressureKpa] ([com.tpms.app.domain.PressureCalibration]). */
+    val pressureOffsetKpa: Float = 0f
 ) {
+    /** The pressure as the sensor reported it, before the calibration offset. */
+    val rawPressureKpa: Float get() = pressureKpa - pressureOffsetKpa
     val isAlert: Boolean get() = alertType != null
     val isLowBattery: Boolean get() = flags.lowBattery || alertType == AlertType.BATTERY_LOW
 }

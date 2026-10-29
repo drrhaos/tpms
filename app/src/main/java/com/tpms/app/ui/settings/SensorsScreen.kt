@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
+import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
@@ -39,6 +40,7 @@ fun SensorsScreen(
     val mappableSensors by viewModel.mappableSensors.collectAsState()
     val wheelAssignment by viewModel.wheelAssignment.collectAsState()
     val showSpareWheel by viewModel.showSpareWheel.collectAsState()
+    val pressureOffsets by viewModel.pressureOffsets.collectAsState()
     val message by viewModel.message.collectAsState()
 
     SettingsPage(
@@ -86,7 +88,60 @@ fun SensorsScreen(
                 onCheckedChange = viewModel::setShowSpareWheel
             )
         }
+        val calibratable = WheelLayout.allSlots(showSpareWheel).mapNotNull { slot ->
+            wheelAssignment[slot]?.let { slot to it }
+        }
+        if (calibratable.isNotEmpty()) {
+            settingsSection(
+                title = R.string.settings_sensor_calibration,
+                footer = R.string.settings_sensor_calibration_footer
+            ) {
+                calibratable.forEachIndexed { index, (slot, sensor) ->
+                    if (index > 0) SettingsGroupDivider()
+                    PressureOffsetRow(
+                        slot = slot,
+                        sensor = sensor,
+                        offsetKpa = pressureOffsets[sensor.id] ?: 0f,
+                        unit = pressureUnit,
+                        onStep = { up -> viewModel.stepPressureOffset(sensor.id, up) }
+                    )
+                }
+            }
+        }
     }
+}
+
+/**
+ * One wheel's calibration: the offset with − / +, and what the sensor reports next to the corrected
+ * value with the offset as set now (the shown pressures elsewhere follow from the next reading).
+ */
+@Composable
+private fun PressureOffsetRow(
+    slot: String,
+    sensor: TireSensor,
+    offsetKpa: Float,
+    unit: PressureUnit,
+    onStep: (up: Boolean) -> Unit
+) {
+    val raw = sensor.rawPressureKpa
+    val description = if (raw.isFinite()) {
+        stringResource(
+            R.string.settings_sensor_calibration_preview,
+            sensor.id,
+            PressureCalibration.format(raw, unit),
+            PressureCalibration.format(raw + offsetKpa, unit),
+            unit.localizedLabel()
+        )
+    } else {
+        sensor.id
+    }
+    SettingsStepperRow(
+        label = wheelPositionLabel(slot),
+        description = description,
+        value = "${PressureCalibration.formatOffset(offsetKpa, unit)} ${unit.localizedLabel()}",
+        onDecrease = { onStep(false) },
+        onIncrease = { onStep(true) }
+    )
 }
 
 @Composable

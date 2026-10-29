@@ -309,6 +309,9 @@
     <string name="settings_appearance_light">Светлое</string>
     <string name="settings_wheels_swapped">%1$s ↔ %2$s: датчики поменяны местами</string>
     <string name="settings_wheels_swap_hint">Нажмите двойную стрелку, чтобы поменять датчики двух колёс местами — как при перестановке шин.</string>
+    <string name="settings_sensor_calibration">Калибровка датчиков</string>
+    <string name="settings_sensor_calibration_footer">Проверьте шину точным манометром и поправьте датчик на разницу. Поправка принадлежит датчику и переезжает вместе с ним при перестановке шин; применяется со следующего показания датчика. До ±1 бар.</string>
+    <string name="settings_sensor_calibration_preview">%1$s · датчик %2$s → %3$s %4$s</string>
     <string name="settings_wheels_swapped_cross">Датчики переставлены крест-накрест</string>
     <string name="settings_wheels_swap_cross_action">Переставить крест-накрест</string>
     <string name="settings_wheels_swap_action">%1$s ↔ %2$s</string>
