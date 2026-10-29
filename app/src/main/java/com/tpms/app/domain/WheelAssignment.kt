@@ -102,6 +102,14 @@ object WheelAssignment {
         return mapOf(a to entry(a, onB), b to entry(b, onA))
     }
 
+    /** Cross rotation: FL ↔ RR and FR ↔ RL at once, both pairs read from the same state. */
+    fun swapCross(
+        seen: Map<String, TireSensor>,
+        wheelMapping: Map<String, String>,
+        wheels: Map<String, TireSensor>
+    ): Map<String, String> =
+        swap(seen, wheelMapping, wheels, "FL", "RR") + swap(seen, wheelMapping, wheels, "FR", "RL")
+
     /** Ids explicitly mapped to any slot, whether or not the slot is shown. */
     private fun mappedIds(wheelMapping: Map<String, String>): Set<String> =
         WheelLayout.allSlots(showSpareWheel = true)

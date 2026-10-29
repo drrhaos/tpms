@@ -287,4 +287,17 @@ class WheelAssignmentTest {
         assertEquals(mapOf("FR" to "D4E5F6", "RR" to "A1B2C3"), entries)
         assertEquals(mapOf("FR" to "D4E5F6", "RR" to "A1B2C3"), wheels)
     }
+
+    @Test
+    fun swapCross_exchangesBothDiagonals() {
+        val sensors = seen(aa55("FL"), aa55("FR"), aa55("RL"), aa55("RR"))
+        val wheels = WheelAssignment.assign(sensors, emptyMap(), showSpareWheel = false)
+
+        val entries = WheelAssignment.swapCross(sensors, emptyMap(), wheels)
+        val after = WheelAssignment.assign(sensors, entries, showSpareWheel = false).ids()
+
+        assertEquals(mapOf("FL" to "RR", "FR" to "RL", "RL" to "FR", "RR" to "FL"), after)
+        val back = WheelAssignment.swapCross(sensors, entries, WheelAssignment.assign(sensors, entries, false))
+        assertEquals(mapOf("FL" to "", "RR" to "", "FR" to "", "RL" to ""), back)
+    }
 }

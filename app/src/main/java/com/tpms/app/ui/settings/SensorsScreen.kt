@@ -51,7 +51,8 @@ fun SensorsScreen(
             WheelSwapDiagram(
                 wheels = wheelAssignment,
                 unit = pressureUnit,
-                onSwap = viewModel::swapWheels
+                onSwap = viewModel::swapWheels,
+                onSwapCross = viewModel::swapWheelsCross
             )
         }
         settingsSection(

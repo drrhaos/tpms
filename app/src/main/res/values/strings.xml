@@ -309,6 +309,8 @@
     <string name="settings_appearance_light">Light</string>
     <string name="settings_wheels_swapped">%1$s ↔ %2$s: sensors swapped</string>
     <string name="settings_wheels_swap_hint">Tap a double arrow to swap the sensors of two wheels, as when you rotate the tyres.</string>
+    <string name="settings_wheels_swapped_cross">Sensors swapped crosswise</string>
+    <string name="settings_wheels_swap_cross_action">Swap crosswise</string>
     <string name="settings_wheels_swap_action">%1$s ↔ %2$s</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_system">System</string>

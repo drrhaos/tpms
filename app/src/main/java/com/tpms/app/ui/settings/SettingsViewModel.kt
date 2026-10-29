@@ -228,6 +228,13 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
+    /** Cross rotation (FL ↔ RR, FR ↔ RL) in one write; a second tap swaps back. */
+    fun swapWheelsCross() {
+        val entries = WheelAssignment.swapCross(mappableSensors.value, wheelMapping.value, wheelAssignment.value)
+        viewModelScope.launch { settingsStore.setWheelMappings(entries) }
+        _message.value = context.getString(R.string.settings_wheels_swapped_cross)
+    }
+
     fun setShowSpareWheel(enabled: Boolean) {
         viewModelScope.launch { settingsStore.setShowSpareWheel(enabled) }
     }

@@ -37,14 +37,6 @@ internal val WHEEL_SPOTS = listOf(
     WheelSpot("FL", R.drawable.car_3d_wheel_fl, Offset(0.708f, 0.882f))
 )
 
-/** Wheel hubs as fractions of the car image (post.py output): where the swap arrows start and end. */
-internal val WHEEL_HUBS = mapOf(
-    "FL" to Offset(0.438f, 0.721f),
-    "FR" to Offset(0.175f, 0.563f),
-    "RL" to Offset(0.737f, 0.340f),
-    "RR" to Offset(0.494f, 0.222f)
-)
-
 /** Stage layout in dp: the car's rect, the reading size; shared by [CarTopDown] and the widget. */
 internal data class StageGeometry(val compact: Boolean, val pressureSp: Float, val car: Rect, val readingW: Float, val readingH: Float)
 
