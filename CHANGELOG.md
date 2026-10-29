@@ -29,6 +29,8 @@ All notable changes to TPMS Monitor. Versions follow the release tags (`vX.Y.Z`)
 - Wake on screen-on with suspend detection; diagnosis of a service killed during head-unit sleep.
 - USB permission requested once per dongle appearance (with a grace period), quiet "no permission" notification; USB attach through an invisible trampoline activity.
 - Wheel placement by receiver label or HID id with per-wheel mapping; AA55 empty slots; stale-data indication per wheel and per connection.
+- Android 15: the monitoring service runs as a connected-device service, so it is no longer stopped after 6 hours a day.
+- Sensor history in the database is kept for 30 days instead of growing without limit.
 
 ## [1.1.4a2] and earlier
 
