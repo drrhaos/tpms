@@ -8,10 +8,14 @@ Android app for continuous tire pressure monitoring via generic USB TPMS dongles
 
 ## Features
 
+- **Vehicle status screen** — an x-ray car on the road, each tyre tinted by its state (green / amber / red / grey) with pressure and temperature beside it; alert banner with advice; dark, light or automatic appearance
 - **USB dongle support** — HID, Serial `0x55AA`, and Deelife / MU7J protocols (auto-detected)
 - **Background monitoring** — foreground service with reconnect on USB detach, boot auto-start, and liveness checks
+- **Recommended pressure** — set one target pressure (or accept the current pressures as the norm); low / high limits follow it (80 % / 135 %)
 - **Alerts** — low/high pressure, high temperature, low sensor battery, signal lost
-- **Widgets** — dashboard and compact home-screen widgets (when the launcher supports pinning)
+- **Sensors** — swap the sensors of two wheels with one tap after a tyre rotation, or pick a sensor per wheel by its live pressure
+- **Widgets** — the same car scene as a home-screen widget, plus a compact widget (when the launcher supports pinning)
+- **Languages** — English and Russian, switchable in Settings (system default otherwise)
 - **History** — local Room database for sensor readings
 - **Diagnostics** — export logs and settings for troubleshooting
 - **Teyes integration** — extended onboarding, FrontApp launcher widgets, wake escalation, and USB sleep recovery
@@ -112,13 +116,17 @@ Tag format: `vX.Y.Z` (e.g. `v1.2.0`, not `v.1.2.0`). The [Release workflow](.git
 ./gradlew :app:assembleDebug        # debug APK
 ```
 
-Key source paths: `service/TpmsMonitorService.kt`, `data/usb/TpmsProtocolRouter.kt`, `data/repository/TpmsRepository.kt`, `ui/onboarding/OnboardingScreen.kt`.
+Key source paths: `service/TpmsMonitorService.kt`, `data/usb/TpmsProtocolRouter.kt`, `data/repository/TpmsRepository.kt`, `ui/main/CarTopDown.kt` (main screen scene), `ui/widget/WidgetCarRenderer.kt` (car widget), `ui/onboarding/OnboardingScreen.kt`.
+
+### Car renders
+
+The car images in `app/src/main/res/drawable-nodpi/car_3d_*.webp` are rendered in Blender by the scripts in [tools/car_render](tools/car_render/README.md). The 3D model and the HDRI are not in the repository; the README there lists where to get them.
 
 ### USB debugging
 
 ```bash
 adb shell dumpsys usb
-adb logcat -s TPMS_HID TPMS_RAW TPMS_WIDGET WakeEscalation
+adb logcat -s TPMS_HID TPMS_RAW TPMS_WIDGET BootReceiver
 ```
 
 ### Teyes emulator profile
@@ -128,3 +136,7 @@ See [tools/README.md](tools/README.md) for an AVD profile that approximates a Te
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Car model: ["Generic Sedan Car"](https://sketchfab.com/3d-models/generic-sedan-car-58c33766470d46e7b2aed542650494e5) by MMC Works, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); rendered images derived from it. Studio HDRI: "Studio Small 09" by Poly Haven (CC0).
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.

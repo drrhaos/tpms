@@ -1,44 +1,25 @@
 package com.tpms.app.ui.widget
 
 import android.content.Context
-import android.view.View
 import android.widget.RemoteViews
+import androidx.compose.ui.graphics.toArgb
 import com.tpms.app.R
+import com.tpms.app.ui.theme.DarkPalette
+import com.tpms.app.ui.theme.LightPalette
 
 internal data class TireViewIds(
     val label: Int,
     val pressure: Int,
     val temperature: Int? = null,
-    val card: Int? = null,
-    val batteryIcon: Int? = null,
     val battery: Int? = null,
     val indicator: Int? = null
 )
 
 internal object WidgetRemoteViews {
 
-    private val WIDGET_CAR_SLOTS = mapOf(
-        "FL" to TireViewIds(
-            R.id.widget_fl_label, R.id.widget_fl_pressure,
-            R.id.widget_fl_temp, R.id.widget_fl_card, R.id.widget_fl_battery
-        ),
-        "FR" to TireViewIds(
-            R.id.widget_fr_label, R.id.widget_fr_pressure,
-            R.id.widget_fr_temp, R.id.widget_fr_card, R.id.widget_fr_battery
-        ),
-        "RL" to TireViewIds(
-            R.id.widget_rl_label, R.id.widget_rl_pressure,
-            R.id.widget_rl_temp, R.id.widget_rl_card, R.id.widget_rl_battery
-        ),
-        "RR" to TireViewIds(
-            R.id.widget_rr_label, R.id.widget_rr_pressure,
-            R.id.widget_rr_temp, R.id.widget_rr_card, R.id.widget_rr_battery
-        ),
-        "SP" to TireViewIds(
-            R.id.widget_sp_label, R.id.widget_sp_pressure,
-            R.id.widget_sp_temp, R.id.widget_sp_card, R.id.widget_sp_battery
-        )
-    )
+    /** widget_tpms_car.xml: 10 dp padding each side; 8 + 4 dp padding and a ~18 dp status line. */
+    private const val CAR_PADDING_H_DP = 20f
+    private const val CAR_PADDING_V_DP = 30f
 
     private val WIDGET_COMPACT_SLOTS = listOf(
         TireViewIds(
@@ -73,10 +54,20 @@ internal object WidgetRemoteViews {
         TireViewIds(R.id.notif_expanded_rr_label, R.id.notif_expanded_rr_pressure, indicator = R.id.notif_expanded_rr_indicator)
     )
 
-    fun forWidgetCar(context: Context, snapshot: WidgetSnapshot): RemoteViews {
+    /** [widthDp] × [heightDp]: the widget's size on the home screen (the scene is drawn to fit). */
+    fun forWidgetCar(context: Context, snapshot: WidgetSnapshot, widthDp: Float, heightDp: Float): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_tpms_car)
         applyTheme(views, snapshot.useLightTheme)
-        bindCarSnapshot(views, snapshot)
+        val muted = (if (snapshot.useLightTheme) LightPalette else DarkPalette).onSurfaceMuted.toArgb()
+        views.setTextViewText(R.id.widget_status, snapshot.connectionStatus)
+        views.setTextColor(R.id.widget_status, muted)
+        views.setTextViewText(R.id.widget_unit, snapshot.unitLabel)
+        views.setTextColor(R.id.widget_unit, muted)
+        // The scene sits under the status line, inside the container padding.
+        val sceneW = (widthDp - CAR_PADDING_H_DP).coerceAtLeast(1f)
+        val sceneH = (heightDp - CAR_PADDING_V_DP).coerceAtLeast(1f)
+        views.setImageViewBitmap(R.id.widget_car, WidgetCarRenderer.render(context, snapshot, sceneW, sceneH))
+        views.setContentDescription(R.id.widget_car, summaryLine(snapshot))
         return views
     }
 
@@ -84,6 +75,7 @@ internal object WidgetRemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_tpms_compact)
         applyTheme(views, snapshot.useLightTheme)
         bindSnapshot(
+            context = context,
             views = views,
             snapshot = snapshot,
             tireSlots = WIDGET_COMPACT_SLOTS,
@@ -96,13 +88,10 @@ internal object WidgetRemoteViews {
         return views
     }
 
-    /** @deprecated use [forWidgetCar] */
-    fun forWidget(context: Context, snapshot: WidgetSnapshot): RemoteViews =
-        forWidgetCar(context, snapshot)
-
     fun forNotificationCollapsed(context: Context, snapshot: WidgetSnapshot): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.notification_tpms_collapsed)
         bindSnapshot(
+            context = context,
             views = views,
             snapshot = snapshot,
             tireSlots = NOTIF_COLLAPSED_SLOTS,
@@ -123,6 +112,7 @@ internal object WidgetRemoteViews {
         val views = RemoteViews(context.packageName, R.layout.notification_tpms_expanded)
         views.setTextViewText(R.id.notif_expanded_status, statusLine)
         bindSnapshot(
+            context = context,
             views = views,
             snapshot = snapshot,
             tireSlots = NOTIF_EXPANDED_SLOTS,
@@ -151,49 +141,8 @@ internal object WidgetRemoteViews {
         )
     }
 
-    private fun bindCarSnapshot(views: RemoteViews, snapshot: WidgetSnapshot) {
-        val muted = if (snapshot.useLightTheme) 0xFF5A6570.toInt() else 0xFF8FA3BC.toInt()
-
-        views.setTextViewText(R.id.widget_status, snapshot.connectionStatus)
-        views.setTextColor(R.id.widget_status, muted)
-        views.setTextViewText(R.id.widget_unit, snapshot.unitLabel)
-        views.setTextColor(R.id.widget_unit, muted)
-
-        val hasSpare = snapshot.tires.any { it.label == "SP" }
-        views.setViewVisibility(R.id.widget_sp_row, if (hasSpare) View.VISIBLE else View.GONE)
-
-        snapshot.tires.forEach { tire ->
-            val ids = WIDGET_CAR_SLOTS[tire.label] ?: return@forEach
-            bindCarWheel(views, ids, tire, muted)
-        }
-    }
-
-    private fun bindCarWheel(
-        views: RemoteViews,
-        ids: TireViewIds,
-        tire: WidgetTireSlot,
-        muted: Int
-    ) {
-        val accent = accentColor(tire.status)
-        val labelColor = blendAlpha(accent, 0xBF)
-
-        views.setTextViewText(ids.label, tire.label)
-        views.setTextColor(ids.label, labelColor)
-        views.setTextViewText(ids.pressure, tire.pressureText)
-        views.setTextColor(ids.pressure, accent)
-        ids.temperature?.let {
-            views.setTextViewText(it, tire.temperatureText)
-            views.setTextColor(it, muted)
-        }
-        ids.card?.let {
-            views.setInt(it, "setBackgroundResource", cardDrawable(tire.status))
-        }
-        ids.batteryIcon?.let {
-            views.setImageViewResource(it, batteryDrawable(tire))
-        }
-    }
-
     private fun bindSnapshot(
+        context: Context,
         views: RemoteViews,
         snapshot: WidgetSnapshot,
         tireSlots: List<TireViewIds>,
@@ -203,8 +152,9 @@ internal object WidgetRemoteViews {
         showDetails: Boolean,
         useLightTheme: Boolean
     ) {
-        val muted = if (useLightTheme) 0xFF5A6570.toInt() else 0xFF8FA3BC.toInt()
-        val primary = if (useLightTheme) 0xFF1A2332.toInt() else 0xFFE8EDF4.toInt()
+        val palette = if (useLightTheme) LightPalette else DarkPalette
+        val muted = palette.onSurfaceMuted.toArgb()
+        val primary = palette.onBackground.toArgb()
 
         statusId?.let {
             views.setTextViewText(it, snapshot.connectionStatus)
@@ -217,10 +167,10 @@ internal object WidgetRemoteViews {
 
         snapshot.tires.forEachIndexed { index, tire ->
             val ids = tireSlots.getOrNull(index) ?: return@forEachIndexed
-            views.setTextViewText(ids.label, tire.label)
+            views.setTextViewText(ids.label, withStaleCaption(context, tire.label, tire))
             views.setTextColor(ids.label, muted)
             views.setTextViewText(ids.pressure, tire.pressureText)
-            views.setTextColor(ids.pressure, primary)
+            views.setTextColor(ids.pressure, if (tire.muted) muted else primary)
             if (showDetails) {
                 ids.temperature?.let {
                     views.setTextViewText(it, tire.temperatureText)
@@ -233,38 +183,15 @@ internal object WidgetRemoteViews {
             }
             if (showIndicators) {
                 ids.indicator?.let {
-                    views.setImageViewResource(it, indicatorDrawable(tire.status))
+                    views.setImageViewResource(it, indicatorDrawable(tire.displayStatus))
                 }
             }
         }
     }
 
-    private fun cardDrawable(status: WidgetTireStatus): Int = when (status) {
-        WidgetTireStatus.OK -> R.drawable.widget_wheel_card_ok
-        WidgetTireStatus.WARNING -> R.drawable.widget_wheel_card_warning
-        WidgetTireStatus.ALERT -> R.drawable.widget_wheel_card_alert
-        WidgetTireStatus.EMPTY -> R.drawable.widget_wheel_card_empty
-    }
-
-    private fun accentColor(status: WidgetTireStatus): Int = when (status) {
-        WidgetTireStatus.OK -> 0xFF00E676.toInt()
-        WidgetTireStatus.WARNING -> 0xFFFFB300.toInt()
-        WidgetTireStatus.ALERT -> 0xFFFF5252.toInt()
-        WidgetTireStatus.EMPTY -> 0xFF607D8B.toInt()
-    }
-
-    private fun blendAlpha(color: Int, alpha: Int): Int =
-        (color and 0x00FFFFFF) or (alpha shl 24)
-
-    private fun batteryDrawable(tire: WidgetTireSlot): Int {
-        val percent = tire.batteryPercent
-        return when {
-            percent == null -> R.drawable.widget_battery_unknown
-            tire.isLowBattery -> R.drawable.widget_battery_low
-            percent <= 20 -> R.drawable.widget_battery_warning
-            else -> R.drawable.widget_battery_ok
-        }
-    }
+    /** Appends the stale wheel's "N min" caption to [text]. */
+    private fun withStaleCaption(context: Context, text: String, tire: WidgetTireSlot): String =
+        tire.staleMinutes?.let { context.getString(R.string.wheel_stale_caption_format, text, it) } ?: text
 
     private fun indicatorDrawable(status: WidgetTireStatus): Int = when (status) {
         WidgetTireStatus.OK -> R.drawable.widget_indicator_ok

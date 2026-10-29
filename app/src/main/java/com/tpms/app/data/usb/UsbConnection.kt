@@ -8,77 +8,16 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.domain.model.DongleProtocol
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Finds and opens dongles. Reading is owned by [DongleSession]. */
 @Singleton
 class UsbConnection @Inject constructor(
     private val usbManager: UsbManager,
     private val debugLog: UsbDebugLog,
     private val settingsStore: SettingsStore
 ) {
-    private val usbLock = Any()
-
-    private var connection: UsbDeviceConnection? = null
-    private var connectedDeviceName: String? = null
-    private var connectedVendorId: Int = -1
-    private var connectedProductId: Int = -1
-    private val claimedInterfaces = mutableListOf<UsbInterface>()
-    private var inEndpoint: UsbEndpoint? = null
-    private var outEndpoint: UsbEndpoint? = null
-    private var activeTransport: UsbTransport? = null
-
-    val isConnected: Boolean
-        get() = synchronized(usbLock) { connection != null }
-
-    fun connectedVidPid(): String? = synchronized(usbLock) {
-        if (connectedVendorId < 0) null
-        else "%04X:%04X".format(connectedVendorId, connectedProductId)
-    }
-
-    fun isSameDevice(device: UsbDevice): Boolean = synchronized(usbLock) {
-        connection != null &&
-            connectedVendorId == device.vendorId &&
-            connectedProductId == device.productId
-    }
-
-    /** True if our open device still appears in the current USB device list (by path or VID:PID). */
-    fun isOpenDevicePresent(): Boolean {
-        synchronized(usbLock) {
-            if (connection == null) return false
-        }
-        return try {
-            val list = usbManager.deviceList
-            val name = connectedDeviceName
-            if (name != null && list.containsKey(name)) return true
-            if (connectedVendorId < 0) return false
-            list.values.any {
-                it.vendorId == connectedVendorId && it.productId == connectedProductId
-            }
-        } catch (_: Throwable) {
-            false
-        }
-    }
-
-    /**
-     * Quick bulk-transfer probe. Returns true when the link is still alive (>= 0 bytes or timeout),
-     * false when the kernel reports a dead endpoint (-1).
-     */
-    fun probe(timeoutMs: Int = 200): Boolean = synchronized(usbLock) {
-        val conn = connection ?: return false
-        val ep = inEndpoint ?: return false
-        val buf = ByteArray(ep.maxPacketSize.coerceAtLeast(64))
-        return try {
-            conn.bulkTransfer(ep, buf, buf.size, timeoutMs) >= 0
-        } catch (_: Throwable) {
-            false
-        }
-    }
-
     fun findDongle(detector: DongleDetector): UsbDevice? =
         try {
             detector.findDongle(
@@ -98,169 +37,89 @@ class UsbConnection @Inject constructor(
             emptyList()
         }
 
-    fun open(device: UsbDevice, protocol: DongleProtocol): Boolean = synchronized(usbLock) {
+    /** True while a device with this path is enumerated. A re-enumerated dongle gets a new path. */
+    fun isDevicePresent(deviceName: String): Boolean =
+        try {
+            usbManager.deviceList.containsKey(deviceName)
+        } catch (_: Throwable) {
+            false
+        }
+
+    fun open(device: UsbDevice, protocol: DongleProtocol): UsbLink? {
         if (!hasPermission(device)) {
             debugLog.warn(TAG, "No USB permission for ${UsbDeviceInfo.shortLabel(device)}")
-            return false
+            return null
         }
-        closeLocked()
         debugLog.usb(TAG, "Opening ${UsbDeviceInfo.shortLabel(device)} as ${protocol.displayName}")
         debugLog.usb(TAG, UsbDeviceInfo.describe(device))
 
         val conn = usbManager.openDevice(device) ?: run {
             debugLog.error(TAG, "usbManager.openDevice() returned null")
-            return false
+            return null
         }
-
-        val transport = when (protocol) {
-            DongleProtocol.HID_GENERIC -> UsbTransport.HID
-            DongleProtocol.SERIAL_AA55, DongleProtocol.DEELIFE -> UsbTransport.SERIAL
+        val claim = when (protocol) {
+            DongleProtocol.HID_GENERIC -> claimHid(conn, device)
+            DongleProtocol.SERIAL_AA55, DongleProtocol.DEELIFE -> claimSerial(conn, device)
         }
-
-        val opened = when (transport) {
-            UsbTransport.HID -> openHid(conn, device)
-            UsbTransport.SERIAL -> openSerial(conn, device)
-        }
-
-        if (!opened) {
+        if (claim == null) {
             debugLog.error(TAG, "Failed to claim endpoints for ${protocol.displayName}")
             try {
                 conn.close()
             } catch (_: Throwable) {}
-            return false
+            return null
         }
-
-        connection = conn
-        connectedDeviceName = device.deviceName
-        connectedVendorId = device.vendorId
-        connectedProductId = device.productId
-        activeTransport = transport
-        debugLog.info(
-            TAG,
-            "Connected via $activeTransport, inEp=${inEndpoint?.address}, outEp=${outEndpoint?.address}"
+        debugLog.info(TAG, "Connected, inEp=${claim.inEndpoint.address}, outEp=${claim.outEndpoint?.address}")
+        return UsbLink(
+            connection = conn,
+            deviceName = device.deviceName,
+            vendorId = device.vendorId,
+            productId = device.productId,
+            inEndpoint = claim.inEndpoint,
+            outEndpoint = claim.outEndpoint,
+            interfaces = claim.interfaces
         )
-        true
     }
 
-    @Volatile
-    var onReadTimeout: (() -> Unit)? = null
+    private class Claim(
+        val inEndpoint: UsbEndpoint,
+        val outEndpoint: UsbEndpoint?,
+        val interfaces: List<UsbInterface>
+    )
 
-    suspend fun read(timeoutMs: Long = READ_TIMEOUT_MS): ByteArray? = withContext(Dispatchers.IO) {
-        val snapshot = synchronized(usbLock) {
-            val conn = connection ?: return@withContext null
-            val ep = inEndpoint ?: return@withContext null
-            ReadSnapshot(conn, ep, ep.maxPacketSize.coerceAtLeast(64))
-        }
-        try {
-            withTimeout(timeoutMs + READ_TIMEOUT_MARGIN_MS) {
-                val buf = ByteArray(snapshot.bufSize)
-                val read = snapshot.connection.bulkTransfer(
-                    snapshot.endpoint,
-                    buf,
-                    buf.size,
-                    timeoutMs.toInt()
-                )
-                when {
-                    read > 0 -> {
-                        val data = buf.copyOf(read)
-                        val hex = data.toHexPreview()
-                        debugLog.raw(TAG, "RX ${data.size}b: $hex")
-                        data
-                    }
-                    read == 0 -> {
-                        debugLog.warn(TAG, "bulkTransfer returned 0 bytes")
-                        null
-                    }
-                    else -> {
-                        debugLog.warn(TAG, "bulkTransfer failed: $read")
-                        null
-                    }
-                }
-            }
-        } catch (e: TimeoutCancellationException) {
-            debugLog.error(TAG, "Coroutine timeout on bulkTransfer — forcing close")
-            onReadTimeout?.invoke()
-            close()
-            null
-        } catch (e: Exception) {
-            debugLog.error(TAG, "Read error: ${e.message}")
-            null
-        }
-    }
-
-    suspend fun write(data: ByteArray, timeoutMs: Long = WRITE_TIMEOUT_MS): Boolean =
-        withContext(Dispatchers.IO) {
-            synchronized(usbLock) {
-                val conn = connection ?: return@withContext false
-                val ep = outEndpoint ?: return@withContext false
-                try {
-                    val written = conn.bulkTransfer(ep, data, data.size, timeoutMs.toInt())
-                    val ok = written == data.size
-                    val hex = data.toHexPreview()
-                    debugLog.raw(TAG, "TX ${if (ok) "OK" else "FAIL"} ${data.size}b: $hex")
-                    ok
-                } catch (e: Exception) {
-                    debugLog.error(TAG, "Write error: ${e.message}")
-                    false
-                }
+    private fun claimSerial(conn: UsbDeviceConnection, device: UsbDevice): Claim? {
+        if (Ch340Initializer.isCh340Device(device)) {
+            claimVendorSerial(conn, device)?.let {
+                debugLog.usb(TAG, "Opened as CH340 vendor serial")
+                return it
             }
         }
-
-    fun close() = synchronized(usbLock) {
-        closeLocked()
-    }
-
-    private fun closeLocked() {
-        if (connection != null) debugLog.info(TAG, "USB connection closed")
-        try {
-            claimedInterfaces.forEach { iface ->
-                try {
-                    connection?.releaseInterface(iface)
-                } catch (_: Throwable) {}
-            }
-            connection?.close()
-        } catch (_: Throwable) {}
-        connection = null
-        connectedDeviceName = null
-        connectedVendorId = -1
-        connectedProductId = -1
-        claimedInterfaces.clear()
-        inEndpoint = null
-        outEndpoint = null
-        activeTransport = null
-    }
-
-    private fun openSerial(conn: UsbDeviceConnection, device: UsbDevice): Boolean {
-        if (Ch340Initializer.isCh340Device(device) && openVendorSerial(conn, device)) {
-            debugLog.usb(TAG, "Opened as CH340 vendor serial")
-            return true
-        }
-        if (openCdcSerial(conn, device)) {
+        claimCdcSerial(conn, device)?.let {
             debugLog.usb(TAG, "Opened as CDC-ACM serial")
-            return true
+            return it
         }
-        if (openVendorSerial(conn, device)) {
+        claimVendorSerial(conn, device)?.let {
             debugLog.usb(TAG, "Opened as vendor bulk serial")
-            return true
+            return it
         }
         debugLog.error(TAG, "Serial open failed: no CDC or vendor bulk interface")
-        return false
+        return null
     }
 
-    private fun openHid(conn: UsbDeviceConnection, device: UsbDevice): Boolean {
-        val iface = findHidInterface(device) ?: return false
-        val endpoint = findBulkInEndpoint(iface) ?: findInterruptInEndpoint(iface) ?: return false
+    private fun claimHid(conn: UsbDeviceConnection, device: UsbDevice): Claim? {
+        val iface = findHidInterface(device) ?: return null
+        val endpoint = findBulkInEndpoint(iface) ?: findInterruptInEndpoint(iface) ?: return null
         if (!conn.claimInterface(iface, true)) {
             debugLog.error(TAG, "HID claimInterface failed")
-            return false
+            return null
         }
-        claimedInterfaces.add(iface)
-        inEndpoint = endpoint
-        outEndpoint = findBulkOutEndpoint(iface) ?: findInterruptOutEndpoint(iface)
-        return true
+        return Claim(
+            inEndpoint = endpoint,
+            outEndpoint = findBulkOutEndpoint(iface) ?: findInterruptOutEndpoint(iface),
+            interfaces = listOf(iface)
+        )
     }
 
-    private fun openCdcSerial(conn: UsbDeviceConnection, device: UsbDevice): Boolean {
+    private fun claimCdcSerial(conn: UsbDeviceConnection, device: UsbDevice): Claim? {
         var commIface: UsbInterface? = null
         var dataIface: UsbInterface? = null
 
@@ -271,24 +130,24 @@ class UsbConnection @Inject constructor(
                 USB_CLASS_CDC_DATA -> dataIface = iface
             }
         }
+        val data = dataIface ?: return null
+        val inEp = findBulkInEndpoint(data) ?: return null
 
-        if (dataIface == null) return false
-        val iface = dataIface
-
+        val claimed = mutableListOf<UsbInterface>()
         commIface?.let {
-            if (!conn.claimInterface(it, true)) return false
-            claimedInterfaces.add(it)
+            if (!conn.claimInterface(it, true)) return null
+            claimed.add(it)
             setLineCoding(conn, it, SERIAL_BAUD_RATE)
         }
-        if (!conn.claimInterface(iface, true)) return false
-        claimedInterfaces.add(iface)
-
-        inEndpoint = findBulkInEndpoint(iface) ?: return false
-        outEndpoint = findBulkOutEndpoint(iface)
-        return true
+        if (!conn.claimInterface(data, true)) {
+            claimed.forEach { runCatching { conn.releaseInterface(it) } }
+            return null
+        }
+        claimed.add(data)
+        return Claim(inEp, findBulkOutEndpoint(data), claimed)
     }
 
-    private fun openVendorSerial(conn: UsbDeviceConnection, device: UsbDevice): Boolean {
+    private fun claimVendorSerial(conn: UsbDeviceConnection, device: UsbDevice): Claim? {
         for (i in 0 until device.interfaceCount) {
             val iface = device.getInterface(i)
             val inEp = findBulkInEndpoint(iface) ?: continue
@@ -296,17 +155,13 @@ class UsbConnection @Inject constructor(
                 debugLog.warn(TAG, "claimInterface(${iface.id}) failed")
                 continue
             }
-            claimedInterfaces.add(iface)
-            inEndpoint = inEp
-            outEndpoint = findBulkOutEndpoint(iface)
-
             if (Ch340Initializer.isCh340Device(device)) {
                 val configured = Ch340Initializer.configure(conn, iface, SERIAL_BAUD_RATE)
                 debugLog.usb(TAG, "CH340 init ${if (configured) "OK" else "FAILED"}")
             }
-            return true
+            return Claim(inEp, findBulkOutEndpoint(iface), listOf(iface))
         }
-        return false
+        return null
     }
 
     private fun findHidInterface(device: UsbDevice): UsbInterface? {
@@ -360,19 +215,8 @@ class UsbConnection @Inject constructor(
         } catch (_: Throwable) {}
     }
 
-    private enum class UsbTransport { HID, SERIAL }
-
-    private data class ReadSnapshot(
-        val connection: UsbDeviceConnection,
-        val endpoint: UsbEndpoint,
-        val bufSize: Int
-    )
-
     companion object {
         private const val TAG = "UsbConnection"
-        const val READ_TIMEOUT_MS = 3000L
-        private const val READ_TIMEOUT_MARGIN_MS = 500L
-        private const val WRITE_TIMEOUT_MS = 1000L
         private const val SERIAL_BAUD_RATE = 19200
         private const val USB_CLASS_CDC_DATA = 0x0A
         private const val USB_CLASS_COMM = 0x02

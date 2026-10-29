@@ -26,20 +26,21 @@ fun SensorBatteryIcon(
     height: Dp = 28.dp
 ) {
     val unknown = stringResource(R.string.value_no_data_battery)
-    val description = if (batteryPercent != null) {
-        stringResource(R.string.detail_battery) + ": $batteryPercent%"
-    } else {
-        unknown
+    val description = when {
+        batteryPercent != null -> stringResource(R.string.detail_battery) + ": $batteryPercent%"
+        isLowBattery -> stringResource(R.string.detail_battery) + ": " +
+            stringResource(R.string.alert_short_low_battery)
+        else -> unknown
     }
 
     val outlineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
     val fillColor = when {
-        batteryPercent == null -> outlineColor.copy(alpha = 0.25f)
         isLowBattery -> MaterialTheme.colorScheme.error
+        batteryPercent == null -> outlineColor.copy(alpha = 0.25f)
         batteryPercent <= 20 -> StatusColors.warning
         else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
     }
-    val level = batteryPercent?.coerceIn(0, 100)?.div(100f) ?: 0f
+    val level = batteryPercent?.coerceIn(0, 100)?.div(100f) ?: if (isLowBattery) LOW_LEVEL_UNKNOWN_PERCENT else 0f
 
     Canvas(
         modifier = modifier
@@ -82,3 +83,6 @@ fun SensorBatteryIcon(
         }
     }
 }
+
+/** Fill level drawn when the protocol only reports a low-battery flag, without a percentage. */
+private const val LOW_LEVEL_UNKNOWN_PERCENT = 0.1f

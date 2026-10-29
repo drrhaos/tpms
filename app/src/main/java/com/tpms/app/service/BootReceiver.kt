@@ -11,6 +11,13 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
+        if (action in ACC_ACTIONS) {
+            Log.i(TAG, "ACC event: $action (log only)")
+            EntryPointAccessors.fromApplication(context.applicationContext, UsbReceiverEntryPoint::class.java)
+                .debugLog()
+                .info(TAG, "ACC event: $action (log only)")
+            return
+        }
         if (action != Intent.ACTION_BOOT_COMPLETED && action != BootStartScheduler.ACTION_DELAYED_START) {
             return
         }
@@ -44,5 +51,13 @@ class BootReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BootReceiver"
+
+        /** FYT/Teyes ACC and quick-boot broadcasts; only logged to see which ones the hardware sends. */
+        val ACC_ACTIONS = setOf(
+            "com.fyt.boot.ACCON",
+            "com.glsx.boot.ACCON",
+            "android.intent.action.ACTION_MT_COMMAND_SLEEP_OUT",
+            "android.intent.action.QUICKBOOT_POWERON"
+        )
     }
 }

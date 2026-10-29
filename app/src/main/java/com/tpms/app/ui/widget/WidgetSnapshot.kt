@@ -4,13 +4,17 @@ import android.content.Context
 import android.content.res.Configuration
 import com.tpms.app.R
 import com.tpms.app.domain.AlertSeverity
+import com.tpms.app.domain.SensorFreshness
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.toSeverity
 import com.tpms.app.domain.model.AlertType
+import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.domain.model.WidgetThemeMode
+import com.tpms.app.ui.batteryLabel
+import com.tpms.app.ui.cardLabel
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.widgetStatusLabel
 
@@ -25,8 +29,17 @@ data class WidgetTireSlot(
     val batteryText: String = "--%",
     val batteryPercent: Int? = null,
     val isLowBattery: Boolean = false,
-    val status: WidgetTireStatus
-)
+    val status: WidgetTireStatus,
+    /** Minutes for the "N min" caption of a stale wheel (wayfinder 10), null when fresh. */
+    val staleMinutes: Long? = null,
+    /** Stale wheel without an active alert: drawn grey; alert colours win over muting. */
+    val muted: Boolean = false,
+    /** Active alert in sentence case ("Low pressure"): the car widget shows it under the pressure. */
+    val alertText: String? = null
+) {
+    /** Status that drives colours: a muted wheel looks like an empty slot, values stay visible. */
+    val displayStatus: WidgetTireStatus get() = if (muted) WidgetTireStatus.EMPTY else status
+}
 
 data class WidgetSnapshot(
     val connectionStatus: String,
@@ -40,19 +53,22 @@ data class WidgetSnapshot(
         fun from(
             context: Context,
             state: TpmsState,
-            sensors: Map<String, TireSensor>,
+            /** Slot label → placed sensor, as published by the repository ([com.tpms.app.data.repository.TpmsRepository.wheels]). */
+            wheels: Map<String, TireSensor>,
             unit: PressureUnit,
-            wheelMapping: Map<String, String> = emptyMap(),
             showSpareWheel: Boolean = false,
             dataAgeSec: Long? = null,
             dataStale: Boolean = false,
-            useLightTheme: Boolean = false
+            useLightTheme: Boolean = false,
+            wheelProtocol: DongleProtocol? = null,
+            now: Long = System.currentTimeMillis()
         ): WidgetSnapshot {
-            val slots = WheelLayout.allSlots(showSpareWheel)
-            val ordered = WheelLayout.orderedSlots(sensors, wheelMapping, showSpareWheel)
-            val tires = slots.mapIndexed { index, slot ->
-                val sensor = ordered.getOrNull(index)
-                formatTireSlot(context, sensor, slot, unit)
+            val tires = WheelLayout.allSlots(showSpareWheel).map { slot ->
+                val sensor = wheels[slot]
+                formatTireSlot(context, sensor, slot, unit).copy(
+                    staleMinutes = SensorFreshness.staleWheelMinutes(sensor, wheelProtocol, now),
+                    muted = SensorFreshness.isWheelMuted(sensor, wheelProtocol, now)
+                )
             }
 
             val baseStatus = state.widgetStatusLabel(context)
@@ -114,7 +130,8 @@ data class WidgetSnapshot(
                     pressureText = context.getString(R.string.label_lost),
                     temperatureText = context.getString(R.string.value_no_data_temp),
                     batteryText = context.getString(R.string.value_no_data_battery),
-                    status = WidgetTireStatus.ALERT
+                    status = WidgetTireStatus.ALERT,
+                    alertText = AlertType.SENSOR_LOST.cardLabel(context)
                 )
             }
             val pressureText = if (sensor.pressureKpa.isFinite()) {
@@ -131,10 +148,11 @@ data class WidgetSnapshot(
                 label = label,
                 pressureText = pressureText,
                 temperatureText = temperatureText,
-                batteryText = "${sensor.batteryPercent}%",
+                batteryText = sensor.batteryLabel(context),
                 batteryPercent = sensor.batteryPercent,
-                isLowBattery = sensor.alertType == AlertType.BATTERY_LOW,
-                status = sensor.toSeverity().toWidgetStatus()
+                isLowBattery = sensor.isLowBattery,
+                status = sensor.toSeverity().toWidgetStatus(),
+                alertText = sensor.alertType?.cardLabel(context)
             )
         }
 

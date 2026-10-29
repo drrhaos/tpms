@@ -4,10 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import com.tpms.app.R
-import com.tpms.app.domain.WheelLayout
+import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.model.TpmsState
-import com.tpms.app.ui.shortLabel
+import com.tpms.app.ui.label
+import com.tpms.app.ui.cardLabel
 import com.tpms.app.ui.statusLabel
+import com.tpms.app.ui.wheelPositionLabel
 import com.tpms.app.ui.theme.StatusColors
 
 @Composable
@@ -18,40 +20,60 @@ fun mainStatusPresentation(uiState: MainUiState): Pair<String, Color> {
 
     when (val state = uiState.tpmsState) {
         is TpmsState.Disconnected -> {
+            uiState.usbFault?.let { return usbFaultPresentation(it, uiState) }
             val text = if (uiState.monitoringOffline) {
                 stringResource(R.string.notification_monitoring_offline_title)
             } else {
                 state.statusLabel()
             }
-            return text to StatusColors.disconnected
+            return withStaleSuffix(text, uiState) to StatusColors.disconnected
         }
         is TpmsState.Connecting -> {
-            return state.statusLabel() to StatusColors.warning
+            uiState.usbFault?.let { return usbFaultPresentation(it, uiState) }
+            return withStaleSuffix(state.statusLabel(), uiState) to StatusColors.warning
         }
         is TpmsState.Alert -> {
-            val wheel = WheelLayout.resolveWheelLabel(state.sensor, uiState.wheelMapping)
-            val alertLabel = state.type.shortLabel()
+            val wheel = wheelPositionLabel(MainUiHealth.wheelLabelOf(uiState, state.sensor))
+            val alertLabel = state.type.cardLabel()
             val base = stringResource(R.string.status_alert_format, wheel, alertLabel)
-            val text = if (uiState.dataStale) {
-                val minutes = uiState.dataAgeMinutes ?: 1
-                stringResource(R.string.widget_status_stale_format, base, minutes)
-            } else {
-                base
-            }
-            return text to StatusColors.alert
+            return withStaleSuffix(base, uiState) to StatusColors.alert
         }
         is TpmsState.Connected -> {
             MainUiHealth.firstMissingWheelLabel(uiState)?.let { label ->
-                return stringResource(R.string.status_no_sensor_format, label) to StatusColors.alert
+                val text = stringResource(R.string.status_no_sensor_format, wheelPositionLabel(label))
+                return withStaleSuffix(text, uiState) to StatusColors.alert
             }
+            // Data flows again, but a stuck reader is still leaked until the head unit reboots.
+            if (uiState.usbFault == UsbFault.USB_STUCK) return usbFaultPresentation(UsbFault.USB_STUCK, uiState)
             if (uiState.protocolUnhealthy) {
-                return stringResource(R.string.notification_monitoring_blind_title) to StatusColors.warning
+                val text = stringResource(R.string.notification_monitoring_blind_title)
+                return withStaleSuffix(text, uiState) to StatusColors.warning
             }
-            if (uiState.dataStale) {
-                val minutes = uiState.dataAgeMinutes ?: 1
-                return stringResource(R.string.main_status_stale_format, minutes) to StatusColors.warning
-            }
-            return state.statusLabel() to StatusColors.ok
+            // Speak about the tyres, not the device: a healthy connection reads "pressure normal".
+            val color = if (uiState.dataStale) StatusColors.warning else StatusColors.ok
+            return withStaleSuffix(stringResource(R.string.status_pressure_normal), uiState) to color
         }
     }
 }
+
+/**
+ * Appends "data outdated" to [base] in every state (wayfinder 10); without a known age the minutes
+ * are left out rather than guessed. [MainUiState.dataStale] is never set when there is no data at
+ * all (rule in [com.tpms.app.domain.SensorFreshness.isDataStale]).
+ */
+@Composable
+private fun withStaleSuffix(base: String, uiState: MainUiState): String {
+    if (!uiState.dataStale) return base
+    return uiState.dataAgeMinutes
+        ?.let { stringResource(R.string.main_status_stale_suffix_format, base, it) }
+        ?: stringResource(R.string.main_status_stale_suffix, base)
+}
+
+/** The fault stays the primary text and colour; outdated data is still flagged after it. */
+@Composable
+private fun usbFaultPresentation(fault: UsbFault, uiState: MainUiState): Pair<String, Color> =
+    withStaleSuffix(fault.label(), uiState) to when (fault) {
+        UsbFault.DONGLE_SILENT -> StatusColors.warning
+        UsbFault.USB_STUCK -> StatusColors.alert
+        UsbFault.NO_PERMISSION -> StatusColors.warning
+    }

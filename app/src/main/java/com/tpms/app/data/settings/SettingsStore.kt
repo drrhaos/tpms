@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tpms.app.domain.ConnectionHealthPolicy
+import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.DongleProtocolMode
@@ -21,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -38,10 +40,6 @@ data class TeyesChecklist(
     val frontAppHome: Boolean = false
 )
 
-data class AlertNotificationPrefs(
-    val soundEnabled: Boolean = true
-)
-
 @Singleton
 class SettingsStore @Inject constructor(
     @ApplicationContext private val context: Context
@@ -51,17 +49,23 @@ class SettingsStore @Inject constructor(
     private val _pressureUnit = MutableStateFlow(PressureUnit.KPA)
     val pressureUnit = _pressureUnit.asStateFlow()
 
-    private val _thresholds = MutableStateFlow(AlertThresholds())
-    val thresholds = _thresholds.asStateFlow()
+    private val _targetPressureKpa = MutableStateFlow(PressureTarget.DEFAULT_KPA)
+    /** Recommended (placard) pressure; the alert limits follow from it ([PressureTarget]). */
+    val targetPressureKpa = _targetPressureKpa.asStateFlow()
+
+    private val _thresholds: MutableStateFlow<AlertThresholds> =
+        MutableStateFlow(PressureTarget.thresholds(PressureTarget.DEFAULT_KPA))
+    val thresholds: StateFlow<AlertThresholds> = _thresholds.asStateFlow()
 
     private val _dongleProtocolMode = MutableStateFlow(DongleProtocolMode.AUTO)
     val dongleProtocolMode = _dongleProtocolMode.asStateFlow()
 
-    private val _sensorTimeoutMs = MutableStateFlow(DEFAULT_SENSOR_TIMEOUT_MS)
-    val sensorTimeoutMs = _sensorTimeoutMs.asStateFlow()
-
     private val _staleFrameTimeoutMs = MutableStateFlow(ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS)
     val staleFrameTimeoutMs = _staleFrameTimeoutMs.asStateFlow()
+
+    private val _silenceTimeoutMs = MutableStateFlow(ConnectionHealthPolicy.DEFAULT_SILENCE_MS)
+    /** No bytes at all for this long means the dongle session is dead. */
+    val silenceTimeoutMs = _silenceTimeoutMs.asStateFlow()
 
     private val _wheelMapping = MutableStateFlow<Map<String, String>>(emptyMap())
     val wheelMapping = _wheelMapping.asStateFlow()
@@ -74,9 +78,6 @@ class SettingsStore @Inject constructor(
 
     private val _teyesChecklist = MutableStateFlow(TeyesChecklist())
     val teyesChecklist = _teyesChecklist.asStateFlow()
-
-    private val _alertNotificationPrefs = MutableStateFlow(AlertNotificationPrefs())
-    val alertNotificationPrefs = _alertNotificationPrefs.asStateFlow()
 
     private val _settingsUiMode = MutableStateFlow(SettingsUiMode.USER)
     val settingsUiMode = _settingsUiMode.asStateFlow()
@@ -112,9 +113,11 @@ class SettingsStore @Inject constructor(
                     PressureUnit.entries.find { it.name == name }
                 } ?: PressureUnit.KPA
 
-                _thresholds.value = AlertThresholds(
-                    lowPressureKpa = prefs[KEY_LOW_PRESSURE] ?: AlertThresholds().lowPressureKpa,
-                    highPressureKpa = prefs[KEY_HIGH_PRESSURE] ?: AlertThresholds().highPressureKpa,
+                // Before the target existed only an absolute low limit was stored: derive the target from it.
+                val target = prefs[KEY_TARGET_PRESSURE] ?: PressureTarget.fromLegacyLow(prefs[KEY_LEGACY_LOW_PRESSURE])
+                _targetPressureKpa.value = target
+                _thresholds.value = PressureTarget.thresholds(
+                    targetKpa = target,
                     highTempCelsius = prefs[KEY_HIGH_TEMP] ?: AlertThresholds().highTempCelsius
                 )
 
@@ -122,14 +125,16 @@ class SettingsStore @Inject constructor(
                     DongleProtocolMode.entries.find { it.name == name }
                 } ?: DongleProtocolMode.AUTO
 
-                _sensorTimeoutMs.value = prefs[KEY_SENSOR_TIMEOUT_MS] ?: DEFAULT_SENSOR_TIMEOUT_MS
                 _staleFrameTimeoutMs.value =
                     prefs[KEY_STALE_FRAME_TIMEOUT_MS] ?: ConnectionHealthPolicy.DEFAULT_STALE_FRAME_MS
+                _silenceTimeoutMs.value =
+                    prefs[KEY_SILENCE_TIMEOUT_MS] ?: ConnectionHealthPolicy.DEFAULT_SILENCE_MS
 
                 val showSpare = prefs[KEY_SHOW_SPARE_WHEEL] ?: false
                 _showSpareWheel.value = showSpare
 
-                _wheelMapping.value = WheelLayout.allSlots(showSpare).associateWith { slot ->
+                // SP mapping included while the spare is hidden: it still takes the sensor off its default slot.
+                _wheelMapping.value = WheelLayout.allSlots(showSpareWheel = true).associateWith { slot ->
                     prefs[wheelMappingKey(slot)] ?: ""
                 }
 
@@ -143,10 +148,6 @@ class SettingsStore @Inject constructor(
                     bootCompleted = prefs[KEY_TEYES_BOOT] ?: false,
                     autoRunAwake = prefs[KEY_TEYES_AUTO_RUN_AWAKE] ?: false,
                     frontAppHome = prefs[KEY_TEYES_FRONTAPP_HOME] ?: false
-                )
-
-                _alertNotificationPrefs.value = AlertNotificationPrefs(
-                    soundEnabled = prefs[KEY_ALERT_SOUND] ?: true
                 )
 
                 _settingsUiMode.value = SettingsUiMode.fromName(prefs[KEY_SETTINGS_UI_MODE])
@@ -170,24 +171,24 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_PRESSURE_UNIT] = unit.name }
     }
 
-    suspend fun setThresholds(thresholds: AlertThresholds) {
-        context.settingsDataStore.edit {
-            it[KEY_LOW_PRESSURE] = thresholds.lowPressureKpa
-            it[KEY_HIGH_PRESSURE] = thresholds.highPressureKpa
-            it[KEY_HIGH_TEMP] = thresholds.highTempCelsius
-        }
+    suspend fun setTargetPressureKpa(kpa: Float) {
+        context.settingsDataStore.edit { it[KEY_TARGET_PRESSURE] = PressureTarget.clamp(kpa) }
+    }
+
+    suspend fun setHighTempCelsius(celsius: Float) {
+        context.settingsDataStore.edit { it[KEY_HIGH_TEMP] = celsius }
     }
 
     suspend fun setDongleProtocolMode(mode: DongleProtocolMode) {
         context.settingsDataStore.edit { it[KEY_DONGLE_PROTOCOL] = mode.name }
     }
 
-    suspend fun setSensorTimeoutMs(timeoutMs: Long) {
-        context.settingsDataStore.edit { it[KEY_SENSOR_TIMEOUT_MS] = timeoutMs }
-    }
-
     suspend fun setStaleFrameTimeoutMs(timeoutMs: Long) {
         context.settingsDataStore.edit { it[KEY_STALE_FRAME_TIMEOUT_MS] = timeoutMs }
+    }
+
+    suspend fun setSilenceTimeoutMs(timeoutMs: Long) {
+        context.settingsDataStore.edit { it[KEY_SILENCE_TIMEOUT_MS] = timeoutMs }
     }
 
     suspend fun setShowSpareWheel(enabled: Boolean) {
@@ -201,6 +202,13 @@ class SettingsStore @Inject constructor(
     suspend fun setWheelMapping(slot: String, sensorId: String) {
         context.settingsDataStore.edit { prefs ->
             prefs[wheelMappingKey(slot)] = sensorId
+        }
+    }
+
+    /** Several slots in one write (a wheel swap must never be seen half done). */
+    suspend fun setWheelMappings(entries: Map<String, String>) {
+        context.settingsDataStore.edit { prefs ->
+            entries.forEach { (slot, sensorId) -> prefs[wheelMappingKey(slot)] = sensorId }
         }
     }
 
@@ -219,12 +227,6 @@ class SettingsStore @Inject constructor(
 
     suspend fun setSettingsUiMode(mode: SettingsUiMode) {
         context.settingsDataStore.edit { it[KEY_SETTINGS_UI_MODE] = mode.name }
-    }
-
-    suspend fun setAlertNotificationPrefs(prefs: AlertNotificationPrefs) {
-        context.settingsDataStore.edit {
-            it[KEY_ALERT_SOUND] = prefs.soundEnabled
-        }
     }
 
     suspend fun setOnboardingComplete(complete: Boolean) {
@@ -268,15 +270,12 @@ class SettingsStore @Inject constructor(
     suspend fun applyImported(imported: ImportedSettings) {
         context.settingsDataStore.edit { prefs ->
             prefs[KEY_PRESSURE_UNIT] = imported.pressureUnit.name
-            prefs[KEY_LOW_PRESSURE] = imported.thresholds.lowPressureKpa
-            prefs[KEY_HIGH_PRESSURE] = imported.thresholds.highPressureKpa
-            prefs[KEY_HIGH_TEMP] = imported.thresholds.highTempCelsius
+            prefs[KEY_TARGET_PRESSURE] = PressureTarget.clamp(imported.targetPressureKpa)
+            prefs[KEY_HIGH_TEMP] = imported.highTempCelsius
             prefs[KEY_DONGLE_PROTOCOL] = imported.dongleProtocolMode.name
-            prefs[KEY_SENSOR_TIMEOUT_MS] = imported.sensorTimeoutMs
             prefs[KEY_STALE_FRAME_TIMEOUT_MS] = imported.staleFrameTimeoutMs
             prefs[KEY_SHOW_SPARE_WHEEL] = imported.showSpareWheel
             prefs[KEY_MIN_LIVE_WHEEL_PRESSURE] = imported.minLiveWheelPressureKpa
-            prefs[KEY_ALERT_SOUND] = imported.alertNotificationPrefs.soundEnabled
             prefs[KEY_TEYES_AUTO_START] = imported.teyesChecklist.autoStart
             prefs[KEY_TEYES_BATTERY] = imported.teyesChecklist.batteryUnrestricted
             prefs[KEY_TEYES_LOCK] = imported.teyesChecklist.lockInRecents
@@ -292,7 +291,8 @@ class SettingsStore @Inject constructor(
             prefs[KEY_WIDGET_THEME_MODE] = imported.widgetThemeMode.name
             prefs[KEY_DIAGNOSTIC_LOG] = imported.diagnosticLogEnabled
             prefs[KEY_DEBUG_TOOLS] = imported.debugToolsEnabled
-            WheelLayout.allSlots(imported.showSpareWheel).forEach { slot ->
+            // All five slots: the SP mapping counts even with the spare hidden (wayfinder 11).
+            WheelLayout.allSlots(showSpareWheel = true).forEach { slot ->
                 prefs[wheelMappingKey(slot)] = imported.wheelMapping[slot].orEmpty()
             }
         }
@@ -308,17 +308,16 @@ class SettingsStore @Inject constructor(
     }
 
     companion object {
-        const val DEFAULT_SENSOR_TIMEOUT_MS = 60_000L
-
         private val KEY_SETTINGS_UI_MODE = stringPreferencesKey("settings_ui_mode")
 
         private val KEY_PRESSURE_UNIT = stringPreferencesKey("pressure_unit")
-        private val KEY_LOW_PRESSURE = floatPreferencesKey("low_pressure_kpa")
-        private val KEY_HIGH_PRESSURE = floatPreferencesKey("high_pressure_kpa")
+        private val KEY_TARGET_PRESSURE = floatPreferencesKey("target_pressure_kpa")
+        /** Read once for the migration to [KEY_TARGET_PRESSURE]; never written any more. */
+        private val KEY_LEGACY_LOW_PRESSURE = floatPreferencesKey("low_pressure_kpa")
         private val KEY_HIGH_TEMP = floatPreferencesKey("high_temp_celsius")
         private val KEY_DONGLE_PROTOCOL = stringPreferencesKey("dongle_protocol")
-        private val KEY_SENSOR_TIMEOUT_MS = longPreferencesKey("sensor_timeout_ms")
         private val KEY_STALE_FRAME_TIMEOUT_MS = longPreferencesKey("stale_frame_timeout_ms")
+        private val KEY_SILENCE_TIMEOUT_MS = longPreferencesKey("silence_timeout_ms")
         private val KEY_SHOW_SPARE_WHEEL = booleanPreferencesKey("show_spare_wheel")
         private val KEY_MIN_LIVE_WHEEL_PRESSURE = floatPreferencesKey("min_live_wheel_pressure_kpa")
         private val KEY_TEYES_AUTO_START = booleanPreferencesKey("teyes_auto_start")
@@ -327,7 +326,6 @@ class SettingsStore @Inject constructor(
         private val KEY_TEYES_BOOT = booleanPreferencesKey("teyes_boot")
         private val KEY_TEYES_AUTO_RUN_AWAKE = booleanPreferencesKey("teyes_auto_run_awake")
         private val KEY_TEYES_FRONTAPP_HOME = booleanPreferencesKey("teyes_frontapp_home")
-        private val KEY_ALERT_SOUND = booleanPreferencesKey("alert_sound")
         private val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         private val KEY_SILENT_STARTUP = booleanPreferencesKey("silent_startup")
         private val KEY_FLOATING_OVERLAY = booleanPreferencesKey("floating_overlay")

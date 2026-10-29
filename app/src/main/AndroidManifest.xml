@@ -26,6 +26,7 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher_ok"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.TpmsMonitor">
 
@@ -39,6 +40,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <!-- Invisible USB attach trampoline: owns the "use by default for this USB device"
+             association so permission survives re-enumeration without MainActivity popping up. -->
+        <activity
+            android:name=".service.UsbAttachActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="standard"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
             </intent-filter>
@@ -61,14 +74,6 @@
         </receiver>
 
         <receiver
-            android:name=".service.WakeEscalationReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.tpms.app.action.WAKE_ESCALATION" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
             android:name=".service.BootReceiver"
             android:exported="true">
             <intent-filter>
@@ -76,6 +81,13 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="com.tpms.app.action.DELAYED_BOOT_START" />
+            </intent-filter>
+            <!-- FYT/Teyes ACC and quick-boot events: logged only, for hardware checks. -->
+            <intent-filter>
+                <action android:name="com.fyt.boot.ACCON" />
+                <action android:name="com.glsx.boot.ACCON" />
+                <action android:name="android.intent.action.ACTION_MT_COMMAND_SLEEP_OUT" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
 
@@ -91,20 +103,18 @@
                 android:resource="@xml/device_filter" />
         </receiver>
 
+        <!-- Explicit delete intents of the per-wheel alert notifications (swipe). -->
+        <receiver
+            android:name=".service.AlertNotificationReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".service.UsbPermissionReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.tpms.app.action.USB_PERMISSION" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
-            android:name=".service.PowerEventReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.SCREEN_ON" />
-                <action android:name="android.intent.action.SCREEN_OFF" />
+                <action android:name="com.tpms.app.action.REQUEST_USB_PERMISSION" />
+                <action android:name="com.tpms.app.action.USB_PERMISSION_NOTIFICATION_SWIPED" />
             </intent-filter>
         </receiver>
 

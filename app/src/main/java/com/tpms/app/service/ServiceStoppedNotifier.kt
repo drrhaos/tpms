@@ -8,6 +8,11 @@ import com.tpms.app.R
 import com.tpms.app.TpmsApplication
 import com.tpms.app.ui.main.MainActivity
 
+/**
+ * "Monitoring stopped" notice after an unexpected service stop. A status message, not a tire alert:
+ * it goes to [TpmsApplication.CHANNEL_STATUS], so the alert channel (whose sound "Configure alert
+ * sound" in Settings opens) carries only per-wheel tire alerts (wayfinder 15).
+ */
 object ServiceStoppedNotifier {
 
     private const val NOTIF_ID = 1002
@@ -20,8 +25,8 @@ object ServiceStoppedNotifier {
             MainActivity.newIntent(context),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        val notification = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_ALERT)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+        val notification = NotificationCompat.Builder(context, TpmsApplication.CHANNEL_STATUS)
+            .setSmallIcon(R.drawable.ic_stat_tpms)
             .setContentTitle(context.getString(R.string.notification_service_stopped_title))
             .setContentText(context.getString(R.string.notification_service_stopped_body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)

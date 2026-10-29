@@ -3,7 +3,9 @@ package com.tpms.app
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.res.Configuration
 import com.tpms.app.data.diagnostics.SystemDiagnostics
+import com.tpms.app.data.settings.AppLocale
 import com.tpms.app.data.usb.UsbDebugLog
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -16,10 +18,22 @@ class TpmsApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppLocale.applyToResources(this)
         installGlobalExceptionHandler()
         systemDiagnostics.logStartup(debugLog)
         createNotificationChannels()
     }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // A system configuration change resets the resources to the system language (below 13);
+        // on 13+ a per-app language change lands here too: rename the channels.
+        AppLocale.applyToResources(this)
+        createNotificationChannels()
+    }
+
+    /** Channel names follow the app language: re-creating a channel only renames it. */
+    fun refreshNotificationChannels() = createNotificationChannels()
 
     private fun installGlobalExceptionHandler() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()

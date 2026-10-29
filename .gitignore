@@ -27,3 +27,6 @@ CLAUDE.md
 
 # App
 /app/build
+
+# Car render inputs (3D model, HDRI): local only, see tools/car_render/model/LICENSE.md
+/tools/car_render/model/

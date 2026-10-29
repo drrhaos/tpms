@@ -1,5 +1,6 @@
 package com.tpms.app.ui.main
 
+import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 
 object MainUiHealth {
@@ -29,4 +30,11 @@ object MainUiHealth {
         } ?: return null
         return uiState.wheelSlotLabels[index]
     }
+
+    /** Slot the repository placed [sensor] on ([MainUiState.wheelSlots]), else its label or id. */
+    fun wheelLabelOf(uiState: MainUiState, sensor: TireSensor): String =
+        uiState.wheelSlots.indexOfFirst { it?.id == sensor.id }
+            .takeIf { it >= 0 }
+            ?.let { uiState.wheelSlotLabels.getOrNull(it) }
+            ?: sensor.label.ifEmpty { sensor.id }
 }

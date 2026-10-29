@@ -7,17 +7,21 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import android.content.Context
 import android.content.Intent
-import android.hardware.usb.UsbManager
 import com.tpms.app.data.diagnostics.UiBreadcrumbs
+import com.tpms.app.data.settings.AppLocale
+import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.startup.StartupPermissionCoordinator
 import com.tpms.app.ui.embedded.EmbeddedWindowDetector
 import com.tpms.app.ui.embedded.EmbeddedWindowProvider
 import com.tpms.app.ui.theme.TpmsTheme
+import com.tpms.app.ui.theme.isDarkTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -27,15 +31,20 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var startupPermissions: StartupPermissionCoordinator
     @Inject lateinit var debugLog: UsbDebugLog
     @Inject lateinit var uiBreadcrumbs: UiBreadcrumbs
+    @Inject lateinit var settingsStore: SettingsStore
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
+
     override fun onResume() {
         super.onResume()
         runCatching {
-            TpmsMonitorService.start(this)
+            TpmsMonitorService.start(this, userInitiated = true)
         }.onFailure { error ->
             debugLog.exception("App", error, "ensure service on resume")
         }
@@ -50,28 +59,21 @@ class MainActivity : ComponentActivity() {
         runCatching {
             debugLog.info("App", "TPMS Monitor started")
             startupPermissions.ensureOnLaunch(this, notificationPermissionLauncher)
-            TpmsMonitorService.start(this)
+            TpmsMonitorService.start(this, userInitiated = true)
         }.onFailure { error ->
             debugLog.error("App", uiBreadcrumbs.describe())
             debugLog.exception("App", error, "onCreate startup")
         }
 
         setContent {
-            TpmsTheme {
+            val themeMode by settingsStore.widgetThemeMode.collectAsState()
+            TpmsTheme(darkTheme = themeMode.isDarkTheme()) {
                 EmbeddedWindowProvider {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         TpmsNavHost()
                     }
                 }
             }
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        if (intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
-            startupPermissions.ensureAfterUsbAttach(this)
-            TpmsMonitorService.wake(this)
         }
     }
 

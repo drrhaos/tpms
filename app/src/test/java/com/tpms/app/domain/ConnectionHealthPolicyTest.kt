@@ -15,6 +15,7 @@ class ConnectionHealthPolicyTest {
                 dongleOpenedAtMs = now - 200_000L,
                 lastValidFrameAtMs = now - 120_000L,
                 staleThresholdMs = 90_000L,
+                lastBytesAtMs = now - 1_000L,
                 now = now
             )
         )
@@ -29,6 +30,7 @@ class ConnectionHealthPolicyTest {
                 dongleOpenedAtMs = now - 200_000L,
                 lastValidFrameAtMs = now - 30_000L,
                 staleThresholdMs = 90_000L,
+                lastBytesAtMs = now - 1_000L,
                 now = now
             )
         )
@@ -43,6 +45,7 @@ class ConnectionHealthPolicyTest {
                 dongleOpenedAtMs = now - 5_000L,
                 lastValidFrameAtMs = now - 300_000_000L,
                 staleThresholdMs = 90_000L,
+                lastBytesAtMs = now - 1_000L,
                 now = now
             )
         )
@@ -57,6 +60,37 @@ class ConnectionHealthPolicyTest {
                 dongleOpenedAtMs = now - 120_000L,
                 lastValidFrameAtMs = 0L,
                 staleThresholdMs = 90_000L,
+                lastBytesAtMs = now - 1_000L,
+                now = now
+            )
+        )
+    }
+
+    @Test
+    fun shouldNotReconnectStaleFrame_whenStreamIsSilent() {
+        val now = 1_000_000L
+        assertFalse(
+            ConnectionHealthPolicy.shouldReconnectStaleFrame(
+                isUsbConnected = true,
+                dongleOpenedAtMs = now - 200_000L,
+                lastValidFrameAtMs = now - 120_000L,
+                staleThresholdMs = 90_000L,
+                lastBytesAtMs = now - 120_000L,
+                now = now
+            )
+        )
+    }
+
+    @Test
+    fun shouldNotReconnectStaleFrame_whenNothingArrivedSinceOpen() {
+        val now = 200_000L
+        assertFalse(
+            ConnectionHealthPolicy.shouldReconnectStaleFrame(
+                isUsbConnected = true,
+                dongleOpenedAtMs = now - 120_000L,
+                lastValidFrameAtMs = 0L,
+                staleThresholdMs = 90_000L,
+                lastBytesAtMs = 0L,
                 now = now
             )
         )

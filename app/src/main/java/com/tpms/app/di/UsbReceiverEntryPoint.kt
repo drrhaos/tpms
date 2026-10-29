@@ -4,6 +4,7 @@ import com.tpms.app.data.persistence.ServiceHeartbeatStore
 import com.tpms.app.data.usb.DongleDetector
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbPermissionHelper
+import com.tpms.app.service.UsbPermissionRequester
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -15,4 +16,5 @@ interface UsbReceiverEntryPoint {
     fun dongleDetector(): DongleDetector
     fun usbPermissionHelper(): UsbPermissionHelper
     fun serviceHeartbeatStore(): ServiceHeartbeatStore
+    fun usbPermissionRequester(): UsbPermissionRequester
 }

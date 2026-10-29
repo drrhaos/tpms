@@ -1,0 +1,56 @@
+selftest OK (literal port == fast port; checksum vectors from research doc)
+| scenario | config | FA all (checksum-ok garbage windows) | FA harmful (values != source frame) | harmful/MB | harmful/hour | harmful pass validator (spare off) | harmful pass validator (spare on) | intact-frame loss (H3: incl. delayed) | damaged frames |
+|---|---|---|---|---|---|---|---|---|---|
+| a noise 10MB | base | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| a noise 10MB | H1 len{6..9}+code whitelist | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| a noise 10MB | H2 byte-wise resync | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| a noise 10MB | H1+H2 | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| a noise 10MB | H3 confirm x2/5s | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| a noise 10MB | H1+H2+H3 | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| a2 noise+'55AA08' every 64B (4MB) | base | 221 | 221 | 55.25 | 381.888 | 173 | 173 | 0.000% | 0 |
+| a2 noise+'55AA08' every 64B (4MB) | H1 len{6..9}+code whitelist | 3 | 3 | 0.75 | 5.184 | 2 | 2 | 0.000% | 0 |
+| a2 noise+'55AA08' every 64B (4MB) | H2 byte-wise resync | 221 | 221 | 55.25 | 381.888 | 173 | 173 | 0.000% | 0 |
+| a2 noise+'55AA08' every 64B (4MB) | H1+H2 | 3 | 3 | 0.75 | 5.184 | 2 | 2 | 0.000% | 0 |
+| a2 noise+'55AA08' every 64B (4MB) | H3 confirm x2/5s | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| a2 noise+'55AA08' every 64B (4MB) | H1+H2+H3 | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| b clean, chunks 1..64 | base | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| c del 1e-3/B + steal 1% reads | base | 80 | 11 | 3.48 | 0.198 | 11 | 11 | 0.678% | 8063 |
+| c del 1e-3/B + steal 1% reads | H1 len{6..9}+code whitelist | 80 | 11 | 3.48 | 0.198 | 11 | 11 | 0.555% | 8063 |
+| c del 1e-3/B + steal 1% reads | H2 byte-wise resync | 83 | 11 | 3.48 | 0.198 | 11 | 11 | 0.005% | 8063 |
+| c del 1e-3/B + steal 1% reads | H1+H2 | 83 | 11 | 3.48 | 0.198 | 11 | 11 | 0.005% | 8063 |
+| c del 1e-3/B + steal 1% reads | H3 confirm x2/5s | 65 | 0 | 0.00 | 0.000 | 0 | 0 | 6.190% | 8063 |
+| c del 1e-3/B + steal 1% reads | H1+H2+H3 | 68 | 0 | 0.00 | 0.000 | 0 | 0 | 5.478% | 8063 |
+| c' del 1e-2/B + steal 5% reads | base | 198 | 57 | 37.93 | 2.052 | 57 | 57 | 5.656% | 26651 |
+| c' del 1e-2/B + steal 5% reads | H1 len{6..9}+code whitelist | 200 | 57 | 37.93 | 2.052 | 57 | 57 | 4.683% | 26651 |
+| c' del 1e-2/B + steal 5% reads | H2 byte-wise resync | 208 | 60 | 39.92 | 2.160 | 60 | 60 | 0.031% | 26651 |
+| c' del 1e-2/B + steal 5% reads | H1+H2 | 207 | 59 | 39.26 | 2.124 | 59 | 59 | 0.031% | 26651 |
+| c' del 1e-2/B + steal 5% reads | H3 confirm x2/5s | 134 | 0 | 0.00 | 0.000 | 0 | 0 | 14.777% | 26651 |
+| c' del 1e-2/B + steal 5% reads | H1+H2+H3 | 140 | 0 | 0.00 | 0.000 | 0 | 0 | 8.250% | 26651 |
+| d noise bursts 5%/frame | base | 33 | 22 | 11.45 | 0.792 | 16 | 16 | 0.147% | 7726 |
+| d noise bursts 5%/frame | H1 len{6..9}+code whitelist | 25 | 14 | 7.29 | 0.504 | 11 | 11 | 0.000% | 7726 |
+| d noise bursts 5%/frame | H2 byte-wise resync | 33 | 22 | 11.45 | 0.792 | 16 | 16 | 0.000% | 7726 |
+| d noise bursts 5%/frame | H1+H2 | 25 | 14 | 7.29 | 0.504 | 11 | 11 | 0.000% | 7726 |
+| d noise bursts 5%/frame | H3 confirm x2/5s | 11 | 0 | 0.00 | 0.000 | 0 | 0 | 5.414% | 7726 |
+| d noise bursts 5%/frame | H1+H2+H3 | 11 | 0 | 0.00 | 0.000 | 0 | 0 | 5.230% | 7726 |
+| e real mix (09/06/07, SP dummy, 0x20) | base | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| e real mix (09/06/07, SP dummy, 0x20) | H1 len{6..9}+code whitelist | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| e real mix (09/06/07, SP dummy, 0x20) | H2 byte-wise resync | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| e real mix (09/06/07, SP dummy, 0x20) | H1+H2 | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 0.000% | 0 |
+| e real mix (09/06/07, SP dummy, 0x20) | H3 confirm x2/5s | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 4.793% | 0 |
+| e real mix (09/06/07, SP dummy, 0x20) | H1+H2+H3 | 0 | 0 | 0.00 | 0.000 | 0 | 0 | 4.793% | 0 |
+| e' real mix + c' damage | base | 166 | 64 | 42.53 | 2.485 | 62 | 64 | 5.362% | 24299 |
+| e' real mix + c' damage | H1 len{6..9}+code whitelist | 167 | 63 | 41.87 | 2.446 | 61 | 63 | 4.595% | 24299 |
+| e' real mix + c' damage | H2 byte-wise resync | 176 | 68 | 45.19 | 2.641 | 66 | 68 | 0.037% | 24299 |
+| e' real mix + c' damage | H1+H2 | 173 | 65 | 43.20 | 2.524 | 63 | 65 | 0.034% | 24299 |
+| e' real mix + c' damage | H3 confirm x2/5s | 96 | 1 | 0.66 | 0.039 | 1 | 1 | 13.800% | 24299 |
+| e' real mix + c' damage | H1+H2+H3 | 102 | 1 | 0.66 | 0.039 | 1 | 1 | 7.492% | 24299 |
+
+Baseline details:
+- a noise 10MB: harmful FA by code {}; harmful FA alerts after validator (spare off) {}; harmful SP-FA alerts (spare on) {}; true frames accepted by kind {}; nonstate garbage frames 0; H3-related 0
+- a2 noise+'55AA08' every 64B (4MB): harmful FA by code {'SENSOR_XX': 218, 'FR': 2, 'FL': 1}; harmful FA alerts after validator (spare off) {'LEAK(LOW_PRESSURE)': 48, 'SENSOR_LOST': 88, 'BATTERY_LOW': 21, 'HIGH_PRESSURE': 8, 'LOW_PRESSURE': 4, 'none': 3, 'HIGH_TEMP': 1}; harmful SP-FA alerts (spare on) {}; true frames accepted by kind {}; nonstate garbage frames 0; H3-related 0
+- b clean, chunks 1..64: harmful FA by code {}; harmful FA alerts after validator (spare off) {}; harmful SP-FA alerts (spare on) {}; true frames accepted by kind {'tire': 400000}; nonstate garbage frames 0; H3-related 0
+- c del 1e-3/B + steal 1% reads: harmful FA by code {'RL': 3, 'FR': 4, 'RR': 2, 'FL': 2}; harmful FA alerts after validator (spare off) {'SENSOR_LOST': 6, 'LEAK(LOW_PRESSURE)': 3, 'BATTERY_LOW': 2}; harmful SP-FA alerts (spare on) {}; true frames accepted by kind {'tire': 389279}; nonstate garbage frames 0; H3-related 0
+- c' del 1e-2/B + steal 5% reads: harmful FA by code {'RL': 36, 'RR': 13, 'FL': 6, 'FR': 1, 'SENSOR_XX': 1}; harmful FA alerts after validator (spare off) {'SENSOR_LOST': 49, 'LEAK(LOW_PRESSURE)': 6, 'BATTERY_LOW': 1, 'LOW_PRESSURE': 1}; harmful SP-FA alerts (spare on) {}; true frames accepted by kind {'tire': 163545}; nonstate garbage frames 1; H3-related 0
+- d noise bursts 5%/frame: harmful FA by code {'FL': 2, 'SENSOR_XX': 8, 'RL': 4, 'FR': 5, 'RR': 3}; harmful FA alerts after validator (spare off) {'SENSOR_LOST': 4, 'HIGH_PRESSURE': 1, 'BATTERY_LOW': 6, 'none': 2, 'LEAK(LOW_PRESSURE)': 3}; harmful SP-FA alerts (spare on) {}; true frames accepted by kind {'tire': 191992}; nonstate garbage frames 1; H3-related 0
+- e real mix (09/06/07, SP dummy, 0x20): harmful FA by code {}; harmful FA alerts after validator (spare off) {}; harmful SP-FA alerts (spare on) {}; true frames accepted by kind {'tire': 147433, 'nosignal_0x20': 741, 'sp_dummy': 37043, 'swap_07_30': 988, 'hs_06_00_88': 1838, 'id_09': 9125, 'pair_06_18': 913, 'ack_06_B5': 1919}; nonstate garbage frames 0; H3-related 0
+- e' real mix + c' damage: harmful FA by code {'RR': 18, 'FR': 16, 'SP': 2, 'RL': 14, 'FL': 12, 'SENSOR_XX': 2}; harmful FA alerts after validator (spare off) {'SENSOR_LOST': 42, 'LEAK(LOW_PRESSURE)': 14, 'BATTERY_LOW': 3, 'none': 1, 'HIGH_PRESSURE': 1, 'LOW_PRESSURE': 1}; harmful SP-FA alerts (spare on) {'LEAK(LOW_PRESSURE)': 1, 'SENSOR_LOST': 1}; true frames accepted by kind {'tire': 121655, 'nosignal_0x20': 608, 'sp_dummy': 30217, 'swap_07_30': 774, 'hs_06_00_88': 1556, 'id_09': 7309, 'ack_06_B5': 1527, 'pair_06_18': 734}; nonstate garbage frames 10; H3-related 0

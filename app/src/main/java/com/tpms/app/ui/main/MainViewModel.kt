@@ -8,12 +8,16 @@ import com.tpms.app.data.repository.TpmsRepository
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.domain.MonitoringHealthPolicy
+import com.tpms.app.domain.PressureTarget
+import com.tpms.app.domain.SensorFreshness
+import com.tpms.app.domain.UsbFault
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.service.TpmsMonitorService
+import com.tpms.app.service.UsbPermissionRequester
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,24 +26,34 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class MainUiState(
     val tpmsState: TpmsState = TpmsState.Disconnected,
-    val sensors: Map<String, TireSensor> = emptyMap(),
+    /** Per slot of [wheelSlotLabels]: the sensor the repository placed there ([TpmsRepository.wheels]), or null. */
     val wheelSlots: List<TireSensor?> = List(WheelLayout.ORDER.size) { null },
     val wheelSlotLabels: List<String> = WheelLayout.ORDER,
-    val wheelMapping: Map<String, String> = emptyMap(),
+    /** Per slot (parallel to [wheelSlots]): minutes for the "N min" caption of a stale wheel, else null. */
+    val wheelStaleMinutes: List<Long?> = emptyList(),
+    /** Per slot: stale wheel drawn muted (an active alert keeps its colour instead). */
+    val wheelMuted: List<Boolean> = emptyList(),
     val pressureUnit: PressureUnit = PressureUnit.KPA,
+    /** Recommended pressure, shown as the reference under the car. */
+    val targetPressureKpa: Float = PressureTarget.DEFAULT_KPA,
+    /** Service menu unlocked: technical details (sensor id, update time) and the debug shortcut. */
     val advancedMode: Boolean = false,
     val debugToolsEnabled: Boolean = false,
     val lastError: String? = null,
+    /** Connection-based "data outdated" (wayfinder 10); false when there are no readings at all. */
     val dataStale: Boolean = false,
+    /** Minutes since the shown data was last confirmed live; null when unknown (no minutes shown). */
     val dataAgeMinutes: Long? = null,
     val protocolUnhealthy: Boolean = false,
-    val monitoringOffline: Boolean = false
+    val monitoringOffline: Boolean = false,
+    val usbFault: UsbFault? = null
 )
 
 @HiltViewModel
@@ -48,29 +62,39 @@ class MainViewModel @Inject constructor(
     private val repository: TpmsRepository,
     settingsStore: SettingsStore,
     private val debugLog: UsbDebugLog,
-    private val uiBreadcrumbs: UiBreadcrumbs
+    private val uiBreadcrumbs: UiBreadcrumbs,
+    private val usbPermissionRequester: UsbPermissionRequester
 ) : AndroidViewModel(application) {
 
+    /** Re-evaluates time-based staleness (per-wheel and overall) while nothing else changes. */
+    private val freshnessTicker = flow {
+        while (true) {
+            emit(Unit)
+            delay(FRESHNESS_TICK_MS)
+        }
+    }
+
     val uiState: StateFlow<MainUiState> = combine(
-        repository.state,
-        repository.sensors,
+        combine(repository.state, freshnessTicker) { state, _ -> state },
+        repository.wheels,
+        repository.usbFault,
         combine(
             settingsStore.pressureUnit,
-            settingsStore.wheelMapping,
             settingsStore.showSpareWheel,
             settingsStore.settingsUiMode,
-            settingsStore.debugToolsEnabled
-        ) { unit, mapping, spare, uiMode, debugTools ->
+            settingsStore.debugToolsEnabled,
+            settingsStore.targetPressureKpa
+        ) { unit, spare, uiMode, debugTools, target ->
             MainSettingsBundle(
                 unit,
-                mapping,
                 spare,
                 uiMode == SettingsUiMode.ADVANCED,
-                debugTools
+                debugTools,
+                target
             )
         }
-    ) { tpmsState, sensors, settings ->
-        buildUiState(tpmsState, sensors, settings)
+    ) { tpmsState, wheels, usbFault, settings ->
+        buildUiState(tpmsState, wheels, usbFault, settings)
     }.catch { error ->
         debugLog.error("MainScreen", uiBreadcrumbs.describe())
         debugLog.exception("MainScreen", error, "ui state flow")
@@ -89,40 +113,51 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    /** Header tap while the fault is [UsbFault.NO_PERMISSION]: ask for USB permission again (even after a denial). */
+    fun requestUsbPermission() {
+        runCatching { usbPermissionRequester.requestExplicitly() }
+            .onFailure { debugLog.exception("MainScreen", it, "request USB permission") }
+    }
+
     private fun buildUiState(
         tpmsState: TpmsState,
-        sensors: Map<String, TireSensor>,
+        wheels: Map<String, TireSensor>,
+        usbFault: UsbFault?,
         settings: MainSettingsBundle
     ): MainUiState {
         return try {
             val slots = WheelLayout.allSlots(settings.showSpareWheel)
-            val wheelSlots = WheelLayout.orderedSlots(sensors, settings.wheelMapping, settings.showSpareWheel)
-            val ageSec = repository.newestSensorAgeSec()
-            val stale = repository.isDataStale()
+            // Placement comes from the repository; only the slot list (spare shown or not) is local.
+            val wheelSlots = slots.map { wheels[it] }
+            val now = System.currentTimeMillis()
+            val ageSec = repository.dataAgeSec(now)
+            val stale = repository.isDataStale(now)
+            val wheelProtocol = repository.wheelFreshnessProtocol()
             val protocolUnhealthy = repository.isProtocolUnhealthy()
             val monitoringOffline = MonitoringHealthPolicy.shouldAlertMonitoringOffline(
                 repository.disconnectedSinceMs()
             )
             MainUiState(
                 tpmsState = tpmsState,
-                sensors = sensors,
                 wheelSlots = wheelSlots,
                 wheelSlotLabels = slots,
-                wheelMapping = settings.wheelMapping,
+                wheelStaleMinutes = wheelSlots.map { SensorFreshness.staleWheelMinutes(it, wheelProtocol, now) },
+                wheelMuted = wheelSlots.map { SensorFreshness.isWheelMuted(it, wheelProtocol, now) },
                 pressureUnit = settings.pressureUnit,
+                targetPressureKpa = settings.targetPressureKpa,
                 advancedMode = settings.advancedMode,
                 debugToolsEnabled = settings.debugToolsEnabled,
                 dataStale = stale,
                 dataAgeMinutes = ageSec?.let { (it / 60).coerceAtLeast(1) },
                 protocolUnhealthy = protocolUnhealthy,
-                monitoringOffline = monitoringOffline
+                monitoringOffline = monitoringOffline,
+                usbFault = usbFault
             )
         } catch (error: Exception) {
             debugLog.error("MainScreen", uiBreadcrumbs.describe())
             debugLog.exception("MainScreen", error, "buildUiState")
             MainUiState(
                 tpmsState = tpmsState,
-                sensors = sensors,
                 pressureUnit = settings.pressureUnit,
                 lastError = error.message ?: error.javaClass.simpleName
             )
@@ -136,13 +171,14 @@ class MainViewModel @Inject constructor(
 
     companion object {
         private const val CHECK_NOW_REFRESH_MS = 1500L
+        private const val FRESHNESS_TICK_MS = 30_000L
     }
 }
 
 private data class MainSettingsBundle(
     val pressureUnit: PressureUnit,
-    val wheelMapping: Map<String, String>,
     val showSpareWheel: Boolean,
     val advancedMode: Boolean,
-    val debugToolsEnabled: Boolean
+    val debugToolsEnabled: Boolean,
+    val targetPressureKpa: Float
 )

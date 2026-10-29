@@ -15,7 +15,10 @@ import com.tpms.app.di.UiBreadcrumbEntryPoint
 import com.tpms.app.ui.embedded.LocalEmbeddedWindow
 import com.tpms.app.ui.debug.DebugScreen
 import com.tpms.app.ui.onboarding.OnboardingScreen
+import com.tpms.app.ui.settings.SensorsScreen
+import com.tpms.app.ui.settings.ServiceMenuScreen
 import com.tpms.app.ui.settings.SettingsScreen
+import com.tpms.app.ui.settings.SystemCheckScreen
 import dagger.hilt.android.EntryPointAccessors
 
 @Composable
@@ -72,7 +75,21 @@ fun TpmsNavHost(navHostViewModel: NavHostViewModel = hiltViewModel()) {
         composable("settings") {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToDebug = { navController.navigate("debug") }
+                onOpenSensors = { navController.navigate("settings/sensors") },
+                onOpenSystemCheck = { navController.navigate("settings/system") },
+                onOpenServiceMenu = { navController.navigate("settings/service") }
+            )
+        }
+        composable("settings/sensors") {
+            SensorsScreen(onBack = { navController.popBackStack() })
+        }
+        composable("settings/system") {
+            SystemCheckScreen(onBack = { navController.popBackStack() })
+        }
+        composable("settings/service") {
+            ServiceMenuScreen(
+                onBack = { navController.popBackStack() },
+                onOpenDebug = { navController.navigate("debug") }
             )
         }
         composable("debug") {
