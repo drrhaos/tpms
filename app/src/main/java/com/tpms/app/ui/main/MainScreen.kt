@@ -169,7 +169,7 @@ private fun MainScreenScaffold(
                             uiState.pressureUnit.formatFromKpa(uiState.targetPressureKpa),
                             uiState.pressureUnit.localizedLabel()
                         ),
-                        style = if (compactToolbar) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
+                        style = if (compactToolbar) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(end = 8.dp)
                     )
@@ -313,7 +313,7 @@ private fun StatusHeaderRow(
         Text(
             text = statusText,
             color = statusColor,
-            style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleMedium,
+            style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
