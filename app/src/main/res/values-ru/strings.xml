@@ -14,8 +14,8 @@
     <string name="notification_alert_sensor_lost">Сигнал датчика TPMS потерян</string>
     <string name="notification_alert_title_format">%1$s · %2$s</string>
     <string name="notification_alert_pressure_format">Давление: %1$s</string>
-    <string name="notification_monitoring_blind_title">Контроль давления не работает</string>
-    <string name="notification_monitoring_blind_text">Нет данных от приёмника TPMS — проверьте донгл</string>
+    <string name="alert_monitoring_title">Контроль давления не работает</string>
+    <string name="alert_monitoring_text">Нет данных от приёмника TPMS — проверьте донгл</string>
     <string name="notification_action_check">Проверить</string>
     <string name="notification_action_mute">Без звука 30 мин</string>
     <string name="notification_action_restart">Перезапустить</string>
@@ -254,7 +254,6 @@
     <string name="settings_check_alert_channel">Уведомления о тревогах</string>
     <string name="settings_check_alert_channel_ok">Тревоги по шинам всплывают</string>
     <string name="settings_check_alert_channel_bad">Тревоги по шинам скрыты — включите для категории «Оповещения TPMS» всплывание</string>
-    <string name="settings_alert_test_failed">Уведомления запрещены — тревогу показать нельзя</string>
     <string name="settings_section_about">О приложении</string>
     <string name="settings_version">Версия</string>
     <string name="settings_service_menu">Сервисное меню</string>

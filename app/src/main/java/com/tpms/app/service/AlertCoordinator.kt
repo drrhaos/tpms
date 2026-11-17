@@ -254,8 +254,8 @@ class AlertCoordinator @Inject constructor(
             return AlertOverlayController.Row(
                 key = entry.key,
                 slot = null,
-                title = context.getString(R.string.notification_monitoring_blind_title),
-                subtitle = monitoringReason ?: context.getString(R.string.notification_monitoring_blind_text),
+                title = context.getString(R.string.alert_monitoring_title),
+                subtitle = monitoringReason ?: context.getString(R.string.alert_monitoring_text),
                 value = null,
                 detail = null,
                 advice = null,

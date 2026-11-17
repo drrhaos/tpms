@@ -14,8 +14,8 @@
     <string name="notification_alert_sensor_lost">TPMS sensor signal lost</string>
     <string name="notification_alert_title_format">%1$s · %2$s</string>
     <string name="notification_alert_pressure_format">Pressure: %1$s</string>
-    <string name="notification_monitoring_blind_title">Tyre pressure monitoring is not working</string>
-    <string name="notification_monitoring_blind_text">No data from the TPMS receiver — check the dongle</string>
+    <string name="alert_monitoring_title">Tyre pressure monitoring is not working</string>
+    <string name="alert_monitoring_text">No data from the TPMS receiver — check the dongle</string>
     <string name="notification_action_check">Check now</string>
     <string name="notification_action_mute">Mute 30m</string>
     <string name="notification_action_restart">Restart</string>
@@ -254,7 +254,6 @@
     <string name="settings_check_alert_channel">Alert notifications</string>
     <string name="settings_check_alert_channel_ok">Tyre alerts pop up</string>
     <string name="settings_check_alert_channel_bad">Tyre alerts are hidden — set the “TPMS Alerts” category to pop up</string>
-    <string name="settings_alert_test_failed">Notifications are blocked — the alert cannot be shown</string>
     <string name="settings_section_about">About</string>
     <string name="settings_version">Version</string>
     <string name="settings_service_menu">Service menu</string>
