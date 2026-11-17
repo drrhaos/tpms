@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Прототип окон тревоги — TPMS Monitor</title>
+<style>
+  :root {
+    --bg: #0B0D10; --surface: #14171C; --surface2: #1A1E24; --outline: #2B3139;
+    --text: #ECEFF3; --muted: #8A939F; --ok: #3DB46D; --warn: #F0A020; --alert: #E5484D;
+    --alert-deep: #8E1C21; --alert-bg: #2A0F11; --warn-bg: #2B2008;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #2a2d33; color: #ddd; font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 6px; color: #fff; }
+  p.note { margin: 0 0 10px; color: #aab; max-width: 1040px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+
+  /* Head unit 1024x600 */
+  .hu { position: relative; width: 1024px; height: 600px; overflow: hidden; border: 10px solid #111; border-radius: 14px; background: #20262c; flex: none; }
+  .phone { position: relative; width: 360px; height: 740px; overflow: hidden; border: 10px solid #111; border-radius: 28px; background: #20262c; flex: none; }
+  /* fake navigation map */
+  .map { position: absolute; inset: 0; background:
+      linear-gradient(90deg, transparent 49%, #3b4450 49%, #3b4450 51%, transparent 51%) 0 0/160px 160px,
+      linear-gradient(0deg, transparent 49%, #3b4450 49%, #3b4450 51%, transparent 51%) 0 0/160px 160px,
+      #26303a; }
+  .map::after { content: "НАВИГАЦИЯ · 1,2 км ↱ ул. Ленина"; position: absolute; left: 16px; top: 14px; padding: 8px 14px; background: #1b6fd1; color: #fff; border-radius: 8px; font-weight: 600; }
+  .route { position: absolute; left: 40%; top: 0; bottom: 0; width: 10px; background: #4ea3ff; }
+
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.35); }
+
+  /* Red fault window */
+  .fault { position: absolute; background: var(--alert-bg); border: 3px solid var(--alert); border-radius: 18px; color: var(--text); display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+  .fault-head { background: var(--alert); color: #fff; padding: 12px 18px; display: flex; align-items: center; gap: 12px; border-radius: 14px 14px 0 0; }
+  .fault-head .icon { width: 38px; height: 38px; border-radius: 50%; background: #fff; color: var(--alert); font: 900 26px/38px system-ui; text-align: center; flex: none; }
+  .fault-head .t1 { font-size: 24px; font-weight: 800; letter-spacing: .5px; }
+  .fault-head .t2 { font-size: 15px; opacity: .9; }
+  .fault-body { padding: 10px 18px; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow: hidden; }
+  .line { display: flex; gap: 14px; align-items: center; background: rgba(255,255,255,.04); border-radius: 12px; padding: 10px 12px; }
+  .line.warn { background: var(--warn-bg); }
+  .car { width: 54px; height: 84px; flex: none; position: relative; border: 2px solid #5a6470; border-radius: 16px 16px 12px 12px; }
+  .car i { position: absolute; width: 12px; height: 22px; border-radius: 3px; background: #5a6470; }
+  .car .fl { left: -8px; top: 10px } .car .fr { right: -8px; top: 10px }
+  .car .rl { left: -8px; bottom: 10px } .car .rr { right: -8px; bottom: 10px }
+  .car i.on { background: var(--alert); box-shadow: 0 0 10px var(--alert); }
+  .car i.w { background: var(--warn); }
+  .what { font-size: 22px; font-weight: 800; }
+  .what small { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 8px; }
+  .vals { font-size: 18px; margin-top: 2px; }
+  .vals b { color: var(--alert); font-size: 24px; }
+  .warn .vals b { color: var(--warn); }
+  .advice { font-size: 15px; color: #f3c2c4; margin-top: 2px; }
+  .warn .advice { color: #f2d49a; }
+  .fault-foot { display: flex; gap: 12px; padding: 12px 18px 16px; }
+  .btn { flex: 1; height: 68px; border-radius: 14px; border: 0; font: 800 22px system-ui; cursor: pointer; }
+  .btn.ack { background: #fff; color: var(--alert-deep); }
+  .btn.open { flex: .55; background: transparent; color: #fff; border: 2px solid rgba(255,255,255,.5); font-weight: 700; font-size: 18px; }
+  .pulse { animation: pulse 1s infinite alternate; }
+  @keyframes pulse { from { border-color: var(--alert); } to { border-color: #ff9a9d; } }
+
+  /* Yellow attention banner */
+  .attn { position: absolute; background: var(--warn-bg); border: 2px solid var(--warn); border-radius: 14px; color: var(--text); padding: 12px 16px; display: flex; gap: 14px; align-items: center; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  .attn .icon { width: 34px; height: 34px; border-radius: 50%; background: var(--warn); color: #2b2008; font: 900 22px/34px system-ui; text-align: center; flex: none; }
+  .attn .t1 { font-size: 19px; font-weight: 800; }
+  .attn .t2 { font-size: 15px; color: #f2d49a; }
+  .attn .vals b { color: var(--warn); }
+  .attn .bar { position: absolute; left: 12px; right: 12px; bottom: 5px; height: 3px; background: rgba(240,160,32,.25); border-radius: 2px; overflow: hidden; }
+  .attn .bar::after { content: ""; position: absolute; inset: 0; width: 60%; background: var(--warn); }
+  .attn .x { margin-left: auto; width: 44px; height: 44px; border-radius: 10px; border: 1px solid rgba(240,160,32,.6); color: #f2d49a; font-size: 22px; text-align: center; line-height: 42px; flex: none; }
+
+  .label { position: absolute; right: 10px; bottom: 8px; padding: 3px 8px; background: #000a; color: #fff; font-size: 12px; border-radius: 6px; }
+  .q { background: #3a3f48; border-left: 4px solid #f0a020; padding: 8px 12px; margin: 8px 0 0; max-width: 1040px; }
+</style>
+</head>
+<body>
+<h1>Окна тревоги — грубый прототип</h1>
+<p class="note">Тикет «Как выглядят красное и жёлтое окна тревоги». Экран магнитолы 1024×600, поверх навигации. Цвета — из темы приложения (alert #E5484D, warning #F0A020, тёмная тема). Это материал для реакции, не дизайн: сравните варианты A/B/C красного окна и вид жёлтого.</p>
+
+<h2>A. Красное окно — карточка по центру, навигация видна по краям</h2>
+<div class="row">
+<div class="hu">
+  <div class="map"></div><div class="route"></div><div class="scrim"></div>
+  <div class="fault pulse" style="left:112px; right:112px; top:24px; bottom:24px;">
+    <div class="fault-head"><div class="icon">!</div><div><div class="t1">НЕИСПРАВНОСТЬ ШИНЫ</div><div class="t2">Остановитесь в безопасном месте</div></div></div>
+    <div class="fault-body">
+      <div class="line">
+        <div class="car"><i class="fl"></i><i class="fr"></i><i class="rl on"></i><i class="rr"></i></div>
+        <div><div class="what">Заднее левое<small>Быстрая потеря давления</small></div>
+          <div class="vals"><b>1,4 бар</b> · 31 °C · −0,4 бар за 6 мин</div>
+          <div class="advice">Сбросьте скорость, остановитесь и осмотрите шину</div></div>
+      </div>
+      <div class="line warn">
+        <div class="car"><i class="fl"></i><i class="fr w"></i><i class="rl"></i><i class="rr"></i></div>
+        <div><div class="what">Переднее правое<small>Низкое давление · Внимание</small></div>
+          <div class="vals"><b>1,8 бар</b> · 29 °C</div></div>
+      </div>
+    </div>
+    <div class="fault-foot"><button class="btn ack">Понятно</button><button class="btn open">Открыть</button></div>
+  </div>
+  <div class="label">A · 800×552</div>
+</div>
+</div>
+
+<h2>B. Красное окно — боковая панель, маршрут остаётся виден</h2>
+<div class="row">
+<div class="hu">
+  <div class="map"></div><div class="route"></div>
+  <div class="fault pulse" style="right:16px; top:16px; bottom:16px; width:440px;">
+    <div class="fault-head"><div class="icon">!</div><div><div class="t1">НЕИСПРАВНОСТЬ</div><div class="t2">Остановитесь в безопасном месте</div></div></div>
+    <div class="fault-body">
+      <div class="line">
+        <div class="car"><i class="fl"></i><i class="fr"></i><i class="rl on"></i><i class="rr"></i></div>
+        <div><div class="what" style="font-size:20px">Заднее левое</div><div style="color:#f3c2c4">Быстрая потеря давления</div>
+          <div class="vals"><b>1,4 бар</b> · −0,4 за 6 мин</div></div>
+      </div>
+      <div class="line">
+        <div class="car"><i class="fl"></i><i class="fr"></i><i class="rl"></i><i class="rr"></i></div>
+        <div><div class="what" style="font-size:20px">Мониторинг не работает</div><div style="color:#f3c2c4">Нет данных от приёмника 3 мин</div></div>
+      </div>
+    </div>
+    <div class="fault-foot"><button class="btn ack">Понятно</button></div>
+  </div>
+  <div class="label">B · 440×568, справа</div>
+</div>
+</div>
+
+<h2>C. Красное окно — весь экран</h2>
+<div class="row">
+<div class="hu">
+  <div class="fault" style="inset:0; border-radius:0; border-width:6px;">
+    <div class="fault-head" style="border-radius:0; padding:18px 24px"><div class="icon">!</div><div><div class="t1" style="font-size:30px">НЕИСПРАВНОСТЬ ШИНЫ</div><div class="t2" style="font-size:18px">Остановитесь в безопасном месте</div></div></div>
+    <div class="fault-body" style="flex-direction:row; align-items:center; gap:40px; padding:20px 40px">
+      <div class="car" style="width:150px; height:240px; border-width:3px; border-radius:40px 40px 30px 30px">
+        <i class="fl" style="width:28px;height:56px;left:-18px;top:28px"></i><i class="fr" style="width:28px;height:56px;right:-18px;top:28px"></i>
+        <i class="rl on" style="width:28px;height:56px;left:-18px;bottom:28px"></i><i class="rr" style="width:28px;height:56px;right:-18px;bottom:28px"></i></div>
+      <div><div class="what" style="font-size:34px">Заднее левое</div><div style="font-size:22px; color:#f3c2c4">Быстрая потеря давления</div>
+        <div class="vals" style="font-size:26px; margin-top:12px"><b style="font-size:48px">1,4 бар</b> · 31 °C</div>
+        <div class="advice" style="font-size:20px">−0,4 бар за 6 мин. Сбросьте скорость и остановитесь</div></div>
+    </div>
+    <div class="fault-foot" style="padding:16px 40px 24px"><button class="btn ack" style="height:84px; font-size:28px">Понятно</button></div>
+  </div>
+  <div class="label">C · 1024×600</div>
+</div>
+</div>
+
+<h2>Жёлтое окно «Внимание» — 10 с, исчезает само</h2>
+<div class="row">
+<div class="hu">
+  <div class="map"></div><div class="route"></div>
+  <div class="attn" style="left:50%; transform:translateX(-50%); top:16px; width:620px;">
+    <div class="icon">!</div>
+    <div><div class="t1">Внимание · Переднее правое</div>
+      <div class="vals" style="font-size:16px"><b>1,8 бар</b> — низкое давление</div>
+      <div class="t2">Можно ехать. Подкачайте шину при случае</div></div>
+    <div class="x">×</div>
+    <div class="bar"></div>
+  </div>
+  <div class="label">Баннер сверху · 620×~96, полоска = оставшиеся 10 с</div>
+</div>
+</div>
+
+<h2>Телефон (портрет) — вариант A</h2>
+<div class="row">
+<div class="phone">
+  <div class="map"></div><div class="scrim"></div>
+  <div class="fault pulse" style="left:10px; right:10px; top:120px; bottom:120px;">
+    <div class="fault-head"><div class="icon">!</div><div><div class="t1" style="font-size:19px">НЕИСПРАВНОСТЬ</div><div class="t2">Остановитесь</div></div></div>
+    <div class="fault-body">
+      <div class="line" style="flex-direction:column; align-items:flex-start">
+        <div class="what" style="font-size:20px">Заднее левое</div><div style="color:#f3c2c4">Быстрая потеря давления</div>
+        <div class="vals"><b>1,4 бар</b> · 31 °C</div><div class="advice">−0,4 бар за 6 мин</div>
+      </div>
+    </div>
+    <div class="fault-foot"><button class="btn ack">Понятно</button></div>
+  </div>
+</div>
+<div class="phone">
+  <div class="map"></div>
+  <div class="attn" style="left:10px; right:10px; top:40px; flex-wrap:wrap">
+    <div class="icon">!</div>
+    <div style="flex:1"><div class="t1" style="font-size:17px">Внимание · Переднее правое</div><div class="vals" style="font-size:15px"><b>1,8 бар</b> — низкое</div></div>
+    <div class="bar"></div>
+  </div>
+</div>
+</div>
+
+<div class="q">Вопросы к прототипу: какой вариант красного окна (A / B / C); что в строке колеса (машинка, значения, скорость падения, совет); кнопки («Понятно» + «Открыть»?); жёлтое — баннер сверху с крестиком; светлая тема — та же красная/жёлтая или следовать теме приложения.</div>
+</body>
+</html>
