@@ -3,13 +3,13 @@ package com.tpms.app.ui.main
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,8 +55,10 @@ import com.tpms.app.ui.theme.TpmsColors
 import com.tpms.app.ui.wheelPositionLabel
 
 /**
- * The x-ray car with its running gear drawn in, each tyre tinted by its state (green normal, amber
- * warning, red alert, grey without data) and its reading — pressure over temperature — next to it.
+ * The four readings — wheel name, pressure, temperature or alert — in the stage corners, as large as
+ * the stage allows ([mainStageLayout]); between them the x-ray car with its running gear, each tyre
+ * tinted by its state (green normal, amber warning, red alert, grey without data). The car is only
+ * decoration: it never covers a reading.
  */
 @Composable
 fun CarTopDown(
@@ -67,22 +70,20 @@ fun CarTopDown(
     /** Per slot: stale wheel without an active alert, drawn muted. */
     muted: List<Boolean> = emptyList(),
     onWheelClick: (label: String, sensor: TireSensor?) -> Unit = { _, _ -> },
-    dense: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(modifier = modifier) {
         if (maxWidth <= 0.dp || maxHeight <= 0.dp) return@BoxWithConstraints
-        val geo = stageGeometry(
-            maxWidth.value,
-            maxHeight.value,
-            dense || maxHeight < 360.dp,
-            carScale = MAIN_CAR_SCALE,
-            textScale = MAIN_TEXT_SCALE
-        )
-        val carModifier = Modifier
-            .offset(geo.car.left.dp, geo.car.top.dp)
-            .size(geo.car.width.dp, geo.car.height.dp)
         fun indexOf(slot: String) = wheelLabels.indexOf(slot).takeIf { it >= 0 }
+        // Readings first: they take the corners, the car fills what is left (MainStageLayout).
+        val layout = mainStageLayout(maxWidth.value, maxHeight.value, hasSpare = indexOf(WheelLayout.SPARE_SLOT) != null)
+        val car = layout.car
+        // The layout is in dp and already as large as fits: the system font scale must not push the
+        // text out of its box (it would only be cut off).
+        val fontScale = LocalDensity.current.fontScale
+        val carModifier = Modifier
+            .offset(car.left.dp, car.top.dp)
+            .size(car.width.dp, car.height.dp)
 
         // The road the car stands on, as on OEM vehicle-status pages; faded out at the stage edges
         // so it melts into the page instead of ending on a hard line.
@@ -103,8 +104,8 @@ fun CarTopDown(
                 contentScale = ContentScale.FillBounds,
                 modifier = Modifier
                     .wrapContentSize(Alignment.TopStart, unbounded = true)
-                    .offset((geo.car.left + ENV_RECT.left * geo.car.width).dp, (geo.car.top + ENV_RECT.top * geo.car.height).dp)
-                    .size((ENV_RECT.width * geo.car.width).dp, (ENV_RECT.height * geo.car.height).dp)
+                    .offset((car.left + ENV_RECT.left * car.width).dp, (car.top + ENV_RECT.top * car.height).dp)
+                    .size((ENV_RECT.width * car.width).dp, (ENV_RECT.height * car.height).dp)
             )
         }
 
@@ -142,36 +143,34 @@ fun CarTopDown(
 
         WHEEL_SPOTS.forEach { spot ->
             val index = indexOf(spot.slot) ?: return@forEach
-            val cx = geo.car.left + spot.reading.x * geo.car.width
-            val cy = geo.car.top + spot.reading.y * geo.car.height
-            val left = clampOffset(cx - geo.readingW / 2f, 0f, maxWidth.value - geo.readingW)
-            val top = clampOffset(cy - geo.readingH / 2f, 0f, maxHeight.value - geo.readingH)
+            val rect = layout.readings[spot.slot] ?: return@forEach
             WheelReading(
                 sensor = sensors.getOrNull(index),
                 slot = spot.slot,
                 pressureUnit = pressureUnit,
                 muted = muted.getOrNull(index) == true,
                 staleMinutes = staleMinutes.getOrNull(index),
-                showPosition = false,
-                pressureSp = geo.pressureSp,
+                pressureSp = layout.pressureSp / fontScale,
                 onClick = { onWheelClick(spot.slot, sensors.getOrNull(index)) },
                 modifier = Modifier
-                    .offset(left.dp, top.dp)
-                    .width(geo.readingW.dp)
+                    .offset(rect.left.dp, rect.top.dp)
+                    .size(rect.width.dp, rect.height.dp)
             )
         }
 
         indexOf(WheelLayout.SPARE_SLOT)?.let { index ->
+            val rect = layout.spare ?: return@let
             WheelReading(
                 sensor = sensors.getOrNull(index),
                 slot = WheelLayout.SPARE_SLOT,
                 pressureUnit = pressureUnit,
                 muted = muted.getOrNull(index) == true,
                 staleMinutes = staleMinutes.getOrNull(index),
-                showPosition = true,
-                pressureSp = geo.pressureSp * 0.7f,
+                pressureSp = layout.pressureSp * SPARE_SCALE / fontScale,
                 onClick = { onWheelClick(WheelLayout.SPARE_SLOT, sensors.getOrNull(index)) },
-                modifier = Modifier.width(geo.readingW.dp)
+                modifier = Modifier
+                    .offset(rect.left.dp, rect.top.dp)
+                    .size(rect.width.dp, rect.height.dp)
             )
         }
     }
@@ -203,7 +202,10 @@ private fun deviationColor(sensor: TireSensor?, muted: Boolean): Color? = when (
     else -> null
 }
 
-/** Pressure over temperature (or the alert / stale age), centred, with a soft shadow for legibility over the car. */
+/**
+ * One wheel's corner: its name, the pressure (large) and the temperature — or the alert, up to two
+ * lines — centred in its box ([MainStageLayout]), with a soft shadow for legibility over the road.
+ */
 @Composable
 private fun WheelReading(
     sensor: TireSensor?,
@@ -211,7 +213,6 @@ private fun WheelReading(
     pressureUnit: PressureUnit,
     muted: Boolean,
     staleMinutes: Long?,
-    showPosition: Boolean,
     pressureSp: Float,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -232,15 +233,22 @@ private fun WheelReading(
             else -> temperatureText(sensor)
         }
 
+    val alert = sensor?.alertType != null
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
         modifier = modifier
             .clickable(onClick = onClick)
             .semantics { contentDescription = position }
     ) {
-        if (showPosition) {
-            Text(text = position, fontSize = small.sp, color = TpmsColors.onSurfaceMuted, maxLines = 1)
-        }
+        // The wheel's name: the reading sits in a corner, not on the wheel itself.
+        Text(
+            text = position,
+            fontSize = small.sp,
+            color = TpmsColors.onSurfaceMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
         Text(
             text = buildAnnotatedString {
                 append(pressureNumber(sensor, pressureUnit))
@@ -256,13 +264,15 @@ private fun WheelReading(
             maxLines = 1,
             overflow = TextOverflow.Clip
         )
+        // An alert name may need two lines ("Быстрая потеря давления"); it gets them, a little smaller.
         Text(
             text = second,
             style = PressureValueStyle.copy(shadow = shadow, fontWeight = FontWeight.Medium),
-            fontSize = (pressureSp * 0.6f).sp,
+            fontSize = (pressureSp * if (alert) 0.48f else 0.6f).sp,
+            lineHeight = (pressureSp * if (alert) 0.56f else 0.7f).sp,
             color = deviation ?: valueColor,
             textAlign = TextAlign.Center,
-            maxLines = 1,
+            maxLines = if (alert) 2 else 1,
             overflow = TextOverflow.Ellipsis
         )
     }

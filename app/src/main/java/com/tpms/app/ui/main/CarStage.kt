@@ -17,16 +17,6 @@ internal const val CAR_IMAGE_ASPECT = 1349f / 1091f
 internal const val CAR_SCALE = 0.8f
 
 /**
- * Main screen: readings 1.35× the base size (read at a glance from the driver's seat), the car a
- * little smaller to make room for them. The widget keeps the base sizes.
- */
-internal const val MAIN_TEXT_SCALE = 1.35f
-internal const val MAIN_CAR_SCALE = 0.72f
-
-/** A reading's width in pressure font sizes ("2.3 bar"). */
-private const val READING_WIDTH_EM = 4.6f
-
-/**
  * `car_3d_env_*` (road, lane lines, floor grid, light pool; same camera, wider frame) in fractions
  * of the car image: it lines up with the car when scaled by the car's size.
  */
@@ -50,26 +40,12 @@ internal val WHEEL_SPOTS = listOf(
 /** Stage layout in dp: the car's rect, the reading size; shared by [CarTopDown] and the widget. */
 internal data class StageGeometry(val compact: Boolean, val pressureSp: Float, val car: Rect, val readingW: Float, val readingH: Float)
 
-/**
- * [carScale]: the widget gives the car more of its small stage than the main screen does;
- * [textScale] enlarges the readings (and their limits).
- */
-internal fun stageGeometry(
-    width: Float,
-    height: Float,
-    compact: Boolean,
-    carScale: Float = CAR_SCALE,
-    textScale: Float = 1f
-): StageGeometry {
+/** [carScale]: the widget gives the car more of its small stage than the main screen does. */
+internal fun stageGeometry(width: Float, height: Float, compact: Boolean, carScale: Float = CAR_SCALE): StageGeometry {
     val pad = if (compact) 4f else 8f
-    val lowest = if (compact) 20f else 30f
-    val highest = if (compact) 30f else 52f
-    val base = (height * 0.10f).coerceIn(lowest, highest)
-    // Scaled readings stay within half the stage width (four of them sit around the car), but
-    // never smaller than the base size.
-    val pressure = (base * textScale).coerceAtMost(maxOf(width / (READING_WIDTH_EM * 2f), base))
+    val pressure = (height * 0.10f).coerceIn(if (compact) 20f else 30f, if (compact) 30f else 52f)
     val carW = (min(width - 2 * pad, (height - 2 * pad) * CAR_IMAGE_ASPECT) * carScale).coerceAtLeast(1f)
     val carH = carW / CAR_IMAGE_ASPECT
     val car = Rect(Offset((width - carW) / 2f, (height - carH) / 2f), Size(carW, carH))
-    return StageGeometry(compact, pressure, car, readingW = pressure * READING_WIDTH_EM, readingH = pressure * 2.3f)
+    return StageGeometry(compact, pressure, car, readingW = pressure * 4.6f, readingH = pressure * 2.3f)
 }
