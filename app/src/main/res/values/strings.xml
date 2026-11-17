@@ -297,4 +297,7 @@
     <string name="settings_check_alarm_volume_bad">Alarm volume is 0 — the alert signal will not be heard</string>
     <string name="onboarding_alert_window_hint">A tyre fault opens a red window over navigation and music. Allow “Display over other apps” for it (on Android 13+ installed outside a store: ⋮ → Allow restricted settings first).</string>
     <string name="onboarding_allow_alert_window">Allow the alert window</string>
+    <string name="alert_window_fault_cleared">The fault is gone — close with «Got it»</string>
+    <string name="alert_window_attention_many">%1$d wheels</string>
+    <string name="alert_window_resolved">back to normal</string>
 </resources>

@@ -114,24 +114,37 @@ class AlertPresentationTest {
     }
 
     @Test
-    fun `easing to attention is silent`() {
+    fun `easing to attention is silent and the window stays until Got it`() {
         val run = Run()
         run.step(input(fault("FL"), now = t0))
         val plan = run.step(input(attention("FL"), now = t0 + 60_000))
-        assertNull(plan.window)
+        assertEquals(listOf("FL"), plan.window!!.map { it.key })
+        assertFalse(plan.windowUnacknowledged)
         assertNull(plan.sound)
         assertNull(plan.banner)
         assertEquals(AlertLevel.ATTENTION, plan.notifications.single().level)
     }
 
     @Test
-    fun `cleared fault removes window and notification`() {
+    fun `cleared fault keeps the window with a resolved row until Got it`() {
         val run = Run()
         run.step(input(fault("FL"), now = t0))
         val plan = run.step(input(now = t0 + 1_000))
-        assertNull(plan.window)
+        assertTrue(plan.window!!.isEmpty())
+        assertEquals(listOf("FL"), plan.windowResolved)
         assertTrue(plan.notifications.isEmpty())
         assertNull(plan.nextCheckAtMs)
+        run.state = AlertPresentation.acknowledge(run.state, t0 + 2_000, reminder)
+        assertNull(run.step(input(now = t0 + 3_000)).window)
+        assertFalse(run.state.acknowledged) // nothing left to remind of
+    }
+
+    @Test
+    fun `screen off hides the open window and the screen brings it back`() {
+        val run = Run()
+        run.step(input(fault("FL"), now = t0))
+        assertNull(run.step(input(fault("FL"), now = t0 + 1_000, screenOn = false)).window)
+        assertNotNull(run.step(input(fault("FL"), now = t0 + 2_000)).window)
     }
 
     @Test
@@ -148,7 +161,9 @@ class AlertPresentationTest {
         val plan = run.step(input(now = t0, blind = true))
         assertEquals(Sound.FAULT, plan.sound)
         assertEquals(AlertPresentation.MONITORING_KEY, plan.window!!.single().key)
-        assertTrue(run.step(input(now = t0 + 1_000)).notifications.isEmpty())
+        val back = run.step(input(now = t0 + 1_000))
+        assertTrue(back.notifications.isEmpty())
+        assertEquals(listOf(AlertPresentation.MONITORING_KEY), back.windowResolved)
     }
 
     @Test
@@ -163,20 +178,26 @@ class AlertPresentationTest {
     // --- Attention ---
 
     @Test
-    fun `attention shows a banner once per type per episode`() {
+    fun `attention banner rings once per type and stays until closed`() {
         val run = Run()
         val first = run.step(input(attention("FL"), now = t0))
-        assertEquals("FL", first.banner)
+        assertEquals(listOf("FL"), first.banner!!.map { it.key })
         assertEquals(Sound.ATTENTION, first.sound)
-        assertEquals(t0 + AlertPresentation.BANNER_MS, first.nextCheckAtMs)
-        val later = run.step(input(attention("FL"), now = t0 + AlertPresentation.BANNER_MS))
-        assertNull(later.banner)
+        assertNull(first.nextCheckAtMs)
+        val later = run.step(input(attention("FL"), now = t0 + 60_000))
+        assertEquals(listOf("FL"), later.banner!!.map { it.key })
         assertNull(later.sound)
-        val newType = run.step(input(attention("FL", AlertType.HIGH_TEMP), now = t0 + 20_000))
-        assertEquals("FL", newType.banner)
+        assertEquals(Sound.ATTENTION, run.step(input(attention("FL", AlertType.HIGH_TEMP), now = t0 + 70_000)).sound)
+        // Another wheel joins the open banner.
+        val two = run.step(input(attention("FL", AlertType.HIGH_TEMP), attention("RR"), now = t0 + 80_000))
+        assertEquals(setOf("FL", "RR"), two.banner!!.map { it.key }.toSet())
+        // A wheel back to normal stays as a resolved line.
+        val resolved = run.step(input(attention("RR"), now = t0 + 90_000))
+        assertEquals(listOf("FL"), resolved.bannerResolved)
+        run.state = AlertPresentation.dismissBanner(run.state)
+        assertNull(run.step(input(attention("RR"), now = t0 + 100_000)).banner)
         // A new episode after the wheel was normal rings again.
-        run.step(input(now = t0 + 30_000))
-        assertEquals("FL", run.step(input(attention("FL"), now = t0 + 40_000)).banner)
+        assertEquals(Sound.ATTENTION, run.step(input(attention("RR"), attention("FL"), now = t0 + 110_000)).sound)
     }
 
     @Test
@@ -236,6 +257,8 @@ class AlertPresentationTest {
         assertTrue(restored.acknowledged)
         assertEquals(run.state.nextReminderAtMs, restored.nextReminderAtMs)
         assertEquals(run.state.attentionMutedUntilMs, restored.attentionMutedUntilMs)
+        assertEquals(run.state.windowOpen, restored.windowOpen)
+        assertEquals(run.state.bannerKeys, restored.bannerKeys)
         // The same alerts after a restart: no new ring, no window (acknowledged).
         val plan = AlertPresentation.step(restored, input(fault("FL", AlertType.PRESSURE_DROP, 150f), attention("RR"), now = t0 + 3_000)).second
         assertNull(plan.sound)
@@ -251,13 +274,23 @@ class AlertPresentationTest {
     }
 
     @Test
-    fun `a new trip from an empty state rings everything again`() {
+    fun `a new trip rings everything again`() {
         val run = Run()
         run.step(input(fault("FL"), attention("RR"), now = t0))
         run.state = AlertPresentation.acknowledge(run.state, t0 + 1_000, reminder)
-        val trip = Run(State())
-        val plan = trip.step(input(fault("FL"), attention("RR"), now = t0 + 3_600_000))
+        run.state = AlertPresentation.newTrip(run.state)
+        val plan = run.step(input(fault("FL"), attention("RR"), now = t0 + 3_600_000))
         assertEquals(Sound.FAULT, plan.sound)
         assertNotNull(plan.window)
+    }
+
+    @Test
+    fun `a new trip keeps windows the user has not closed`() {
+        val run = Run()
+        run.step(input(attention("RR"), now = t0))
+        run.step(input(now = t0 + 1_000)) // cleared, banner still open
+        run.state = AlertPresentation.newTrip(run.state)
+        val plan = run.step(input(now = t0 + 3_600_000))
+        assertEquals(listOf("RR"), plan.bannerResolved)
     }
 }

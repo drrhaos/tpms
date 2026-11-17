@@ -11,24 +11,28 @@ import org.json.JSONObject
  * feeds [step] with the current alerts and executes the returned [Plan]; [State] is persisted
  * ([encode] / [decode]) so a process restart in the middle of a trip remembers everything.
  *
- * - **Fault**: one red window lists every alert. Until acknowledged ([acknowledge]) the fault
- *   signal repeats every [FAULT_REPEAT_MS]; afterwards the window and the signal come back after the
- *   reminder interval. A worsening — a new faulty wheel, a new fault type on a wheel, a further
- *   [ESCALATION_STEP_KPA] fall, attention turning into fault, monitoring going blind — shows the
- *   window and rings at once and resets the acknowledgement. Easing to attention is silent.
- * - **Attention**: a yellow banner for [BANNER_MS] with a short signal, once per type per wheel
- *   episode (from the wheel's first alert until it is normal again or left its slot). While the red
- *   window is up, an attention alert only joins it as a row. [muteAttention] silences banners and
- *   signals of attention for [MUTE_MS]; faults are never muted.
+ * - **Windows close only by the user** (drhaos, 2026-11-17): the red window by «Понятно»
+ *   ([acknowledge]), the yellow banner by «×» ([dismissBanner]). An alert that cleared meanwhile stays
+ *   in its window as a resolved row ([Plan.windowResolved] / [Plan.bannerResolved]); with the screen
+ *   off nothing is drawn, the windows come back with the screen.
+ * - **Fault**: one red window lists every alert. Until acknowledged the fault signal repeats every
+ *   [FAULT_REPEAT_MS]; afterwards the window and the signal come back after the reminder interval.
+ *   A worsening — a new faulty wheel, a new fault type on a wheel, a further [ESCALATION_STEP_KPA]
+ *   fall, attention turning into fault, monitoring going blind — opens the window and rings at once
+ *   and resets the acknowledgement. Easing to attention is silent (an open window stays).
+ * - **Attention**: a yellow banner with a short signal, once per type per wheel episode (from the
+ *   wheel's first alert until it is normal again or left its slot); newer alerts join an open banner.
+ *   While the red window is up, an attention alert only joins it as a row. [muteAttention] silences
+ *   banners and signals of attention for [MUTE_MS]; faults are never muted.
  * - Only live data starts or changes anything: without a live session the wheel alerts are kept as
  *   they were and nothing rings for them (monitoring blind is the fault for that).
  * - Screen off: neither window nor signal; what fell due rings when the screen is on again.
- * - A new trip starts from [State] () — everything active rings again.
+ * - A new trip ([newTrip]) forgets episodes, «Понятно» and mute — everything active rings again —
+ *   but keeps the windows still open.
  */
 object AlertPresentation {
 
     const val FAULT_REPEAT_MS = 30_000L
-    const val BANNER_MS = 10_000L
     const val MUTE_MS = 30 * 60_000L
     const val ESCALATION_STEP_KPA = 25f
     const val DEFAULT_REMINDER_MS = 5 * 60_000L
@@ -76,9 +80,11 @@ object AlertPresentation {
         val nextReminderAtMs: Long? = null,
         /** Last fault signal; null = one is due now. */
         val lastFaultSoundAtMs: Long? = null,
-        /** Yellow banner on screen: whose, and until when. */
-        val bannerKey: String? = null,
-        val bannerUntilMs: Long = 0L,
+        /** The red window is open (until «Понятно»); [windowKeys] — every alert it has shown. */
+        val windowOpen: Boolean = false,
+        val windowKeys: Set<String> = emptySet(),
+        /** Alerts of the open yellow banner (until «×»), oldest first. */
+        val bannerKeys: List<String> = emptyList(),
         val attentionMutedUntilMs: Long = 0L
     ) {
         val hasFault: Boolean get() = entries.values.any { it.level == AlertLevel.FAULT }
@@ -87,12 +93,16 @@ object AlertPresentation {
     enum class Sound { FAULT, ATTENTION }
 
     data class Plan(
-        /** Rows of the red window (fault rows first, worst first), or null when it is hidden. */
+        /** Active rows of the red window (fault rows first, worst first), or null when it is hidden. */
         val window: List<Entry>?,
-        /** The red window is waiting for "Понятно" (pulsing frame). */
+        /** Keys of the red window whose alert cleared since it opened (shown as resolved). */
+        val windowResolved: List<String>,
+        /** A fault waits for "Понятно" (pulsing frame, repeating signal). */
         val windowUnacknowledged: Boolean,
-        /** Key of the yellow banner on screen, or null. */
-        val banner: String?,
+        /** Active alerts of the yellow banner, or null when it is hidden. */
+        val banner: List<Entry>?,
+        /** Keys of the yellow banner whose alert cleared since it opened. */
+        val bannerResolved: List<String>,
         val sound: Sound?,
         /** Every alert that must have a notification now (the notifier cancels the rest). */
         val notifications: List<Entry>,
@@ -136,9 +146,13 @@ object AlertPresentation {
             next = next.copy(acknowledged = false, nextReminderAtMs = null, lastFaultSoundAtMs = null)
         }
 
-        val windowUp = next.hasFault && !next.acknowledged && input.screenOn
+        // An unacknowledged fault opens the red window; only «Понятно» closes it.
+        val ringing = next.hasFault && !next.acknowledged
+        if (ringing && !next.windowOpen) next = next.copy(windowOpen = true)
+        if (next.windowOpen) next = next.copy(windowKeys = next.windowKeys + entries.keys)
+        val windowUp = next.windowOpen && input.screenOn
         var sound: Sound? = null
-        if (windowUp) {
+        if (ringing && input.screenOn) {
             val last = next.lastFaultSoundAtMs
             if (last == null || now - last >= FAULT_REPEAT_MS || now < last) {
                 sound = Sound.FAULT
@@ -146,39 +160,50 @@ object AlertPresentation {
             }
         }
 
-        // Yellow banner: not over the red window, not while muted, not with the screen off.
+        // Yellow banner: new attention alerts join it (not over the red window, not while muted,
+        // not with the screen off — then they only count as announced); only «×» closes it.
         val muted = now < next.attentionMutedUntilMs
-        if (next.bannerKey != null && (now >= next.bannerUntilMs || windowUp || next.bannerKey !in entries)) {
-            next = next.copy(bannerKey = null, bannerUntilMs = 0L)
-        }
-        val bannerKey = announceBanner.lastOrNull()
-        if (bannerKey != null && !windowUp && !muted && input.screenOn) {
-            next = next.copy(bannerKey = bannerKey, bannerUntilMs = now + BANNER_MS)
+        if (announceBanner.isNotEmpty() && !windowUp && !muted && input.screenOn) {
+            next = next.copy(bannerKeys = next.bannerKeys + announceBanner.filter { it !in next.bannerKeys })
             if (sound == null) sound = Sound.ATTENTION
         }
+        val bannerUp = next.bannerKeys.isNotEmpty() && input.screenOn && !windowUp
 
         val ordered = ordered(next.entries.values)
         val plan = Plan(
             window = if (windowUp) ordered else null,
-            windowUnacknowledged = windowUp,
-            banner = next.bannerKey,
+            windowResolved = if (windowUp) next.windowKeys.filter { it !in entries }.sorted() else emptyList(),
+            windowUnacknowledged = windowUp && ringing,
+            banner = if (bannerUp) ordered(next.bannerKeys.mapNotNull { entries[it] }) else null,
+            bannerResolved = if (bannerUp) next.bannerKeys.filter { it !in entries } else emptyList(),
             sound = sound,
             notifications = ordered,
-            nextCheckAtMs = nextCheck(next, windowUp, now)
+            nextCheckAtMs = nextCheck(next, ringing && input.screenOn, now)
         )
         return next to plan
     }
 
-    /** "Понятно": hides the red window until the reminder. No fault: nothing to acknowledge. */
-    fun acknowledge(state: State, nowMs: Long, reminderIntervalMs: Long): State =
-        if (!state.hasFault) state else state.copy(acknowledged = true, nextReminderAtMs = nowMs + reminderIntervalMs)
+    /**
+     * "Понятно": closes the red window; an active fault comes back with it after the reminder
+     * interval.
+     */
+    fun acknowledge(state: State, nowMs: Long, reminderIntervalMs: Long): State {
+        val closed = state.copy(windowOpen = false, windowKeys = emptySet())
+        return if (!state.hasFault) closed else closed.copy(acknowledged = true, nextReminderAtMs = nowMs + reminderIntervalMs)
+    }
 
     /** "Без звука 30 мин": attention banners and signals stop for [MUTE_MS]; faults still ring. */
-    fun muteAttention(state: State, nowMs: Long): State =
-        state.copy(attentionMutedUntilMs = nowMs + MUTE_MS, bannerKey = null, bannerUntilMs = 0L)
+    fun muteAttention(state: State, nowMs: Long): State = state.copy(attentionMutedUntilMs = nowMs + MUTE_MS)
 
-    /** The user closed the yellow banner early. */
-    fun dismissBanner(state: State): State = state.copy(bannerKey = null, bannerUntilMs = 0L)
+    /** «×»: closes the yellow banner. */
+    fun dismissBanner(state: State): State = state.copy(bannerKeys = emptyList())
+
+    /**
+     * A new trip: episodes, «Понятно» and mute are forgotten, so everything active is presented and
+     * rings again; windows still open stay open — only the user closes them.
+     */
+    fun newTrip(state: State): State =
+        State(windowOpen = state.windowOpen, windowKeys = state.windowKeys, bannerKeys = state.bannerKeys)
 
     /** Returns (entry, worsened, ring an attention banner). */
     private fun updateWheel(prev: Entry?, wheel: WheelAlert): Triple<Entry, Boolean, Boolean> {
@@ -222,7 +247,6 @@ object AlertPresentation {
         val times = buildList {
             if (windowUp) add((state.lastFaultSoundAtMs ?: now) + FAULT_REPEAT_MS)
             if (state.acknowledged) state.nextReminderAtMs?.let { add(it) }
-            if (state.bannerKey != null) add(state.bannerUntilMs)
         }
         return times.minOrNull()
     }
@@ -233,6 +257,9 @@ object AlertPresentation {
         put("acknowledged", state.acknowledged)
         state.nextReminderAtMs?.let { put("next_reminder_ms", it) }
         put("muted_until_ms", state.attentionMutedUntilMs)
+        put("window_open", state.windowOpen)
+        put("window_keys", JSONArray(state.windowKeys.toList()))
+        put("banner_keys", JSONArray(state.bannerKeys))
         put("entries", JSONArray().apply {
             state.entries.values.forEach { e ->
                 put(JSONObject().apply {
@@ -249,7 +276,7 @@ object AlertPresentation {
 
     /**
      * The state [encode] produced; unreadable input gives an empty state. The fault signal is due
-     * again and no banner is up (timers that are not worth persisting).
+     * again (its timer is not worth persisting).
      */
     fun decode(encoded: String?): State {
         if (encoded.isNullOrBlank()) return State()
@@ -269,8 +296,16 @@ object AlertPresentation {
             entries = entries,
             acknowledged = root.optBoolean("acknowledged", false),
             nextReminderAtMs = if (root.has("next_reminder_ms")) root.optLong("next_reminder_ms") else null,
-            attentionMutedUntilMs = root.optLong("muted_until_ms", 0L)
+            attentionMutedUntilMs = root.optLong("muted_until_ms", 0L),
+            windowOpen = root.optBoolean("window_open", false),
+            windowKeys = strings(root.optJSONArray("window_keys")).toSet(),
+            bannerKeys = strings(root.optJSONArray("banner_keys"))
         )
+    }
+
+    private fun strings(array: JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        return (0 until array.length()).mapNotNull { array.optString(it).takeIf { s -> s.isNotBlank() } }
     }
 
     private fun types(names: JSONArray?): Set<AlertType> {

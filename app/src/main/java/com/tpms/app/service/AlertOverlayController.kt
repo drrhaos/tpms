@@ -17,7 +17,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -33,8 +32,11 @@ import kotlin.math.min
  * "display over other apps":
  * - **Red "Неисправность" window** — card in the middle over a dimmed screen: the first (worst) row
  *   in full (car with the wheel lit, value, detail, advice), the others compact; big «Понятно» and
- *   «Открыть»; the frame pulses while unacknowledged.
- * - **Yellow "Внимание" banner** — top centre, a bar running out with the time left, «×».
+ *   «Открыть»; the frame pulses while unacknowledged; once no fault is left the subtitle says so.
+ * - **Yellow "Внимание" banner** — top centre, one line per alert, «×».
+ *
+ * Neither closes by itself (drhaos, 2026-11-17): only the user's buttons do; alerts that cleared
+ * stay as [Row.resolved] rows.
  *
  * Always dark, whatever the app theme. Content is rebuilt on every show. Main thread only; every
  * WindowManager call is guarded (the permission may be revoked at any time).
@@ -52,7 +54,9 @@ class AlertOverlayController @Inject constructor(
         val value: String?,
         val detail: String?,
         val advice: String?,
-        val fault: Boolean
+        val fault: Boolean,
+        /** The alert cleared after the window opened: drawn green, "в норме". */
+        val resolved: Boolean = false
     )
 
     private val windowManager = context.getSystemService(WindowManager::class.java)
@@ -62,13 +66,22 @@ class AlertOverlayController @Inject constructor(
 
     fun canShow(): Boolean = Settings.canDrawOverlays(context)
 
-    /** Shows or refreshes the red window; false if it cannot be shown (no permission, refused). */
-    fun showFault(rows: List<Row>, unacknowledged: Boolean, onAcknowledge: () -> Unit, onOpen: () -> Unit): Boolean {
+    /**
+     * Shows or refreshes the red window; false if it cannot be shown (no permission, refused).
+     * [faultActive]: some row is still a fault (else the subtitle says the fault is gone).
+     */
+    fun showFault(
+        rows: List<Row>,
+        unacknowledged: Boolean,
+        faultActive: Boolean,
+        onAcknowledge: () -> Unit,
+        onOpen: () -> Unit
+    ): Boolean {
         if (rows.isEmpty() || !canShow()) {
             hideFault()
             return false
         }
-        val view = buildFault(rows, unacknowledged, onAcknowledge, onOpen)
+        val view = buildFault(rows, unacknowledged, faultActive, onAcknowledge, onOpen)
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -86,10 +99,10 @@ class AlertOverlayController @Inject constructor(
         faultView = null
     }
 
-    /** Shows the yellow banner for [remainingMs]; false if it cannot be shown. */
-    fun showBanner(row: Row, remainingMs: Long, onDismiss: () -> Unit): Boolean {
-        if (!canShow()) return false
-        val view = buildBanner(row, remainingMs, onDismiss)
+    /** Shows or refreshes the yellow banner (one line per alert); false if it cannot be shown. */
+    fun showBanner(rows: List<Row>, onDismiss: () -> Unit): Boolean {
+        if (rows.isEmpty() || !canShow()) return false
+        val view = buildBanner(rows, onDismiss)
         val params = WindowManager.LayoutParams(
             min(dp(BANNER_WIDTH_DP), screenWidth() - dp(24)),
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -117,7 +130,13 @@ class AlertOverlayController @Inject constructor(
 
     // --- Red window ---
 
-    private fun buildFault(rows: List<Row>, unacknowledged: Boolean, onAcknowledge: () -> Unit, onOpen: () -> Unit): View {
+    private fun buildFault(
+        rows: List<Row>,
+        unacknowledged: Boolean,
+        faultActive: Boolean,
+        onAcknowledge: () -> Unit,
+        onOpen: () -> Unit
+    ): View {
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
@@ -127,7 +146,7 @@ class AlertOverlayController @Inject constructor(
             }
             clipToOutline = true
         }
-        card.addView(faultHeader())
+        card.addView(faultHeader(faultActive))
         val body = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(10), dp(18), 0)
@@ -147,7 +166,7 @@ class AlertOverlayController @Inject constructor(
         }
     }
 
-    private fun faultHeader(): View = LinearLayout(context).apply {
+    private fun faultHeader(faultActive: Boolean): View = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setBackgroundColor(ALERT)
@@ -157,22 +176,23 @@ class AlertOverlayController @Inject constructor(
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), 0, 0, 0)
             addView(text(context.getString(R.string.alert_window_fault_title), 24f, Color.WHITE, bold = true))
-            addView(text(context.getString(R.string.alert_window_fault_subtitle), 15f, 0xE6FFFFFF.toInt()))
+            val subtitle = if (faultActive) R.string.alert_window_fault_subtitle else R.string.alert_window_fault_cleared
+            addView(text(context.getString(subtitle), 15f, 0xE6FFFFFF.toInt()))
         })
     }
 
     private fun fullRow(row: Row): View = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(if (row.fault) ROW_BG else ROW_WARN_BG, 12)
+        background = rounded(rowBackground(row), 12)
         setPadding(dp(12), dp(10), dp(12), dp(10))
         layoutParams = rowParams()
-        if (row.slot != null) addView(CarIcon(context, row.slot, row.fault), LinearLayout.LayoutParams(dp(54), dp(84)))
+        if (row.slot != null) addView(CarIcon(context, row.slot, row.fault && !row.resolved), LinearLayout.LayoutParams(dp(54), dp(84)))
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), 0, 0, 0)
             addView(text("${row.title} · ${row.subtitle}", 22f, TEXT, bold = true))
-            row.value?.let { addView(text(it, 22f, if (row.fault) ALERT else WARNING, bold = true)) }
+            row.value?.let { addView(text(it, 22f, accent(row), bold = true)) }
             row.detail?.let { addView(text(it, 17f, TEXT)) }
             row.advice?.let { addView(text(it, 15f, if (row.fault) ADVICE_FAULT else ADVICE_WARN)) }
         })
@@ -181,12 +201,17 @@ class AlertOverlayController @Inject constructor(
     private fun compactRow(row: Row): View = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(if (row.fault) ROW_BG else ROW_WARN_BG, 10)
+        background = rounded(rowBackground(row), 10)
         setPadding(dp(12), dp(6), dp(12), dp(6))
         layoutParams = rowParams()
         if (row.slot != null) addView(CarIcon(context, row.slot, row.fault), LinearLayout.LayoutParams(dp(24), dp(36)))
         val line = listOfNotNull(row.title, row.subtitle, row.value).joinToString(" · ")
-        addView(text(line, 18f, if (row.fault) TEXT else ADVICE_WARN, bold = row.fault).apply {
+        val color = when {
+            row.resolved -> OK
+            row.fault -> TEXT
+            else -> ADVICE_WARN
+        }
+        addView(text(line, 18f, color, bold = row.fault && !row.resolved).apply {
             setPadding(dp(12), 0, 0, 0)
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
@@ -219,41 +244,37 @@ class AlertOverlayController @Inject constructor(
 
     // --- Yellow banner ---
 
-    private fun buildBanner(row: Row, remainingMs: Long, onDismiss: () -> Unit): View {
-        val content = LinearLayout(context).apply {
+    private fun buildBanner(rows: List<Row>, onDismiss: () -> Unit): View {
+        val first = rows.first()
+        val lines = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), 0, dp(8), 0)
+            val title = if (rows.size == 1) first.title else context.getString(R.string.alert_window_attention_many, rows.size)
+            addView(text(context.getString(R.string.alert_window_attention_title, title), 19f, TEXT, bold = true))
+            rows.forEach { row ->
+                val line = if (rows.size == 1) listOfNotNull(row.value, row.subtitle) else listOfNotNull(row.title, row.subtitle, row.value)
+                addView(text(line.joinToString(" — "), 16f, if (row.resolved) OK else WARNING))
+            }
+            val advice = if (rows.size == 1 && !first.resolved) first.advice else null
+            addView(text(listOfNotNull(context.getString(R.string.alert_window_attention_drive_on), advice).joinToString(". "), 15f, ADVICE_WARN))
+        }
+        return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(12), dp(14))
-            addView(badge("!", WARNING, WARN_BG_DARK, 34))
-            addView(LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(14), 0, dp(8), 0)
-                addView(text(context.getString(R.string.alert_window_attention_title, row.title), 19f, TEXT, bold = true))
-                addView(text(listOfNotNull(row.value, row.subtitle).joinToString(" — "), 16f, WARNING))
-                addView(text(listOfNotNull(context.getString(R.string.alert_window_attention_drive_on), row.advice).joinToString(". "), 15f, ADVICE_WARN))
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(button("×", Color.TRANSPARENT, ADVICE_WARN, 22f, onDismiss).apply {
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(10).toFloat()
-                    setStroke(dp(1), 0x99F0A020.toInt())
-                }
-            }, LinearLayout.LayoutParams(dp(44), dp(44)))
-        }
-        val bar = View(context).apply {
-            setBackgroundColor(WARNING)
-            pivotX = 0f
-            animate().scaleX(0f).setDuration(remainingMs.coerceAtLeast(0L)).setInterpolator(LinearInterpolator()).start()
-        }
-        return FrameLayout(context).apply {
+            setPadding(dp(16), dp(12), dp(12), dp(12))
             background = GradientDrawable().apply {
                 setColor(WARN_BG)
                 cornerRadius = dp(14).toFloat()
                 setStroke(dp(2), WARNING)
             }
-            addView(content)
-            addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3), Gravity.BOTTOM).apply {
-                setMargins(dp(12), 0, dp(12), dp(5))
-            })
+            addView(badge("!", WARNING, WARN_BG, 34))
+            addView(lines, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(button("×", Color.TRANSPARENT, ADVICE_WARN, 22f, onDismiss).apply {
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setStroke(dp(1), 0x99F0A020.toInt())
+                }
+            }, LinearLayout.LayoutParams(dp(56), dp(56)))
         }
     }
 
@@ -304,6 +325,18 @@ class AlertOverlayController @Inject constructor(
         cornerRadius = dp(radiusDp).toFloat()
     }
 
+    private fun rowBackground(row: Row): Int = when {
+        row.resolved -> ROW_OK_BG
+        row.fault -> ROW_BG
+        else -> ROW_WARN_BG
+    }
+
+    private fun accent(row: Row): Int = when {
+        row.resolved -> OK
+        row.fault -> ALERT
+        else -> WARNING
+    }
+
     private fun rowParams() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         .apply { bottomMargin = dp(10) }
 
@@ -352,7 +385,8 @@ class AlertOverlayController @Inject constructor(
         private const val WARNING = 0xFFF0A020.toInt()
         private const val FAULT_BG = 0xFF2A0F11.toInt()
         private const val WARN_BG = 0xFF2B2008.toInt()
-        private const val WARN_BG_DARK = 0xFF2B2008.toInt()
+        private const val OK = 0xFF3DB46D.toInt()
+        private const val ROW_OK_BG = 0xFF0F2A18.toInt()
         private const val ROW_BG = 0x0AFFFFFF
         private const val ROW_WARN_BG = 0xFF2B2008.toInt()
         private const val TEXT = 0xFFECEFF3.toInt()

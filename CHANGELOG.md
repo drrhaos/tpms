@@ -23,7 +23,8 @@ All notable changes to TPMS Monitor. Versions follow the release tags (`vX.Y.Z`)
 ### Alerts
 - Two alert levels: **Attention** (deviation, you can drive on — yellow) and **Fault** (do not drive — red). Fault: pressure below 65 % of the recommended, fast pressure loss (leak flag, −0.3 bar in 10 min, 0.4 bar below the other wheel of the axle), tyre at 100 °C (overheat limit + 15 °C), sensor lost, monitoring not working.
 - Fault: a red window over any app (navigation, music, FrontApp) with the wheel, values and what to do, and a signal every 30 s until «Got it»; afterwards it comes back after a reminder interval (1–30 min, default 5). Worsening rings at once.
-- Attention: a yellow banner for 10 s with a short chime, once per alert type; «Mute 30 min» applies to attention only.
+- Attention: a yellow banner with a short chime, once per alert type; «Mute 30 min» applies to attention only.
+- Alert windows never close by themselves: the red one only with «Got it», the yellow one only with «×»; alerts that cleared meanwhile stay as "back to normal" lines.
 - Alert notifications stay as long as the problem lasts (not swipeable; on Android 14+ a swiped one comes back silently); a fault has «Got it» in the notification and on the main screen.
 - Signals are the app's own sounds at the alarm volume, ducking music; the alert notification channel is silent (channel settings reset once).
 - Onboarding asks for "Display over other apps"; System check shows the alert window permission and the alarm volume; two test buttons in Settings → Alerts. Settings export v6 (reminder interval).

@@ -62,8 +62,7 @@ class AlertCoordinator @Inject constructor(
 
     /** What the overlay shows now, so an unchanged plan does not rebuild it (and restart the pulse). */
     private var shownWindow: Pair<List<AlertOverlayController.Row>, Boolean>? = null
-    private var shownBanner: String? = null
-    private val hideTest = Runnable { overlay.hideAll(); shownWindow = null; shownBanner = null; recompute() }
+    private var shownBanner: List<AlertOverlayController.Row>? = null
 
     private val _faultUnacknowledged = MutableStateFlow(false)
 
@@ -92,7 +91,6 @@ class AlertCoordinator @Inject constructor(
     fun onMonitoringStopped(intentional: Boolean) {
         active = false
         handler.removeCallbacks(tick)
-        handler.removeCallbacks(hideTest)
         overlay.hideAll()
         shownWindow = null
         shownBanner = null
@@ -105,9 +103,12 @@ class AlertCoordinator @Inject constructor(
         _faultUnacknowledged.value = false
     }
 
-    /** A new trip (wayfinder: TripBoundary): every active alert is presented and rings again. */
+    /**
+     * A new trip (wayfinder: TripBoundary): every active alert is presented and rings again; windows
+     * still open stay open (only the user closes them).
+     */
     fun onNewTrip() {
-        state = AlertPresentation.State()
+        state = AlertPresentation.newTrip(state)
         loaded = true
         notifier.cancelAll()
         persist()
@@ -139,12 +140,11 @@ class AlertCoordinator @Inject constructor(
     fun onNotificationSwiped(key: String) = notifier.repost(key)
 
     /**
-     * "Test alert" from the settings: the red window (or the yellow banner) with its signal, gone
-     * after [TEST_VISIBLE_MS] or a tap; the real state is untouched. Returns whether the window could
+     * "Test alert" from the settings: the red window (or the yellow banner) with its signal, closed
+     * by its button like a real one; the real state is untouched. Returns whether the window could
      * be drawn (the signal plays either way).
      */
     fun postTest(level: AlertLevel): Boolean {
-        handler.removeCallbacks(hideTest)
         val sample = AlertOverlayController.Row(
             key = "test",
             slot = "RL",
@@ -156,14 +156,12 @@ class AlertCoordinator @Inject constructor(
             fault = level == AlertLevel.FAULT
         )
         val shown = if (level == AlertLevel.FAULT) {
-            overlay.showFault(listOf(sample), unacknowledged = true, onAcknowledge = { hideTest.run() }, onOpen = { hideTest.run() })
+            overlay.showFault(listOf(sample), unacknowledged = true, faultActive = true, onAcknowledge = ::closeTest, onOpen = ::closeTest)
+                .also { shownWindow = null }
         } else {
-            overlay.showBanner(sample, AlertPresentation.BANNER_MS) { hideTest.run() }
+            overlay.showBanner(listOf(sample), ::closeTest).also { shownBanner = null }
         }
-        shownWindow = null
-        shownBanner = null
         sound.play(if (level == AlertLevel.FAULT) AlertPresentation.Sound.FAULT else AlertPresentation.Sound.ATTENTION)
-        handler.postDelayed(hideTest, if (level == AlertLevel.FAULT) TEST_VISIBLE_MS else AlertPresentation.BANNER_MS)
         return shown
     }
 
@@ -183,38 +181,38 @@ class AlertCoordinator @Inject constructor(
         val (next, plan) = AlertPresentation.step(state, input)
         state = next
         persist()
-        execute(plan, now)
+        execute(plan)
         plan.nextCheckAtMs?.let { at -> handler.postDelayed(tick, (at - now).coerceAtLeast(MIN_TICK_MS)) }
     }
 
-    private fun execute(plan: AlertPresentation.Plan, now: Long) {
+    private fun execute(plan: AlertPresentation.Plan) {
         _faultUnacknowledged.value = state.hasFault && !state.acknowledged
         val windowAllowed = settingsStore.criticalAlertsFullscreen.value
         var windowShown = false
         val window = plan.window
         if (window != null && windowAllowed) {
-            val rows = window.map { rowOf(it) }
+            val rows = window.map { rowOf(it) } + plan.windowResolved.map { resolvedRow(it) }
             val wanted = rows to plan.windowUnacknowledged
+            val faultActive = window.any { it.level == AlertLevel.FAULT }
             windowShown = if (shownWindow == wanted) {
                 true
             } else {
-                overlay.showFault(rows, plan.windowUnacknowledged, onAcknowledge = { acknowledge() }, onOpen = {
+                overlay.showFault(rows, plan.windowUnacknowledged, faultActive, onAcknowledge = { acknowledge() }, onOpen = {
                     acknowledge()
                     runCatching { context.startActivity(MainActivity.newIntent(context)) }
                 }).also { shownWindow = if (it) wanted else null }
             }
         } else if (shownWindow != null) {
+            // Hidden, not closed: the screen is off or the window turned off; the state keeps it open.
             overlay.hideFault()
             shownWindow = null
         }
 
-        val bannerKey = plan.banner
-        if (bannerKey != null && bannerKey != shownBanner) {
-            state.entries[bannerKey]?.let { entry ->
-                val remaining = (state.bannerUntilMs - now).coerceAtLeast(0L)
-                if (overlay.showBanner(rowOf(entry), remaining) { dismissBanner() }) shownBanner = bannerKey
-            }
-        } else if (bannerKey == null && shownBanner != null) {
+        val banner = plan.banner
+        if (banner != null) {
+            val rows = banner.map { rowOf(it) } + plan.bannerResolved.map { resolvedRow(it) }
+            if (rows != shownBanner && overlay.showBanner(rows) { dismissBanner() }) shownBanner = rows
+        } else if (shownBanner != null) {
             overlay.hideBanner()
             shownBanner = null
         }
@@ -222,6 +220,14 @@ class AlertCoordinator @Inject constructor(
         plan.sound?.let { sound.play(it) }
         // The full-screen intent stands in for a red window that could not be drawn.
         notifier.sync(plan.notifications, ::rowOf, faultUnacknowledged = plan.windowUnacknowledged && !windowShown)
+    }
+
+    /** A test window was closed by its button; the real alerts are presented again. */
+    private fun closeTest() {
+        overlay.hideAll()
+        shownWindow = null
+        shownBanner = null
+        recompute()
     }
 
     private fun dismissBanner() {
@@ -246,6 +252,30 @@ class AlertCoordinator @Inject constructor(
         // BATTERY_LOW stays on screen only (wayfinder alerts 01: no window, no signal).
         if (type == AlertType.BATTERY_LOW) return null
         return AlertPresentation.WheelAlert(id, type, alertLevel ?: AlertLevel.ATTENTION, pressureKpa)
+    }
+
+    /** Row of an alert that cleared while its window was open: the wheel, "в норме". */
+    private fun resolvedRow(key: String): AlertOverlayController.Row {
+        val placed = repository.wheels.value.entries.firstOrNull { it.value.id == key }
+        val unit = settingsStore.pressureUnit.value
+        val title = when {
+            key == AlertPresentation.MONITORING_KEY -> context.getString(R.string.alert_monitoring_title)
+            placed != null -> wheelPositionLabel(context, placed.key)
+            else -> key
+        }
+        return AlertOverlayController.Row(
+            key = key,
+            slot = placed?.key,
+            title = title,
+            subtitle = context.getString(R.string.alert_window_resolved),
+            value = placed?.value?.takeIf { it.pressureKpa.isFinite() }?.let {
+                "${unit.formatFromKpa(it.pressureKpa)} ${unit.localizedLabel(context)}"
+            },
+            detail = null,
+            advice = null,
+            fault = false,
+            resolved = true
+        )
     }
 
     /** Localized texts of [entry], from the wheel's current reading when it is still placed. */
@@ -286,7 +316,6 @@ class AlertCoordinator @Inject constructor(
     }
 
     companion object {
-        private const val TEST_VISIBLE_MS = 15_000L
         private const val MIN_TICK_MS = 250L
     }
 }

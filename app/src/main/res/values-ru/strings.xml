@@ -299,4 +299,7 @@
     <string name="settings_check_alarm_volume_bad">Громкость будильника 0 — сигнал тревоги не будет слышен</string>
     <string name="onboarding_alert_window_hint">При неисправности шины поверх навигации и музыки откроется красное окно. Разрешите для него «Поверх других окон» (на Android 13+ при установке не из магазина сначала ⋮ → «Разрешить ограниченные настройки»).</string>
     <string name="onboarding_allow_alert_window">Разрешить окно тревоги</string>
+    <string name="alert_window_fault_cleared">Неисправность устранена — закройте «Понятно»</string>
+    <string name="alert_window_attention_many">колёс: %1$d</string>
+    <string name="alert_window_resolved">в норме</string>
 </resources>
