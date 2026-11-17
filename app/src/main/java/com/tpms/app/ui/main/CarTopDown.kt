@@ -72,7 +72,13 @@ fun CarTopDown(
 ) {
     BoxWithConstraints(modifier = modifier) {
         if (maxWidth <= 0.dp || maxHeight <= 0.dp) return@BoxWithConstraints
-        val geo = stageGeometry(maxWidth.value, maxHeight.value, dense || maxHeight < 360.dp)
+        val geo = stageGeometry(
+            maxWidth.value,
+            maxHeight.value,
+            dense || maxHeight < 360.dp,
+            carScale = MAIN_CAR_SCALE,
+            textScale = MAIN_TEXT_SCALE
+        )
         val carModifier = Modifier
             .offset(geo.car.left.dp, geo.car.top.dp)
             .size(geo.car.width.dp, geo.car.height.dp)
