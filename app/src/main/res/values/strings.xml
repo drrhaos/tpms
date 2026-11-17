@@ -10,11 +10,10 @@
     <string name="notification_alert_high_pressure">High tire pressure detected</string>
     <string name="notification_alert_high_temp">High tire temperature detected</string>
     <string name="notification_alert_battery_low">TPMS sensor battery low</string>
+    <string name="notification_alert_pressure_drop">Fast tyre pressure loss</string>
     <string name="notification_alert_sensor_lost">TPMS sensor signal lost</string>
     <string name="notification_alert_title_format">%1$s · %2$s</string>
     <string name="notification_alert_pressure_format">Pressure: %1$s</string>
-    <string name="notification_test_alert_title">Test tyre alert</string>
-    <string name="notification_test_alert_text">This is how a tyre alert sounds and looks</string>
     <string name="notification_monitoring_blind_title">Tyre pressure monitoring is not working</string>
     <string name="notification_monitoring_blind_text">No data from the TPMS receiver — check the dongle</string>
     <string name="notification_action_check">Check now</string>
@@ -64,6 +63,7 @@
     <string name="alert_short_lost">LOST</string>
     <string name="alert_short_high_temp">HIGH TEMP</string>
     <string name="alert_short_low_battery">LOW BATT</string>
+    <string name="alert_short_drop">DROP</string>
 
     <!-- Widget -->
     <string name="widget_no_data">No sensor data</string>
@@ -127,7 +127,7 @@
     <string name="settings_auto">Auto</string>
     <string name="settings_high_temp">Tyre overheating limit</string>
     <string name="settings_alert_sound_configure">Sound and vibration</string>
-    <string name="settings_alert_sound_configure_hint">Sound, vibration and importance of alerts are set in the system notification settings</string>
+    <string name="settings_alert_sound_configure_hint">Importance of alert notifications; the alert signal itself plays at the alarm volume</string>
     <string name="settings_teyes_permissions">Teyes head unit</string>
     <string name="settings_teyes_auto_start">Auto start enabled (Settings → Apps → TPMS)</string>
     <string name="settings_teyes_auto_start_hint">Without this, monitoring will not survive the head unit\'s sleep.</string>
@@ -146,7 +146,7 @@
     <string name="settings_teyes_manual_overlay">Open Teyes Settings → Apps → TPMS → Display over other apps.</string>
     <string name="settings_silent_startup">Silent start on boot</string>
     <string name="settings_floating_overlay">Mini panel over other apps</string>
-    <string name="settings_critical_alerts_fullscreen">Full-screen warning</string>
+    <string name="settings_critical_alerts_fullscreen">Red alert window</string>
     <string name="settings_preferred_usb_dongle">Preferred USB dongle</string>
     <string name="settings_stale_frame_timeout">Reconnect without valid frames</string>
     <string name="settings_min_live_wheel_pressure">Min. live wheel pressure, kPa</string>
@@ -163,7 +163,7 @@
     <string name="settings_section_alerts">Alerts</string>
     <string name="settings_floating_overlay_hint">Tyre pressures over navigation and other apps</string>
     <string name="settings_silent_startup_hint">Start in background without opening the app window.</string>
-    <string name="settings_critical_alerts_fullscreen_hint">A tyre alert opens the app over the screen (needs “Display over other apps”)</string>
+    <string name="settings_critical_alerts_fullscreen_hint">A fault opens a red window over any app (needs “Display over other apps”); off — notification only</string>
 
     <!-- Protocol modes -->
     <string name="protocol_auto">Auto</string>
@@ -198,6 +198,7 @@
     <string name="alert_card_lost">No signal</string>
     <string name="alert_card_high_temp">Tyre overheating</string>
     <string name="alert_card_low_battery">Sensor battery</string>
+    <string name="alert_card_drop">Fast pressure loss</string>
     <string name="cd_decrease">Decrease</string>
     <string name="cd_increase">Increase</string>
     <string name="detail_target">Recommended</string>
@@ -250,11 +251,9 @@
     <string name="settings_check_notifications">Notifications</string>
     <string name="settings_check_notifications_ok">Allowed</string>
     <string name="settings_check_notifications_bad">Blocked — tyre warnings will not reach you</string>
-    <string name="settings_check_alert_channel">Alert sound</string>
-    <string name="settings_check_alert_channel_ok">Tyre alerts pop up with sound</string>
-    <string name="settings_check_alert_channel_bad">Tyre alerts are silenced — set the “TPMS Alerts” category to pop up with sound</string>
-    <string name="settings_alert_test">Test alert</string>
-    <string name="settings_alert_test_hint">Plays a tyre alert now: check the volume and that it shows on top</string>
+    <string name="settings_check_alert_channel">Alert notifications</string>
+    <string name="settings_check_alert_channel_ok">Tyre alerts pop up</string>
+    <string name="settings_check_alert_channel_bad">Tyre alerts are hidden — set the “TPMS Alerts” category to pop up</string>
     <string name="settings_alert_test_failed">Notifications are blocked — the alert cannot be shown</string>
     <string name="settings_section_about">About</string>
     <string name="settings_version">Version</string>
@@ -274,4 +273,29 @@
     <string name="alert_advice_lost">No signal from the sensor — check the sensor and the receiver</string>
     <string name="alert_advice_high_temp">The tyre is overheating — slow down</string>
     <string name="alert_advice_low_battery">Replace the sensor battery at the next service</string>
+    <string name="alert_advice_drop">Slow down, stop in a safe place and inspect the tyre</string>
+    <string name="alert_window_fault_title">TYRE FAULT</string>
+    <string name="alert_window_fault_subtitle">Stop in a safe place</string>
+    <string name="alert_window_acknowledge">Got it</string>
+    <string name="alert_window_open">Open</string>
+    <string name="alert_window_attention_title">Attention · %1$s</string>
+    <string name="alert_window_attention_drive_on">You can drive on</string>
+    <string name="alert_window_test_value">1.4 bar · 31 °C</string>
+    <string name="alert_window_test_advice">This is a test — no real alert</string>
+    <string name="alert_window_drop_format">−%1$s in 10 min</string>
+    <string name="settings_alert_test_fault">Test the fault alert</string>
+    <string name="settings_alert_test_fault_hint">Red window and signal, as for a real fault: check the volume and that it shows on top</string>
+    <string name="settings_alert_test_attention">Test the attention alert</string>
+    <string name="settings_alert_test_attention_hint">Yellow banner and a short signal</string>
+    <string name="settings_alert_test_failed">The window cannot be shown — allow “Display over other apps” (System check)</string>
+    <string name="settings_alert_reminder">Remind of an acknowledged fault after, min</string>
+    <string name="settings_alert_reminder_minutes">%1$d</string>
+    <string name="settings_check_alert_window">Alert window</string>
+    <string name="settings_check_alert_window_ok">The red window can show over any app</string>
+    <string name="settings_check_alert_window_bad">Not allowed — a fault shows only as a notification. Allow “Display over other apps”</string>
+    <string name="settings_check_alarm_volume">Alert signal volume</string>
+    <string name="settings_check_alarm_volume_ok">Alarm volume is on</string>
+    <string name="settings_check_alarm_volume_bad">Alarm volume is 0 — the alert signal will not be heard</string>
+    <string name="onboarding_alert_window_hint">A tyre fault opens a red window over navigation and music. Allow “Display over other apps” for it (on Android 13+ installed outside a store: ⋮ → Allow restricted settings first).</string>
+    <string name="onboarding_allow_alert_window">Allow the alert window</string>
 </resources>

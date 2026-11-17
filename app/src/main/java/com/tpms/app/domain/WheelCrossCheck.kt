@@ -1,11 +1,13 @@
 package com.tpms.app.domain
 
+import com.tpms.app.domain.model.AlertLevel
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.TireSensor
 
 /**
  * Alerts a single sensor cannot raise on its own, found by comparing it with the other wheels.
- * Pure; applied by the repository after [AlertEvaluator], and never over a wheel's own ALERT.
+ * Pure; applied by the repository after [AlertEvaluator], and never over a wheel's own FAULT.
+ * Both raise FAULT (wayfinder alerts 01).
  *
  * - **Lost sensor** (SENSOR_LOST): the sensor's value has not changed for a long time while the
  *   other road wheels keep changing (the car is moving, so the receiver works and the sensors
@@ -18,7 +20,7 @@ import com.tpms.app.domain.model.TireSensor
  *     [FROZEN_PEER_WINDOW_MS]. Deliberately conservative; to be tuned on hardware.
  *   - Sticky: once lost, it stays lost until the sensor itself changes (a parked car whose other
  *     sensors fall quiet does not clear it).
- * - **Low against the axle** (LOW_PRESSURE): the wheel is [AXLE_LOW_RAISE_KPA] below the other wheel
+ * - **Low against the axle** (PRESSURE_DROP): the wheel is [AXLE_LOW_RAISE_KPA] below the other wheel
  *   of its axle (cleared below [AXLE_LOW_CLEAR_KPA]). Heat and weather move both wheels of an axle
  *   alike, so a growing gap is a puncture long before the absolute low limit.
  *
@@ -52,15 +54,17 @@ object WheelCrossCheck {
         streaming: Boolean,
         now: Long
     ): TireSensor {
-        if (sensor.alertType.toSeverity() == AlertSeverity.ALERT || WheelLayout.isSpare(sensor)) return sensor
+        if (sensor.isFault || WheelLayout.isSpare(sensor)) return sensor
         val peers = wheels.values.filter { it.id != sensor.id && !WheelLayout.isSpare(it) }
         val wasLost = previous?.alertType == AlertType.SENSOR_LOST && !previous.flags.noSignal
-        if (isLost(sensor, peers, wasLost, streaming, now)) return sensor.copy(alertType = AlertType.SENSOR_LOST)
+        if (isLost(sensor, peers, wasLost, streaming, now)) return sensor.fault(AlertType.SENSOR_LOST)
         val mate = slot?.let { AXLE_MATES[it] }?.let { wheels[it] }?.takeIf { it.id != sensor.id }
-        val wasLow = previous?.alertType == AlertType.LOW_PRESSURE
-        if (isLowAgainstAxle(sensor, mate, wasLow)) return sensor.copy(alertType = AlertType.LOW_PRESSURE)
+        val wasLow = previous?.alertType == AlertType.PRESSURE_DROP
+        if (isLowAgainstAxle(sensor, mate, wasLow)) return sensor.fault(AlertType.PRESSURE_DROP)
         return sensor
     }
+
+    private fun TireSensor.fault(type: AlertType) = copy(alertType = type, alertLevel = AlertLevel.FAULT)
 
     /** When [sensor]'s value last changed: HID its last transmission, streaming its value start. */
     fun lastChangeAtMs(sensor: TireSensor, streaming: Boolean): Long =

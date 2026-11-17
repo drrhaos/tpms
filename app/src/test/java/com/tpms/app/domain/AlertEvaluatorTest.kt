@@ -1,5 +1,6 @@
 package com.tpms.app.domain
 
+import com.tpms.app.domain.model.AlertLevel
 import com.tpms.app.domain.model.AlertThresholds
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.SensorFlags
@@ -12,14 +13,12 @@ import org.junit.Test
 
 class AlertEvaluatorTest {
 
-    private val thresholds = AlertThresholds(
-        lowPressureKpa = 150f,
-        highPressureKpa = 350f,
-        highTempCelsius = 85f
-    )
+    // Target 230 kPa: low 184, critical 149.5, high 310.5; temp 85 / 100 °C.
+    private val thresholds = PressureTarget.thresholds(230f, highTempCelsius = 85f)
+    private val minute = 60_000L
 
     private fun sensor(
-        pressureKpa: Float = 240f,
+        pressureKpa: Float = 230f,
         temperatureCelsius: Float = 25f,
         batteryPercent: Int? = 80,
         id: String = "FL",
@@ -44,266 +43,168 @@ class AlertEvaluatorTest {
         return steps.map { (now, s) -> eval(s, memory, now).also { memory = it.memory } }
     }
 
-    // --- Immediate alerts ---
+    private fun AlertDecision.pair() = alertType to level
+
+    // --- Thresholds and levels ---
 
     @Test
-    fun evaluate_returnsNull_whenWithinThresholds() {
+    fun normalReadingHasNoAlert() {
         val decision = eval(sensor())
         assertNull(decision.alertType)
-        assertEquals(AlertMemory(), decision.memory)
+        assertNull(decision.level)
     }
 
     @Test
-    fun evaluate_detectsLowPressure() {
-        assertEquals(AlertType.LOW_PRESSURE, eval(sensor(pressureKpa = 120f)).alertType)
+    fun lowPressureIsAttentionAboveTheCriticalLimit() {
+        assertEquals(AlertType.LOW_PRESSURE to AlertLevel.ATTENTION, eval(sensor(pressureKpa = 170f)).pair())
     }
 
     @Test
-    fun evaluate_detectsHighPressure() {
-        assertEquals(AlertType.HIGH_PRESSURE, eval(sensor(pressureKpa = 400f)).alertType)
+    fun criticallyLowPressureIsFault() {
+        assertEquals(AlertType.LOW_PRESSURE to AlertLevel.FAULT, eval(sensor(pressureKpa = 140f)).pair())
     }
 
     @Test
-    fun evaluate_detectsHighTemperature() {
-        assertEquals(AlertType.HIGH_TEMP, eval(sensor(temperatureCelsius = 90f)).alertType)
-    }
-
-    @Test
-    fun evaluate_detectsLowBattery() {
-        assertEquals(AlertType.BATTERY_LOW, eval(sensor(batteryPercent = 5)).alertType)
-        assertEquals(
-            AlertType.BATTERY_LOW,
-            eval(sensor(batteryPercent = null, flags = SensorFlags(lowBattery = true))).alertType
-        )
-    }
-
-    @Test
-    fun evaluate_unknownBatteryIsNotLow() {
-        assertNull(eval(sensor(batteryPercent = null)).alertType)
-    }
-
-    @Test
-    fun evaluate_thresholdAlertOutranksLowBatteryWarning() {
-        assertEquals(
-            AlertType.HIGH_TEMP,
-            eval(sensor(temperatureCelsius = 120f, flags = SensorFlags(lowBattery = true))).alertType
-        )
-    }
-
-    // --- SENSOR_LOST ---
-
-    @Test
-    fun noSignal_outranksThresholds_andClearsOnFirstReadingWithoutFlag() {
-        val decisions = run(
-            0L to sensor(pressureKpa = 100f, flags = SensorFlags(noSignal = true)),
-            1_000L to sensor()
-        )
-        assertEquals(AlertType.SENSOR_LOST, decisions[0].alertType)
-        assertNull(decisions[1].alertType)
-    }
-
-    @Test
-    fun noSignal_leavesMemoryUntouched() {
-        // A no-signal frame's payload is not a measurement (it can read 0 kPa), so it must not
-        // raise threshold, leak or battery state that would outlive the signal loss.
-        val decisions = run(
+    fun criticalLowClearsWithHysteresisIntoAttention() {
+        val d = run(
             0L to sensor(pressureKpa = 140f),
-            1_000L to sensor(
-                pressureKpa = 0f,
-                batteryPercent = 5,
-                flags = SensorFlags(noSignal = true, leak = true, lowBattery = true)
-            ),
-            2_000L to sensor(pressureKpa = 155f)
+            // A slow climb: never 30 kPa below the window's highest, so no PRESSURE_DROP.
+            minute to sensor(pressureKpa = 155f),
+            2 * minute to sensor(pressureKpa = 160f)
         )
-        assertEquals(AlertType.SENSOR_LOST, decisions[1].alertType)
-        assertEquals(decisions[0].memory, decisions[1].memory)
-        // Held LOW from the reading before the loss, no battery latch from the dummy payload.
-        assertEquals(AlertType.LOW_PRESSURE, decisions[2].alertType)
-        assertEquals(false, decisions[2].memory.batteryLatched)
+        assertEquals(AlertLevel.FAULT, d[1].level) // 155 < 149.5 + 10
+        assertEquals(AlertType.LOW_PRESSURE to AlertLevel.ATTENTION, d[2].pair())
     }
 
-    // --- Leak dwell ---
+    @Test
+    fun lowPressureAttentionClearsWithHysteresis() {
+        val d = run(0L to sensor(pressureKpa = 180f), minute to sensor(pressureKpa = 190f), 2 * minute to sensor(pressureKpa = 195f))
+        assertEquals(AlertType.LOW_PRESSURE, d[1].alertType) // 190 < 184 + 10
+        assertNull(d[2].alertType)
+    }
 
     @Test
-    fun leak_underDwell_isNotShown() {
+    fun highPressureIsOnlyAttention() {
+        assertEquals(AlertType.HIGH_PRESSURE to AlertLevel.ATTENTION, eval(sensor(pressureKpa = 400f)).pair())
+    }
+
+    @Test
+    fun highTempIsAttentionThenFaultAtCriticalLimit() {
+        assertEquals(AlertType.HIGH_TEMP to AlertLevel.ATTENTION, eval(sensor(temperatureCelsius = 90f)).pair())
+        assertEquals(AlertType.HIGH_TEMP to AlertLevel.FAULT, eval(sensor(temperatureCelsius = 100f)).pair())
+    }
+
+    @Test
+    fun criticalTempClearsWithHysteresis() {
+        val d = run(0L to sensor(temperatureCelsius = 101f), 1_000L to sensor(temperatureCelsius = 98f), 2_000L to sensor(temperatureCelsius = 97f))
+        assertEquals(AlertLevel.FAULT, d[1].level)
+        assertEquals(AlertType.HIGH_TEMP to AlertLevel.ATTENTION, d[2].pair())
+    }
+
+    @Test
+    fun spareSkipsThresholds() {
+        assertNull(eval(sensor(pressureKpa = 50f, id = "SP")).alertType)
+    }
+
+    // --- Receiver flags ---
+
+    @Test
+    fun noSignalIsFaultAndKeepsMemory() {
+        val memory = AlertMemory(batteryLatched = true)
+        val decision = eval(sensor(flags = SensorFlags(noSignal = true)), memory)
+        assertEquals(AlertType.SENSOR_LOST to AlertLevel.FAULT, decision.pair())
+        assertEquals(memory, decision.memory)
+    }
+
+    @Test
+    fun leakFlagBecomesPressureDropAfter15s() {
         val leak = sensor(flags = SensorFlags(leak = true))
-        val decisions = run(0L to leak, 14_999L to leak)
-        assertNull(decisions[0].alertType)
-        assertNull(decisions[1].alertType)
-        assertEquals(0L, decisions[1].memory.leakSinceMs)
+        val d = run(0L to leak, 14_000L to leak, 15_000L to leak)
+        assertNull(d[1].alertType)
+        assertEquals(AlertType.PRESSURE_DROP to AlertLevel.FAULT, d[2].pair())
     }
 
     @Test
-    fun leak_atDwell_isShownAsLowPressure() {
+    fun brokenLeakRunRestartsTheHold() {
         val leak = sensor(flags = SensorFlags(leak = true))
-        val decisions = run(0L to leak, 15_000L to leak)
-        assertEquals(AlertType.LOW_PRESSURE, decisions[1].alertType)
+        val d = run(0L to leak, 10_000L to sensor(), 12_000L to leak, 26_000L to leak, 27_000L to leak)
+        assertNull(d[3].alertType)
+        assertEquals(AlertType.PRESSURE_DROP, d[4].alertType)
+    }
+
+    // --- Rate of loss ---
+
+    @Test
+    fun fallOf30KpaWithinTenMinutesIsPressureDrop() {
+        val d = run(0L to sensor(pressureKpa = 230f), 3 * minute to sensor(pressureKpa = 215f), 6 * minute to sensor(pressureKpa = 200f))
+        assertNull(d[1].alertType)
+        assertEquals(AlertType.PRESSURE_DROP to AlertLevel.FAULT, d[2].pair())
     }
 
     @Test
-    fun leak_readingWithoutFlagResetsDwell() {
-        val leak = sensor(flags = SensorFlags(leak = true))
-        val decisions = run(
-            0L to leak,
-            10_000L to sensor(),
-            12_000L to leak,
-            26_999L to leak,
-            27_000L to leak
+    fun slowFallIsNotPressureDrop() {
+        val d = run(
+            0L to sensor(pressureKpa = 230f),
+            8 * minute to sensor(pressureKpa = 215f),
+            16 * minute to sensor(pressureKpa = 200f)
         )
-        assertNull(decisions[1].memory.leakSinceMs)
-        assertEquals(12_000L, decisions[2].memory.leakSinceMs)
-        assertNull(decisions[3].alertType)
-        assertEquals(AlertType.LOW_PRESSURE, decisions[4].alertType)
+        assertNull(d[2].alertType)
     }
 
     @Test
-    fun leak_outranksThresholds() {
-        val leakHot = sensor(temperatureCelsius = 120f, flags = SensorFlags(leak = true))
-        val decisions = run(0L to leakHot, 15_000L to leakHot)
-        assertEquals(AlertType.HIGH_TEMP, decisions[0].alertType)
-        assertEquals(AlertType.LOW_PRESSURE, decisions[1].alertType)
-    }
-
-    // --- Threshold hysteresis ---
-
-    @Test
-    fun lowPressure_heldInsideBand_clearsAtLowPlusMargin() {
-        val decisions = run(
-            0L to sensor(pressureKpa = 140f),
-            1L to sensor(pressureKpa = 159.9f),
-            2L to sensor(pressureKpa = 160f)
+    fun pressureDropClearsOnceThePressureHeldForTheWindow() {
+        val d = run(
+            0L to sensor(pressureKpa = 230f),
+            5 * minute to sensor(pressureKpa = 195f),
+            11 * minute to sensor(pressureKpa = 195f)
         )
-        assertEquals(AlertType.LOW_PRESSURE, decisions[1].alertType)
-        assertNull(decisions[2].alertType)
-        assertNull(decisions[2].memory.thresholdAlert)
+        assertEquals(AlertType.PRESSURE_DROP, d[1].alertType)
+        assertNull(d[2].alertType)
     }
 
     @Test
-    fun lowPressure_bandDoesNotRaiseWithoutPriorAlert() {
-        assertNull(eval(sensor(pressureKpa = 155f)).alertType)
+    fun samplesAreThinnedAndBoundedToTheWindow() {
+        var memory = AlertMemory()
+        for (i in 0..120) memory = eval(sensor(), memory, i * 10_000L).memory
+        val samples = memory.pressureSamples
+        assertTrue(samples.size <= (AlertEvaluator.DROP_WINDOW_MS / AlertEvaluator.SAMPLE_EVERY_MS).toInt() + 1)
+        assertTrue(samples.all { 1_200_000L - it.atMs <= AlertEvaluator.DROP_WINDOW_MS })
+    }
+
+    // --- Priority ---
+
+    @Test
+    fun faultOutranksAttention() {
+        // Critical temperature (FAULT) with an attention-level low pressure.
+        val decision = eval(sensor(pressureKpa = 170f, temperatureCelsius = 105f))
+        assertEquals(AlertType.HIGH_TEMP to AlertLevel.FAULT, decision.pair())
     }
 
     @Test
-    fun highPressure_heldInsideBand_clearsAtHighMinusMargin() {
-        val decisions = run(
-            0L to sensor(pressureKpa = 360f),
-            1L to sensor(pressureKpa = 340.1f),
-            2L to sensor(pressureKpa = 340f)
-        )
-        assertEquals(AlertType.HIGH_PRESSURE, decisions[1].alertType)
-        assertNull(decisions[2].alertType)
+    fun withinALevelPressureDropOutranksLowPressure() {
+        val d = run(0L to sensor(pressureKpa = 180f), minute to sensor(pressureKpa = 140f))
+        assertEquals(AlertType.PRESSURE_DROP to AlertLevel.FAULT, d[1].pair())
     }
 
     @Test
-    fun highTemp_heldInsideBand_clearsAtHighTempMinusMargin() {
-        val decisions = run(
-            0L to sensor(temperatureCelsius = 90f),
-            1L to sensor(temperatureCelsius = 82.1f),
-            2L to sensor(temperatureCelsius = 82f)
-        )
-        assertEquals(AlertType.HIGH_TEMP, decisions[1].alertType)
-        assertNull(decisions[2].alertType)
-    }
-
-    @Test
-    fun rawConditionReplacesHeldAlert() {
-        val decisions = run(
-            0L to sensor(temperatureCelsius = 90f),
-            1L to sensor(pressureKpa = 140f, temperatureCelsius = 84f)
-        )
-        assertEquals(AlertType.LOW_PRESSURE, decisions[1].alertType)
-        assertEquals(AlertType.LOW_PRESSURE, decisions[1].memory.thresholdAlert)
+    fun thresholdAlertOutranksLowBattery() {
+        assertEquals(AlertType.LOW_PRESSURE, eval(sensor(pressureKpa = 170f, batteryPercent = 5)).alertType)
     }
 
     // --- Battery latch ---
 
     @Test
-    fun battery_latchesAfterRecovery_untilOkForTenMinutes() {
-        val tenMin = 10 * 60_000L
-        val decisions = run(
-            0L to sensor(batteryPercent = 5),
-            1_000L to sensor(batteryPercent = 80),
-            1_000L + tenMin - 1 to sensor(batteryPercent = 80),
-            1_000L + tenMin to sensor(batteryPercent = 80)
-        )
-        assertEquals(AlertType.BATTERY_LOW, decisions[1].alertType)
-        assertEquals(1_000L, decisions[1].memory.batteryOkSinceMs)
-        assertEquals(AlertType.BATTERY_LOW, decisions[2].alertType)
-        assertNull(decisions[3].alertType)
-        assertFalse(decisions[3].memory.batteryLatched)
-        assertNull(decisions[3].memory.batteryOkSinceMs)
+    fun lowBatteryLatchesAsAttention() {
+        val d = run(0L to sensor(batteryPercent = 5), 1_000L to sensor(batteryPercent = 50))
+        assertEquals(AlertType.BATTERY_LOW to AlertLevel.ATTENTION, d[0].pair())
+        assertEquals(AlertType.BATTERY_LOW, d[1].alertType)
+        assertTrue(d[1].memory.batteryLatched)
     }
 
     @Test
-    fun battery_betweenTenAndFifteenPercent_resetsOkClock() {
-        val tenMin = 10 * 60_000L
-        val decisions = run(
-            0L to sensor(batteryPercent = 5),
-            1_000L to sensor(batteryPercent = 80),
-            2_000L to sensor(batteryPercent = 14),
-            3_000L to sensor(batteryPercent = 15),
-            1_000L + tenMin to sensor(batteryPercent = 80),
-            3_000L + tenMin to sensor(batteryPercent = 80)
-        )
-        assertEquals(AlertType.BATTERY_LOW, decisions[2].alertType)
-        assertTrue(decisions[2].memory.batteryLatched)
-        assertNull(decisions[2].memory.batteryOkSinceMs)
-        assertEquals(3_000L, decisions[3].memory.batteryOkSinceMs)
-        assertEquals(AlertType.BATTERY_LOW, decisions[4].alertType)
-        assertNull(decisions[5].alertType)
-    }
-
-    @Test
-    fun battery_lowAgainWhileRecovering_restartsLatch() {
-        val decisions = run(
-            0L to sensor(batteryPercent = 5),
-            1_000L to sensor(batteryPercent = 80),
-            2_000L to sensor(batteryPercent = null, flags = SensorFlags(lowBattery = true))
-        )
-        assertTrue(decisions[2].memory.batteryLatched)
-        assertNull(decisions[2].memory.batteryOkSinceMs)
-    }
-
-    @Test
-    fun battery_unknownPercentWithoutFlagCountsAsOk() {
-        val tenMin = 10 * 60_000L
-        val decisions = run(
-            0L to sensor(batteryPercent = null, flags = SensorFlags(lowBattery = true)),
-            1_000L to sensor(batteryPercent = null),
-            1_000L + tenMin to sensor(batteryPercent = null)
-        )
-        assertEquals(AlertType.BATTERY_LOW, decisions[1].alertType)
-        assertEquals(1_000L, decisions[1].memory.batteryOkSinceMs)
-        assertNull(decisions[2].alertType)
-    }
-
-    @Test
-    fun battery_tenToFourteenPercentWithoutLatch_isNotLow() {
-        assertNull(eval(sensor(batteryPercent = 12)).alertType)
-        assertFalse(eval(sensor(batteryPercent = 12)).memory.batteryLatched)
-    }
-
-    // --- Spare ---
-
-    @Test
-    fun spare_ignoresThresholds() {
-        // Without a fifth sensor the receiver reports a dummy value for the spare slot.
-        val decision = eval(sensor(pressureKpa = 20f, id = "SP"))
-        assertNull(decision.alertType)
-        assertNull(decision.memory.thresholdAlert)
-    }
-
-    @Test
-    fun spare_keepsFlagsAndBatteryLatch() {
-        val leak = sensor(id = "SP", flags = SensorFlags(leak = true))
-        assertEquals(AlertType.LOW_PRESSURE, run(0L to leak, 15_000L to leak)[1].alertType)
-
-        val decisions = run(
-            0L to sensor(pressureKpa = 20f, id = "SP", batteryPercent = 5),
-            1_000L to sensor(pressureKpa = 20f, id = "SP", batteryPercent = 80)
-        )
-        assertEquals(AlertType.BATTERY_LOW, decisions[0].alertType)
-        assertEquals(AlertType.BATTERY_LOW, decisions[1].alertType)
-        assertTrue(decisions[1].memory.batteryLatched)
+    fun batteryClearsAfterTenHealthyMinutes() {
+        val d = run(0L to sensor(batteryPercent = 5), 1_000L to sensor(batteryPercent = 50), 1_000L + 10 * minute to sensor(batteryPercent = 50))
+        assertFalse(d[2].memory.batteryLatched)
+        assertNull(d[2].alertType)
     }
 }

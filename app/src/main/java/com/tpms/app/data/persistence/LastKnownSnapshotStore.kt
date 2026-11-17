@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.tpms.app.domain.model.AlertLevel
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.SensorFlags
@@ -76,6 +77,7 @@ class LastKnownSnapshotStore @Inject constructor(
                     put("leak", sensor.flags.leak)
                     put("lowBattery", sensor.flags.lowBattery)
                     put("alertType", sensor.alertType?.name)
+                    put("alertLevel", sensor.alertLevel?.name)
                     put("timestamp", sensor.timestamp)
                     put("pressureOffsetKpa", sensor.pressureOffsetKpa.toDouble())
                 }
@@ -90,13 +92,19 @@ class LastKnownSnapshotStore @Inject constructor(
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 val alertName = obj.optString("alertType", "").takeIf { it.isNotBlank() }
+                val alertType = alertName?.let { runCatching { AlertType.valueOf(it) }.getOrNull() }
+                val levelName = obj.optString("alertLevel", "").takeIf { it.isNotBlank() }
                 val sensor = TireSensor(
                     id = obj.getString("id"),
                     label = obj.optString("label", ""),
                     pressureKpa = obj.getDouble("pressureKpa").toFloat(),
                     temperatureCelsius = obj.getDouble("temperatureCelsius").toFloat(),
                     batteryPercent = if (obj.isNull("batteryPercent")) null else obj.getInt("batteryPercent"),
-                    alertType = alertName?.let { runCatching { AlertType.valueOf(it) }.getOrNull() },
+                    alertType = alertType,
+                    // Snapshots from before the levels: an alert without a level counts as ATTENTION.
+                    alertLevel = alertType?.let {
+                        levelName?.let { name -> runCatching { AlertLevel.valueOf(name) }.getOrNull() } ?: AlertLevel.ATTENTION
+                    },
                     timestamp = obj.getLong("timestamp"),
                     flags = SensorFlags(
                         noSignal = obj.optBoolean("noSignal"),

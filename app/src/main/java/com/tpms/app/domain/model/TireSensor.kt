@@ -17,11 +17,16 @@ data class TireSensor(
      * [timestamp] stands in). Set by the repository; a frozen value betrays a dead AA55 sensor
      * ([com.tpms.app.domain.WheelCrossCheck]).
      */
-    val valueSinceMs: Long = 0L
+    val valueSinceMs: Long = 0L,
+    /** Level of [alertType] ([com.tpms.app.domain.AlertEvaluator]); null when there is no alert. */
+    val alertLevel: AlertLevel? = null,
+    /** How far the pressure fell against the highest of the last 10 min, when it fell; for the alert window. */
+    val recentDropKpa: Float? = null
 ) {
     /** The pressure as the sensor reported it, before the calibration offset. */
     val rawPressureKpa: Float get() = pressureKpa - pressureOffsetKpa
     val isAlert: Boolean get() = alertType != null
+    val isFault: Boolean get() = alertLevel == AlertLevel.FAULT
     val isLowBattery: Boolean get() = flags.lowBattery || alertType == AlertType.BATTERY_LOW
 }
 
@@ -37,5 +42,14 @@ data class SensorFlags(
 }
 
 enum class AlertType {
-    LOW_PRESSURE, HIGH_PRESSURE, HIGH_TEMP, BATTERY_LOW, SENSOR_LOST
+    LOW_PRESSURE, HIGH_PRESSURE, HIGH_TEMP, BATTERY_LOW, SENSOR_LOST,
+
+    /** Fast pressure loss: the receiver's leak flag, a fall of 30 kPa in 10 min, or a gap to the axle mate. */
+    PRESSURE_DROP
 }
+
+/**
+ * How bad an alert is (wayfinder alerts 01): [ATTENTION] — a deviation, driving on is fine;
+ * [FAULT] — do not drive on (red window, repeating signal).
+ */
+enum class AlertLevel { ATTENTION, FAULT }

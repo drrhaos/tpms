@@ -186,45 +186,35 @@ class ServiceHeartbeatStore @Inject constructor(
         boundedBlocking("usbPermissionStats") { usbPermissionStats() }
 
     /**
-     * End of the alert mute window ("Mute 30 min", wayfinder 15), wall clock; persisted so the mute
-     * survives a service restart. Main-thread read, bounded: 0 (not muted) on timeout or failure.
+     * The alert presentation state (wayfinder alerts 05/08: episodes, "Понятно", next reminder,
+     * attention mute), as encoded by `AlertPresentation.encode`; persisted so a process kill /
+     * START_STICKY restart in the middle of a trip remembers it. Read once per process on the main
+     * thread, bounded: null on timeout or failure, "" when nothing is stored.
      */
-    fun alertMutedUntilMsBlocking(): Long =
-        boundedBlocking("alertMutedUntil") { context.heartbeatDataStore.data.first()[KEY_ALERT_MUTED_UNTIL_MS] ?: 0L }
-            ?: 0L
-
-    /** Main-thread write of the mute window end; bounded, on timeout it finishes in the background. */
-    fun recordAlertMutedUntilBlocking(untilMs: Long) {
-        boundedBlocking("recordAlertMutedUntil") {
-            context.heartbeatDataStore.edit { it[KEY_ALERT_MUTED_UNTIL_MS] = untilMs }
-        }
-    }
+    fun alertPresentationBlocking(): String? =
+        boundedBlocking("alertPresentation") { context.heartbeatDataStore.data.first()[KEY_ALERT_PRESENTATION] ?: "" }
 
     /**
-     * The alert notifier's per-wheel memory (wayfinder 15: episode types, current type, swipe), as
-     * encoded by `AlertNotificationBook.encode`; persisted so a process kill / START_STICKY restart
-     * neither re-rings an ongoing alert nor brings back a swiped one. Read once per process on the
-     * main thread, bounded: null on timeout or failure, "" when nothing is stored.
+     * Non-blocking write of the presentation state: only the newest value is written, in order, by
+     * one writer; the main thread never waits on disk. Also drops the keys of the old per-wheel
+     * notification memory and mute.
      */
-    fun alertNotificationsBlocking(): String? =
-        boundedBlocking("alertNotifications") { context.heartbeatDataStore.data.first()[KEY_ALERT_NOTIFICATIONS] ?: "" }
-
-    /**
-     * Non-blocking write of the notifier's memory: only the newest value is written, in order, by
-     * one writer. Use it for the frequent changes; the main thread never waits on disk.
-     */
-    fun recordAlertNotificationsAsync(encoded: String) {
-        pendingAlertNotifications.value = encoded
+    fun recordAlertPresentationAsync(encoded: String) {
+        pendingAlertPresentation.value = encoded
     }
 
-    private val pendingAlertNotifications = MutableStateFlow<String?>(null)
+    private val pendingAlertPresentation = MutableStateFlow<String?>(null)
 
     init {
         writeScope.launch {
-            pendingAlertNotifications.filterNotNull().collect { encoded ->
+            pendingAlertPresentation.filterNotNull().collect { encoded ->
                 runCatching {
-                    context.heartbeatDataStore.edit { it[KEY_ALERT_NOTIFICATIONS] = encoded }
-                }.onFailure { Log.w(TAG, "recordAlertNotifications failed", it) }
+                    context.heartbeatDataStore.edit {
+                        it[KEY_ALERT_PRESENTATION] = encoded
+                        it.remove(KEY_LEGACY_ALERT_NOTIFICATIONS)
+                        it.remove(KEY_LEGACY_ALERT_MUTED_UNTIL_MS)
+                    }
+                }.onFailure { Log.w(TAG, "recordAlertPresentation failed", it) }
             }
         }
     }
@@ -244,7 +234,8 @@ class ServiceHeartbeatStore @Inject constructor(
         private val KEY_USB_PERMISSION_EXPLICIT = intPreferencesKey("usb_permission_explicit_requests")
         private val KEY_USB_PERMISSION_DENIALS = intPreferencesKey("usb_permission_denials")
         private val KEY_USB_PERMISSION_LAST_MS = longPreferencesKey("usb_permission_last_request_ms")
-        private val KEY_ALERT_MUTED_UNTIL_MS = longPreferencesKey("alert_muted_until_ms")
-        private val KEY_ALERT_NOTIFICATIONS = stringPreferencesKey("alert_notifications")
+        private val KEY_ALERT_PRESENTATION = stringPreferencesKey("alert_presentation")
+        private val KEY_LEGACY_ALERT_MUTED_UNTIL_MS = longPreferencesKey("alert_muted_until_ms")
+        private val KEY_LEGACY_ALERT_NOTIFICATIONS = stringPreferencesKey("alert_notifications")
     }
 }

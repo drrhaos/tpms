@@ -10,11 +10,10 @@
     <string name="notification_alert_high_pressure">Высокое давление в шине</string>
     <string name="notification_alert_high_temp">Высокая температура шины</string>
     <string name="notification_alert_battery_low">Низкий заряд датчика TPMS</string>
+    <string name="notification_alert_pressure_drop">Быстрая потеря давления в шине</string>
     <string name="notification_alert_sensor_lost">Сигнал датчика TPMS потерян</string>
     <string name="notification_alert_title_format">%1$s · %2$s</string>
     <string name="notification_alert_pressure_format">Давление: %1$s</string>
-    <string name="notification_test_alert_title">Проверка тревоги по шине</string>
-    <string name="notification_test_alert_text">Так звучит и выглядит тревога по шине</string>
     <string name="notification_monitoring_blind_title">Контроль давления не работает</string>
     <string name="notification_monitoring_blind_text">Нет данных от приёмника TPMS — проверьте донгл</string>
     <string name="notification_action_check">Проверить</string>
@@ -64,6 +63,7 @@
     <string name="alert_short_lost">ПОТЕРЯН</string>
     <string name="alert_short_high_temp">ВЫСОК. Т°</string>
     <string name="alert_short_low_battery">РАЗРЯД</string>
+    <string name="alert_short_drop">УТЕЧКА</string>
 
     <!-- Widget -->
     <string name="widget_no_data">Нет данных датчиков</string>
@@ -127,7 +127,7 @@
     <string name="settings_auto">Авто</string>
     <string name="settings_high_temp">Порог перегрева шины</string>
     <string name="settings_alert_sound_configure">Звук и вибрация</string>
-    <string name="settings_alert_sound_configure_hint">Звук, вибрация и важность тревог задаются в системных настройках уведомлений</string>
+    <string name="settings_alert_sound_configure_hint">Важность уведомлений о тревогах; сам сигнал тревоги звучит с громкостью будильника</string>
     <string name="settings_teyes_permissions">Магнитола Teyes</string>
     <string name="settings_teyes_auto_start">Автозапуск включён (Настройки → Приложения → TPMS)</string>
     <string name="settings_teyes_auto_start_hint">Без этого мониторинг не переживёт сон магнитолы.</string>
@@ -146,7 +146,7 @@
     <string name="settings_teyes_manual_overlay">Откройте вручную: Настройки Teyes → Приложения → TPMS → Поверх других окон.</string>
     <string name="settings_silent_startup">Тихий запуск при загрузке</string>
     <string name="settings_floating_overlay">Мини-панель поверх приложений</string>
-    <string name="settings_critical_alerts_fullscreen">Полноэкранное предупреждение</string>
+    <string name="settings_critical_alerts_fullscreen">Красное окно тревоги</string>
     <string name="settings_preferred_usb_dongle">Предпочитаемый USB-донгл</string>
     <string name="settings_stale_frame_timeout">Переподключение без валидных кадров</string>
     <string name="settings_min_live_wheel_pressure">Мин. давление живого колеса, кПа</string>
@@ -163,7 +163,7 @@
     <string name="settings_section_alerts">Оповещения</string>
     <string name="settings_floating_overlay_hint">Давление в шинах поверх навигации и других приложений</string>
     <string name="settings_silent_startup_hint">Запуск в фоне без открытия окна приложения.</string>
-    <string name="settings_critical_alerts_fullscreen_hint">Тревога по шине открывает приложение поверх экрана (нужно разрешение «Поверх других окон»)</string>
+    <string name="settings_critical_alerts_fullscreen_hint">Неисправность открывает красное окно поверх любых приложений (нужно «Поверх других окон»); выключено — только уведомление</string>
 
     <!-- Protocol modes -->
     <string name="protocol_auto">Авто</string>
@@ -198,6 +198,7 @@
     <string name="alert_card_lost">Нет сигнала</string>
     <string name="alert_card_high_temp">Перегрев шины</string>
     <string name="alert_card_low_battery">Батарея датчика</string>
+    <string name="alert_card_drop">Быстрая потеря давления</string>
     <string name="cd_decrease">Уменьшить</string>
     <string name="cd_increase">Увеличить</string>
     <string name="detail_target">Норма</string>
@@ -250,11 +251,9 @@
     <string name="settings_check_notifications">Уведомления</string>
     <string name="settings_check_notifications_ok">Разрешены</string>
     <string name="settings_check_notifications_bad">Запрещены — предупреждения о шинах не придут</string>
-    <string name="settings_check_alert_channel">Звук тревог</string>
-    <string name="settings_check_alert_channel_ok">Тревоги по шинам всплывают со звуком</string>
-    <string name="settings_check_alert_channel_bad">Тревоги по шинам заглушены — включите для категории «Оповещения TPMS» всплывание и звук</string>
-    <string name="settings_alert_test">Проверить оповещение</string>
-    <string name="settings_alert_test_hint">Проигрывает тревогу по шине: проверьте громкость и что она видна поверх</string>
+    <string name="settings_check_alert_channel">Уведомления о тревогах</string>
+    <string name="settings_check_alert_channel_ok">Тревоги по шинам всплывают</string>
+    <string name="settings_check_alert_channel_bad">Тревоги по шинам скрыты — включите для категории «Оповещения TPMS» всплывание</string>
     <string name="settings_alert_test_failed">Уведомления запрещены — тревогу показать нельзя</string>
     <string name="settings_section_about">О приложении</string>
     <string name="settings_version">Версия</string>
@@ -276,4 +275,29 @@
     <string name="alert_advice_lost">Нет сигнала от датчика — проверьте датчик и приёмник</string>
     <string name="alert_advice_high_temp">Шина перегрелась — снизьте скорость</string>
     <string name="alert_advice_low_battery">Замените батарею датчика при ближайшем обслуживании</string>
+    <string name="alert_advice_drop">Сбросьте скорость, остановитесь в безопасном месте и осмотрите шину</string>
+    <string name="alert_window_fault_title">НЕИСПРАВНОСТЬ ШИНЫ</string>
+    <string name="alert_window_fault_subtitle">Остановитесь в безопасном месте</string>
+    <string name="alert_window_acknowledge">Понятно</string>
+    <string name="alert_window_open">Открыть</string>
+    <string name="alert_window_attention_title">Внимание · %1$s</string>
+    <string name="alert_window_attention_drive_on">Можно ехать</string>
+    <string name="alert_window_test_value">1,4 бар · 31 °C</string>
+    <string name="alert_window_test_advice">Это проверка — настоящей тревоги нет</string>
+    <string name="alert_window_drop_format">−%1$s за 10 мин</string>
+    <string name="settings_alert_test_fault">Проверить неисправность</string>
+    <string name="settings_alert_test_fault_hint">Красное окно и сигнал, как при настоящей неисправности: проверьте громкость и что окно поверх</string>
+    <string name="settings_alert_test_attention">Проверить внимание</string>
+    <string name="settings_alert_test_attention_hint">Жёлтый баннер и короткий сигнал</string>
+    <string name="settings_alert_test_failed">Окно показать нельзя — разрешите «Поверх других окон» (Проверка системы)</string>
+    <string name="settings_alert_reminder">Напомнить о подтверждённой неисправности через, мин</string>
+    <string name="settings_alert_reminder_minutes">%1$d</string>
+    <string name="settings_check_alert_window">Окно тревоги</string>
+    <string name="settings_check_alert_window_ok">Красное окно показывается поверх любых приложений</string>
+    <string name="settings_check_alert_window_bad">Не разрешено — неисправность будет только уведомлением. Разрешите «Поверх других окон»</string>
+    <string name="settings_check_alarm_volume">Громкость сигнала тревоги</string>
+    <string name="settings_check_alarm_volume_ok">Громкость будильника включена</string>
+    <string name="settings_check_alarm_volume_bad">Громкость будильника 0 — сигнал тревоги не будет слышен</string>
+    <string name="onboarding_alert_window_hint">При неисправности шины поверх навигации и музыки откроется красное окно. Разрешите для него «Поверх других окон» (на Android 13+ при установке не из магазина сначала ⋮ → «Разрешить ограниченные настройки»).</string>
+    <string name="onboarding_allow_alert_window">Разрешить окно тревоги</string>
 </resources>

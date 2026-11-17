@@ -58,6 +58,11 @@ class OnboardingViewModel @Inject constructor(
         TeyesPermissionHelper.openNotificationSettings(context)
     }
 
+    /** "Display over other apps" for the red alert window (wayfinder alerts 07). */
+    fun openOverlaySettings() {
+        TeyesPermissionHelper.openOverlaySettings(context)
+    }
+
     fun openTeyesSettings() {
         TeyesPermissionHelper.openTeyesSettings(context)
     }

@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.tpms.app.domain.AlertPresentation
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.PressureTarget
@@ -99,6 +100,10 @@ class SettingsStore @Inject constructor(
     private val _criticalAlertsFullscreen = MutableStateFlow(true)
     val criticalAlertsFullscreen = _criticalAlertsFullscreen.asStateFlow()
 
+    /** After "Понятно", the red window and signal come back after this long (wayfinder alerts 05). */
+    private val _alertReminderMs = MutableStateFlow(AlertPresentation.DEFAULT_REMINDER_MS)
+    val alertReminderMs = _alertReminderMs.asStateFlow()
+
     private val _preferredUsbVidPid = MutableStateFlow<String?>(null)
     val preferredUsbVidPid = _preferredUsbVidPid.asStateFlow()
 
@@ -162,6 +167,7 @@ class SettingsStore @Inject constructor(
                 _silentStartup.value = prefs[KEY_SILENT_STARTUP] ?: false
                 _floatingOverlayEnabled.value = prefs[KEY_FLOATING_OVERLAY] ?: false
                 _criticalAlertsFullscreen.value = prefs[KEY_CRITICAL_ALERTS_FULLSCREEN] ?: true
+                _alertReminderMs.value = reminderOrDefault(prefs[KEY_ALERT_REMINDER_MS])
                 _preferredUsbVidPid.value = prefs[KEY_PREFERRED_USB_VID_PID]?.takeIf { it.isNotBlank() }
                 _widgetThemeMode.value = WidgetThemeMode.fromName(prefs[KEY_WIDGET_THEME_MODE])
                 _diagnosticLogEnabled.value = prefs[KEY_DIAGNOSTIC_LOG] ?: false
@@ -258,6 +264,14 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_CRITICAL_ALERTS_FULLSCREEN] = enabled }
     }
 
+    suspend fun setAlertReminderMs(ms: Long) {
+        context.settingsDataStore.edit { it[KEY_ALERT_REMINDER_MS] = reminderOrDefault(ms) }
+    }
+
+    /** Only the offered intervals are stored; anything else falls back to the default. */
+    private fun reminderOrDefault(ms: Long?): Long =
+        ms?.takeIf { it in AlertPresentation.REMINDER_CHOICES_MS } ?: AlertPresentation.DEFAULT_REMINDER_MS
+
     suspend fun setPreferredUsbVidPid(vidPid: String?) {
         context.settingsDataStore.edit {
             if (vidPid.isNullOrBlank()) {
@@ -299,6 +313,7 @@ class SettingsStore @Inject constructor(
             prefs[KEY_SILENT_STARTUP] = imported.silentStartup
             prefs[KEY_FLOATING_OVERLAY] = imported.floatingOverlayEnabled
             prefs[KEY_CRITICAL_ALERTS_FULLSCREEN] = imported.criticalAlertsFullscreen
+            prefs[KEY_ALERT_REMINDER_MS] = reminderOrDefault(imported.alertReminderMs)
             imported.preferredUsbVidPid?.let { prefs[KEY_PREFERRED_USB_VID_PID] = it }
                 ?: prefs.remove(KEY_PREFERRED_USB_VID_PID)
             prefs[KEY_WIDGET_THEME_MODE] = imported.widgetThemeMode.name
@@ -345,6 +360,7 @@ class SettingsStore @Inject constructor(
         private val KEY_SILENT_STARTUP = booleanPreferencesKey("silent_startup")
         private val KEY_FLOATING_OVERLAY = booleanPreferencesKey("floating_overlay")
         private val KEY_CRITICAL_ALERTS_FULLSCREEN = booleanPreferencesKey("critical_alerts_fullscreen")
+        private val KEY_ALERT_REMINDER_MS = longPreferencesKey("alert_reminder_ms")
         private val KEY_PREFERRED_USB_VID_PID = stringPreferencesKey("preferred_usb_vid_pid")
         private val KEY_WIDGET_THEME_MODE = stringPreferencesKey("widget_theme_mode")
         private val KEY_DIAGNOSTIC_LOG = booleanPreferencesKey("diagnostic_log_enabled")

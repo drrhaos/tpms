@@ -2,7 +2,7 @@ package com.tpms.app.domain
 
 /**
  * Where a new trip begins, so alerts still active from the last one ring again
- * ([com.tpms.app.service.AlertNotifier.onNewTrip]): a flat tyre found in the morning must not be a
+ * ([com.tpms.app.service.AlertCoordinator.onNewTrip]): a flat tyre found in the morning must not be a
  * silent update of yesterday's episode. All times are wall clock.
  */
 object TripBoundary {

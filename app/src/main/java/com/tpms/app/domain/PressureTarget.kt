@@ -16,6 +16,8 @@ object PressureTarget {
     const val MIN_KPA = 150f
     const val MAX_KPA = 450f
     const val LOW_RATIO = 0.80f
+    /** "Неисправность": critically low (wayfinder alerts 01). */
+    const val CRITICAL_LOW_RATIO = 0.65f
     const val HIGH_RATIO = 1.35f
 
     /** "Accept current" rounds to 0.1 bar so the shown target is a clean number. */
@@ -31,7 +33,9 @@ object PressureTarget {
         AlertThresholds(
             lowPressureKpa = targetKpa * LOW_RATIO,
             highPressureKpa = targetKpa * HIGH_RATIO,
-            highTempCelsius = highTempCelsius
+            highTempCelsius = highTempCelsius,
+            criticalLowPressureKpa = targetKpa * CRITICAL_LOW_RATIO,
+            criticalTempCelsius = highTempCelsius + AlertThresholds.CRITICAL_TEMP_MARGIN_C
         )
 
     fun clamp(kpa: Float): Float = kpa.coerceIn(MIN_KPA, MAX_KPA)

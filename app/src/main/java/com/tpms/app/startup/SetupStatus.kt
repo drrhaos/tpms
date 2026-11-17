@@ -16,8 +16,12 @@ data class SetupStatus(
     val checklistComplete: Boolean,
     val batteryUnrestricted: Boolean,
     val notificationsEnabled: Boolean,
-    /** The tyre alert channel is on and may pop up with sound (importance HIGH or more). */
+    /** The tyre alert channel is on and may pop up (importance HIGH or more). */
     val alertChannelLoud: Boolean,
+    /** "Display over other apps": the red alert window can be drawn (wayfinder alerts 03). */
+    val alertWindowAllowed: Boolean = true,
+    /** The alarm stream, which carries the alert signal, is not at zero (wayfinder alerts 04). */
+    val alarmVolumeOn: Boolean = true,
     val serviceRunning: Boolean,
     val widgetActive: Boolean
 ) {
@@ -26,6 +30,8 @@ data class SetupStatus(
             !batteryUnrestricted ||
             !notificationsEnabled ||
             !alertChannelLoud ||
+            !alertWindowAllowed ||
+            !alarmVolumeOn ||
             (isTeyesDevice && !checklistComplete)
 
     val showFrontAppHint: Boolean = isTeyesDevice && !checklist.frontAppHome
@@ -45,9 +51,16 @@ class SetupStatusProvider @Inject constructor(
             batteryUnrestricted = isBatteryUnrestricted(context),
             notificationsEnabled = areNotificationsEnabled(context),
             alertChannelLoud = NotificationHelper.isAlertChannelLoud(context),
+            alertWindowAllowed = android.provider.Settings.canDrawOverlays(context),
+            alarmVolumeOn = isAlarmVolumeOn(context),
             serviceRunning = ServiceRunningChecker.isRunning(context, TpmsMonitorService::class.java),
             widgetActive = TpmsWidgetUpdater.hasAnyActiveWidget(context)
         )
+    }
+
+    fun isAlarmVolumeOn(context: Context): Boolean {
+        val audio = context.getSystemService(android.media.AudioManager::class.java) ?: return true
+        return audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) > 0
     }
 
     fun isBatteryUnrestricted(context: Context): Boolean {

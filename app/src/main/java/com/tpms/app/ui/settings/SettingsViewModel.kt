@@ -29,7 +29,8 @@ import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.WidgetThemeMode
-import com.tpms.app.service.AlertNotifier
+import com.tpms.app.domain.model.AlertLevel
+import com.tpms.app.service.AlertCoordinator
 import com.tpms.app.service.FloatingOverlayController
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.startup.HeadUnitSupport
@@ -64,7 +65,7 @@ class SettingsViewModel @Inject constructor(
     private val usbDebugLog: UsbDebugLog,
     private val usbConnection: UsbConnection,
     private val floatingOverlayController: FloatingOverlayController,
-    private val alertNotifier: AlertNotifier,
+    private val alertCoordinator: AlertCoordinator,
     heartbeatStore: ServiceHeartbeatStore
 ) : ViewModel() {
 
@@ -270,8 +271,25 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** "Test alert": one alert-channel notification with sound; false if it could not be posted. */
-    fun postTestAlert(): Boolean = alertNotifier.postTest()
+    /** "Test alert": the window (or banner) with its signal; false if the window could not be drawn. */
+    fun postTestAlert(level: AlertLevel): Boolean = alertCoordinator.postTest(level)
+
+    val alertReminderMs: StateFlow<Long> = settingsStore.alertReminderMs
+
+    fun setAlertReminderMs(ms: Long) {
+        viewModelScope.launch { settingsStore.setAlertReminderMs(ms) }
+    }
+
+    fun openOverlaySettings() = TeyesPermissionHelper.openOverlaySettings(context)
+
+    fun openSoundSettings() {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
 
     fun setFloatingOverlayEnabled(enabled: Boolean) {
         viewModelScope.launch {
@@ -426,6 +444,7 @@ class SettingsViewModel @Inject constructor(
         silentStartup = silentStartup.value,
         floatingOverlayEnabled = floatingOverlayEnabled.value,
         criticalAlertsFullscreen = criticalAlertsFullscreen.value,
+        alertReminderMs = settingsStore.alertReminderMs.value,
         preferredUsbVidPid = preferredUsbVidPid.value,
         widgetThemeMode = themeMode.value,
         diagnosticLogEnabled = diagnosticLogEnabled.value,

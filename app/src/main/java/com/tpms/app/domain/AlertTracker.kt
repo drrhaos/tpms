@@ -15,7 +15,7 @@ class AlertTracker {
         val memory = memories[sensor.id] ?: AlertMemory()
         val decision = AlertEvaluator.evaluate(sensor, thresholds, memory, sensor.timestamp)
         memories[sensor.id] = decision.memory
-        sensor.copy(alertType = decision.alertType)
+        sensor.copy(alertType = decision.alertType, alertLevel = decision.level, recentDropKpa = decision.recentDropKpa)
     }
 
     fun retain(ids: Set<String>): Unit = synchronized(this) { memories.keys.retainAll(ids) }

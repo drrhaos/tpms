@@ -18,7 +18,7 @@ import com.tpms.app.data.usb.protocol.Aa55AuxFrame
 import com.tpms.app.data.usb.protocol.Aa55EmptySlots
 import com.tpms.app.data.usb.toHexPreview
 import com.tpms.app.data.settings.SettingsStore
-import com.tpms.app.domain.AlertSeverity
+import com.tpms.app.domain.AlertRank
 import com.tpms.app.domain.AlertTracker
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.PressureCalibration
@@ -30,7 +30,7 @@ import com.tpms.app.domain.UsbPermissionState
 import com.tpms.app.domain.WheelAssignment
 import com.tpms.app.domain.WheelCrossCheck
 import com.tpms.app.domain.WheelLayout
-import com.tpms.app.domain.toSeverity
+import com.tpms.app.domain.model.AlertLevel
 import com.tpms.app.domain.model.DongleProtocol
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
@@ -116,13 +116,6 @@ class TpmsRepository @Inject constructor(
 
     /** Latest snapshot write (empty wheels = clear); conflated, written by one collector in order. */
     private val snapshotWrites = MutableStateFlow<SnapshotWrite?>(null)
-    /** Set on the main thread, invoked on the repository's threads with the alert and whether it is live (see [onAlert]). */
-    @Volatile
-    private var onAlertCallback: ((TireSensor, Boolean) -> Unit)? = null
-
-    @Volatile
-    private var onSensorNormalCallback: ((String) -> Unit)? = null
-
     @Volatile
     private var activeSession: DongleSession? = null
 
@@ -163,12 +156,10 @@ class TpmsRepository @Inject constructor(
     private var lastLiveDataAtMs: Long = 0L
 
     /**
-     * Guards the seen sensors, [wheels], the state they produce and the alert callbacks computed from
-     * them. Readings (reader thread), settings changes (IO) and the snapshot restore all re-place the
-     * wheels under it and emit their alert / normal callbacks before releasing it, so notifications are
-     * posted in the same order as the wheel changes they describe (the callbacks only post to the
-     * service's main handler). The restore's "still empty" and "no session" checks hold while it
-     * publishes. Never held across a suspension point.
+     * Guards the seen sensors, [wheels] and the state they produce. Readings (reader thread),
+     * settings changes (IO), the cross-check and the snapshot restore all re-place the wheels under
+     * it; alerts are presented from [wheels] by the alert coordinator. The restore's "still empty"
+     * and "no session" checks hold while it publishes. Never held across a suspension point.
      */
     private val wheelsLock = Any()
 
@@ -224,20 +215,6 @@ class TpmsRepository @Inject constructor(
             "Repository",
             "Restored ${filtered.size} sensors from last-known snapshot (${restoredProtocol?.displayName ?: "protocol unknown"})"
         )
-    }
-
-    /**
-     * [callback] runs under [wheelsLock] on the repository's threads: it must not block (post and
-     * return). Its flag says whether the alert comes from live data (a reading, or a re-placement
-     * while a live session runs); false for restored / reconnecting data, which must not ring.
-     */
-    fun onAlert(callback: (sensor: TireSensor, live: Boolean) -> Unit) {
-        onAlertCallback = callback
-    }
-
-    /** Same contract as [onAlert]: called under [wheelsLock], must not block. */
-    fun onSensorNormal(callback: (String) -> Unit) {
-        onSensorNormalCallback = callback
     }
 
     fun findDongle(): UsbDevice? = usbConnection.findDongle(dongleDetector)
@@ -620,8 +597,8 @@ class TpmsRepository @Inject constructor(
     }
 
     /**
-     * Records [reading] among the seen sensors, re-places the wheels and, if it sits on one, emits its
-     * alert / normal callback, the state and a snapshot write. Returns the reading with its alert
+     * Records [reading] among the seen sensors, re-places the wheels and, if it sits on one, emits
+     * the state and a snapshot write. Returns the reading with its alert
      * applied when it is on a wheel, else null. Caller holds [wheelsLock].
      */
     private fun placeReadingLocked(reading: TireSensor): TireSensor? {
@@ -633,16 +610,13 @@ class TpmsRepository @Inject constructor(
         val own = alertTracker.apply(corrected, settingsStore.thresholds.value)
         val sensor = crossCheckLocked(own, previous, streamingProtocol(), own.timestamp)
         _seenSensors.update { it + (sensor.id to sensor) }
-        val before = recomputeWheelsLocked(pruneAt = sensor.timestamp)
-        val after = _wheels.value
-        val afterIds = after.values.mapTo(HashSet()) { it.id }
-        before.values.map { it.id }.filter { it !in afterIds }.forEach { notifySensorNormal(it) }
+        recomputeWheelsLocked(pruneAt = sensor.timestamp)
+        val afterIds = _wheels.value.values.mapTo(HashSet()) { it.id }
         // A sensor off the wheels only waits for a mapping: no state, alert, history or snapshot.
         if (sensor.id !in afterIds) return null
         // Live data ends the snapshot state atomically with publishing the reading (see wheelsLock).
         restoredFromSnapshot = false
         lastLiveDataAtMs = sensor.timestamp
-        if (sensor.isAlert) emitAlert(sensor, live = true) else notifySensorNormal(sensor.id)
         refreshConnectionStateLocked(sensor.timestamp)
         requestSnapshotWriteLocked()
         return sensor
@@ -679,12 +653,11 @@ class TpmsRepository @Inject constructor(
                 val streaming = session.protocol.streamsContinuously
                 val raised = _wheels.value.values.mapNotNull { wheel ->
                     val checked = crossCheckLocked(wheel, wheel, streaming, now)
-                    checked.takeIf { it.alertType != wheel.alertType && it.alertType.toSeverity() == AlertSeverity.ALERT }
+                    checked.takeIf { it.alertType != wheel.alertType && it.isFault }
                 }
                 if (raised.isEmpty()) return
                 _seenSensors.update { seen -> seen + raised.associateBy { it.id } }
                 recomputeWheelsLocked()
-                raised.forEach { emitAlert(it, live = true) }
                 refreshConnectionStateLocked(now)
                 requestSnapshotWriteLocked()
                 debugLog.warn("Repository", "Cross-check: ${raised.joinToString { "${it.id} ${it.alertType}" }}")
@@ -763,21 +736,14 @@ class TpmsRepository @Inject constructor(
     }
 
     /**
-     * Re-places the wheels from the last readings: sensors that left a wheel clear their alert
-     * notification, sensors that joined show their current alert, a live state is re-evaluated (also
-     * when sensors only swapped slots) and the snapshot follows the wheels (cleared when none is left).
+     * Re-places the wheels from the last readings: a live state is re-evaluated (also when sensors
+     * only swapped slots) and the snapshot follows the wheels (cleared when none is left).
      * Caller holds [wheelsLock], so these effects are ordered with the reader's.
      */
     private fun republishWheelsLocked(reason: String) {
         val before = recomputeWheelsLocked()
         val after = _wheels.value
         if (before == after) return
-        val beforeIds = before.values.mapTo(HashSet()) { it.id }
-        val afterIds = after.values.mapTo(HashSet()) { it.id }
-        (beforeIds - afterIds).forEach { notifySensorNormal(it) }
-        // Restored or reconnecting data (e.g. a mapping change while Disconnected) must not ring.
-        val live = hasLiveSession()
-        after.values.filter { it.id !in beforeIds && it.isAlert }.forEach { emitAlert(it, live) }
         val state = _state.value
         if (state is TpmsState.Connected || state is TpmsState.Alert) {
             refreshConnectionStateLocked(System.currentTimeMillis())
@@ -799,7 +765,13 @@ class TpmsRepository @Inject constructor(
                 return
             }
 
-            val alerting = sensorList.firstOrNull { it.isAlert }
+            // The worst alert by level, then type (AlertRank); ties keep slot order.
+            val alerting = sensorList.filter { it.isAlert }.maxWithOrNull { a, b ->
+                AlertRank.compare(
+                    a.alertType!! to (a.alertLevel ?: AlertLevel.ATTENTION),
+                    b.alertType!! to (b.alertLevel ?: AlertLevel.ATTENTION)
+                )
+            }
             val newState = if (alerting != null && alerting.alertType != null) {
                 TpmsState.Alert(
                     sensor = alerting,
@@ -829,21 +801,6 @@ class TpmsRepository @Inject constructor(
         )
     }
 
-    private fun emitAlert(sensor: TireSensor, live: Boolean) {
-        try {
-            onAlertCallback?.invoke(sensor, live)
-        } catch (e: Exception) {
-            debugLog.warn("Repository", "emitAlert failed: ${e.message}")
-        }
-    }
-
-    private fun notifySensorNormal(sensorId: String) {
-        try {
-            onSensorNormalCallback?.invoke(sensorId)
-        } catch (e: Exception) {
-            debugLog.warn("Repository", "onSensorNormal failed: ${e.message}")
-        }
-    }
 
     private fun sensorSummary(sensor: TireSensor): String = runCatching {
         val pressure = if (sensor.pressureKpa.isFinite()) "%.0f".format(sensor.pressureKpa) else "?"

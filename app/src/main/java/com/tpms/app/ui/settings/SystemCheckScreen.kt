@@ -71,6 +71,26 @@ fun SystemCheckScreen(
                 ok = setupStatus.alertChannelLoud,
                 onClick = viewModel::openAlertChannelSettings
             )
+            SettingsGroupDivider()
+            SettingsStatusRow(
+                label = stringResource(R.string.settings_check_alert_window),
+                description = stringResource(
+                    if (setupStatus.alertWindowAllowed) R.string.settings_check_alert_window_ok
+                    else R.string.settings_check_alert_window_bad
+                ),
+                ok = setupStatus.alertWindowAllowed,
+                onClick = viewModel::openOverlaySettings
+            )
+            SettingsGroupDivider()
+            SettingsStatusRow(
+                label = stringResource(R.string.settings_check_alarm_volume),
+                description = stringResource(
+                    if (setupStatus.alarmVolumeOn) R.string.settings_check_alarm_volume_ok
+                    else R.string.settings_check_alarm_volume_bad
+                ),
+                ok = setupStatus.alarmVolumeOn,
+                onClick = viewModel::openSoundSettings
+            )
         }
 
         if (setupStatus.isTeyesDevice) {

@@ -79,7 +79,17 @@ fun OnboardingScreen(
                         onClick = { viewModel.requestUsbPermission() }
                     )
                 }
-                OnboardingSteps.PERMISSIONS -> OnboardingStepActions(
+                OnboardingSteps.PERMISSIONS -> {
+                    Text(
+                        text = stringResource(R.string.onboarding_alert_window_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OnboardingPrimaryAction(
+                        label = stringResource(R.string.onboarding_allow_alert_window),
+                        onClick = { viewModel.openOverlaySettings() }
+                    )
+                    OnboardingStepActions(
                     primaryLabel = stringResource(R.string.onboarding_open_notifications),
                     onPrimary = { viewModel.openNotifications() },
                     secondaryLabel = stringResource(
@@ -89,6 +99,7 @@ fun OnboardingScreen(
                         if (showTeyesSteps) viewModel.nextStep() else viewModel.complete(onComplete)
                     }
                 )
+                }
                 OnboardingSteps.TEYES_PERMISSIONS -> {
                     val checklist by viewModel.teyesChecklist.collectAsState()
                     AutoStartAfterSleepCard(

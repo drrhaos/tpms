@@ -45,6 +45,7 @@ fun SettingsScreen(
     val targetKpa by viewModel.targetPressureKpa.collectAsState()
     val wheelAssignment by viewModel.wheelAssignment.collectAsState()
     val criticalAlertsFullscreen by viewModel.criticalAlertsFullscreen.collectAsState()
+    val alertReminderMs by viewModel.alertReminderMs.collectAsState()
     val floatingOverlayEnabled by viewModel.floatingOverlayEnabled.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val language by viewModel.language.collectAsState()
@@ -111,13 +112,31 @@ fun SettingsScreen(
             val testFailed = stringResource(R.string.settings_alert_test_failed)
             val context = androidx.compose.ui.platform.LocalContext.current
             SettingsNavigationRow(
-                label = stringResource(R.string.settings_alert_test),
-                description = stringResource(R.string.settings_alert_test_hint),
+                label = stringResource(R.string.settings_alert_test_fault),
+                description = stringResource(R.string.settings_alert_test_fault_hint),
                 onClick = {
-                    if (!viewModel.postTestAlert()) {
+                    if (!viewModel.postTestAlert(com.tpms.app.domain.model.AlertLevel.FAULT)) {
                         android.widget.Toast.makeText(context, testFailed, android.widget.Toast.LENGTH_LONG).show()
                     }
                 }
+            )
+            SettingsGroupDivider()
+            SettingsNavigationRow(
+                label = stringResource(R.string.settings_alert_test_attention),
+                description = stringResource(R.string.settings_alert_test_attention_hint),
+                onClick = {
+                    if (!viewModel.postTestAlert(com.tpms.app.domain.model.AlertLevel.ATTENTION)) {
+                        android.widget.Toast.makeText(context, testFailed, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+            SettingsGroupDivider()
+            SettingsSegmentedRow(
+                label = stringResource(R.string.settings_alert_reminder),
+                options = com.tpms.app.domain.AlertPresentation.REMINDER_CHOICES_MS,
+                selected = alertReminderMs,
+                optionLabel = { stringResource(R.string.settings_alert_reminder_minutes, (it / 60_000L).toInt()) },
+                onSelect = viewModel::setAlertReminderMs
             )
             SettingsGroupDivider()
             SettingsSwitchRow(

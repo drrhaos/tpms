@@ -17,6 +17,7 @@ import com.tpms.app.domain.model.SettingsUiMode
 import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.TpmsState
 import com.tpms.app.service.TpmsMonitorService
+import com.tpms.app.service.AlertCoordinator
 import com.tpms.app.service.UsbPermissionRequester
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -63,8 +64,17 @@ class MainViewModel @Inject constructor(
     settingsStore: SettingsStore,
     private val debugLog: UsbDebugLog,
     private val uiBreadcrumbs: UiBreadcrumbs,
-    private val usbPermissionRequester: UsbPermissionRequester
+    private val usbPermissionRequester: UsbPermissionRequester,
+    private val alertCoordinator: AlertCoordinator
 ) : AndroidViewModel(application) {
+
+    /** A fault waits for «Понятно»: the alert banner shows the button (wayfinder alerts 05). */
+    val faultUnacknowledged: StateFlow<Boolean> = alertCoordinator.faultUnacknowledged
+
+    fun acknowledgeAlert() {
+        runCatching { alertCoordinator.acknowledge() }
+            .onFailure { debugLog.exception("MainScreen", it, "acknowledge alert") }
+    }
 
     /** Re-evaluates time-based staleness (per-wheel and overall) while nothing else changes. */
     private val freshnessTicker = flow {

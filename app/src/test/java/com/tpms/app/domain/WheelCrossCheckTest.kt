@@ -1,5 +1,6 @@
 package com.tpms.app.domain
 
+import com.tpms.app.domain.model.AlertLevel
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.SensorFlags
 import com.tpms.app.domain.model.TireSensor
@@ -18,7 +19,8 @@ class WheelCrossCheckTest {
         at: Long = now,
         valueSince: Long = 0L,
         alert: AlertType? = null,
-        flags: SensorFlags = SensorFlags.NONE
+        flags: SensorFlags = SensorFlags.NONE,
+        level: AlertLevel? = alert?.let { AlertLevel.FAULT }
     ) = TireSensor(
         id = "S_$slot",
         label = slot,
@@ -28,7 +30,8 @@ class WheelCrossCheckTest {
         alertType = alert,
         timestamp = at,
         flags = flags,
-        valueSinceMs = valueSince
+        valueSinceMs = valueSince,
+        alertLevel = level
     )
 
     private fun check(
@@ -107,9 +110,9 @@ class WheelCrossCheckTest {
     // --- Axle gap ---
 
     @Test
-    fun `wheel well below its axle mate is low`() {
+    fun `wheel well below its axle mate is a pressure drop`() {
         val low = sensor("RL", pressure = 230f - WheelCrossCheck.AXLE_LOW_RAISE_KPA)
-        assertEquals(AlertType.LOW_PRESSURE, check(low, listOf(sensor("RR", pressure = 230f)), streaming = false))
+        assertEquals(AlertType.PRESSURE_DROP, check(low, listOf(sensor("RR", pressure = 230f)), streaming = false))
     }
 
     @Test
@@ -120,9 +123,9 @@ class WheelCrossCheckTest {
 
     @Test
     fun `axle low clears with hysteresis`() {
-        val previous = sensor("RL", alert = AlertType.LOW_PRESSURE)
+        val previous = sensor("RL", alert = AlertType.PRESSURE_DROP)
         val stillLow = sensor("RL", pressure = 230f - WheelCrossCheck.AXLE_LOW_CLEAR_KPA)
-        assertEquals(AlertType.LOW_PRESSURE, check(stillLow, listOf(sensor("RR")), streaming = false, previous = previous))
+        assertEquals(AlertType.PRESSURE_DROP, check(stillLow, listOf(sensor("RR")), streaming = false, previous = previous))
         val recovered = sensor("RL", pressure = 230f - WheelCrossCheck.AXLE_LOW_CLEAR_KPA + 1f)
         assertNull(check(recovered, listOf(sensor("RR")), streaming = false, previous = previous))
     }
@@ -136,9 +139,17 @@ class WheelCrossCheckTest {
     // --- Never over own alerts, never the spare ---
 
     @Test
-    fun `own alert wins`() {
+    fun `own fault wins`() {
         val wheel = sensor("RL", pressure = 150f, alert = AlertType.HIGH_PRESSURE)
         assertEquals(AlertType.HIGH_PRESSURE, check(wheel, listOf(sensor("RR")), streaming = false))
+    }
+
+    @Test
+    fun `an attention alert is overridden by a cross-wheel fault`() {
+        val wheel = sensor("RL", pressure = 150f, alert = AlertType.LOW_PRESSURE, level = AlertLevel.ATTENTION)
+        val checked = WheelCrossCheck.apply(wheel, "RL", mapOf("RL" to wheel, "RR" to sensor("RR")), wheel, false, now)
+        assertEquals(AlertType.PRESSURE_DROP, checked.alertType)
+        assertEquals(AlertLevel.FAULT, checked.alertLevel)
     }
 
     @Test

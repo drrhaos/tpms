@@ -42,6 +42,7 @@ fun AlertType.shortLabel(context: Context): String = when (this) {
     AlertType.SENSOR_LOST -> context.getString(R.string.alert_short_lost)
     AlertType.HIGH_TEMP -> context.getString(R.string.alert_short_high_temp)
     AlertType.BATTERY_LOW -> context.getString(R.string.alert_short_low_battery)
+    AlertType.PRESSURE_DROP -> context.getString(R.string.alert_short_drop)
 }
 
 /** Full sentence for the per-wheel alert notification (wayfinder 15). */
@@ -51,6 +52,7 @@ fun AlertType.notificationText(context: Context): String = when (this) {
     AlertType.SENSOR_LOST -> context.getString(R.string.notification_alert_sensor_lost)
     AlertType.HIGH_TEMP -> context.getString(R.string.notification_alert_high_temp)
     AlertType.BATTERY_LOW -> context.getString(R.string.notification_alert_battery_low)
+    AlertType.PRESSURE_DROP -> context.getString(R.string.notification_alert_pressure_drop)
 }
 
 @Composable
@@ -60,6 +62,7 @@ fun AlertType.shortLabel(): String = when (this) {
     AlertType.SENSOR_LOST -> stringResource(R.string.alert_short_lost)
     AlertType.HIGH_TEMP -> stringResource(R.string.alert_short_high_temp)
     AlertType.BATTERY_LOW -> stringResource(R.string.alert_short_low_battery)
+    AlertType.PRESSURE_DROP -> stringResource(R.string.alert_short_drop)
 }
 
 fun TireSensor.batteryLabel(context: Context): String = when {
@@ -141,4 +144,15 @@ private fun AlertType.cardLabelRes(): Int = when (this) {
     AlertType.SENSOR_LOST -> R.string.alert_card_lost
     AlertType.HIGH_TEMP -> R.string.alert_card_high_temp
     AlertType.BATTERY_LOW -> R.string.alert_card_low_battery
+    AlertType.PRESSURE_DROP -> R.string.alert_card_drop
+}
+
+/** What to do about the alert (main screen banner, alert window). */
+fun AlertType.adviceRes(): Int = when (this) {
+    AlertType.LOW_PRESSURE -> R.string.alert_advice_low
+    AlertType.HIGH_PRESSURE -> R.string.alert_advice_high
+    AlertType.SENSOR_LOST -> R.string.alert_advice_lost
+    AlertType.HIGH_TEMP -> R.string.alert_advice_high_temp
+    AlertType.BATTERY_LOW -> R.string.alert_advice_low_battery
+    AlertType.PRESSURE_DROP -> R.string.alert_advice_drop
 }

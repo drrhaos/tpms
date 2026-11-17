@@ -74,7 +74,7 @@ import javax.inject.Inject
 class TpmsMonitorService : Service() {
 
     @Inject lateinit var repository: TpmsRepository
-    @Inject lateinit var alertNotifier: AlertNotifier
+    @Inject lateinit var alertCoordinator: AlertCoordinator
     @Inject lateinit var monitoringHealthNotifier: MonitoringHealthNotifier
     @Inject lateinit var heartbeatStore: ServiceHeartbeatStore
     @Inject lateinit var settingsStore: SettingsStore
@@ -137,6 +137,8 @@ class TpmsMonitorService : Service() {
                     // Blocking (a tiny write): FYT may kill the process right after the screen goes off.
                     runCatching { heartbeatStore.recordScreenOffBlocking() }
                     debugLog.info("Power", "SCREEN_OFF")
+                    // Screen off pauses alert windows and signals.
+                    runCatching { alertCoordinator.update() }
                 }
             }
         }
@@ -165,23 +167,16 @@ class TpmsMonitorService : Service() {
             setReferenceCounted(false)
         }
 
-        // Every alert change of a wheel (and every confirmed reading of an alert) goes to the
-        // notifier in order; it decides post / update / cancel (AlertNotificationPolicy).
-        // Only live data may ring: restored / reconnecting alerts come with live = false.
-        repository.onAlert { sensor, live ->
-            mainHandler.post { if (!destroyed) alertNotifier.onAlertChanged(sensor.id, sensor, live) }
-        }
-        repository.onSensorNormal { sensorId ->
-            mainHandler.post { if (!destroyed) alertNotifier.onAlertChanged(sensorId, null) }
-        }
-        // Any start (also CHECK_NOW / MUTE after a process kill): load the persisted alert
-        // notification memory, drop orphaned alert notifications.
-        runCatching { alertNotifier.onServiceCreated() }
-            .onFailure { debugLog.exception("Service", it, "alert notifier start") }
-        // Sensors that swap slots: re-post their alert notifications silently with the new wheel label.
+        // Any start (also CHECK_NOW / MUTE after a process kill): load the persisted alert state,
+        // drop alert notifications of an earlier process (the coordinator re-posts current ones).
+        runCatching { alertCoordinator.onServiceCreated() }
+            .onFailure { debugLog.exception("Service", it, "alert coordinator start") }
+        // Alerts follow the wheels and the session (live or not); the coordinator decides
+        // windows, signals and notifications (wayfinder alerts 05/08).
         serviceScope.launch(Dispatchers.Main) {
-            repository.wheels.collect { wheels ->
-                if (!destroyed) runCatching { alertNotifier.onWheelsChanged(wheels) }
+            merge(repository.wheels.map { }, repository.state.map { }).collect {
+                if (!destroyed) runCatching { alertCoordinator.update() }
+                    .onFailure { debugLog.exception("Service", it, "alert update") }
             }
         }
 
@@ -200,7 +195,7 @@ class TpmsMonitorService : Service() {
         // alerts still active must ring again.
         if (TripBoundary.startsOnProcessStart(previousRun, currentBootCount(), pm.isInteractive)) {
             debugLog.info("Service", "New trip on start: alert episodes reset")
-            runCatching { alertNotifier.onNewTrip() }
+            runCatching { alertCoordinator.onNewTrip() }
                 .onFailure { debugLog.exception("Service", it, "alert new trip") }
         }
         screenReceiverRegistered = runCatching {
@@ -222,8 +217,10 @@ class TpmsMonitorService : Service() {
         foregroundRefused = false
 
         when (intent?.action) {
-            // From an alert notification: mutes the wheels alerting now; they are still posted (wayfinder 15).
-            ACTION_MUTE -> alertNotifier.mute(System.currentTimeMillis() + MUTE_DURATION_MS)
+            // From an attention notification: banners and signals of attention stop for 30 min.
+            ACTION_MUTE -> alertCoordinator.muteAttention()
+            // «Понятно» from a fault notification.
+            ACTION_ACKNOWLEDGE -> alertCoordinator.acknowledge()
             ACTION_STOP -> {
                 intentionalStop = true
                 stopSelf()
@@ -238,9 +235,9 @@ class TpmsMonitorService : Service() {
             ACTION_USB_DETACHED -> onUsbDetached(intent.getStringExtra(EXTRA_DEVICE_NAME))
             else -> {
                 ServiceStoppedNotifier.dismiss(this)
-                // Show current alerts by the persisted memory (live data only: no re-ring after a restart).
-                runCatching { alertNotifier.resync() }
-                    .onFailure { debugLog.exception("Service", it, "alert notification resync") }
+                // Present current alerts by the persisted state (live data only: no re-ring after a restart).
+                runCatching { alertCoordinator.update() }
+                    .onFailure { debugLog.exception("Service", it, "alert resync") }
                 BootStartScheduler.cancel(this)
                 ServiceLivenessScheduler.schedule(this)
                 // Re-post the USB permission notification if still needed (dismissed on the last stop,
@@ -330,7 +327,7 @@ class TpmsMonitorService : Service() {
         // Alert notifications must not outlive monitoring; the next start re-syncs them. An
         // intentional stop also forgets their memory (the next monitoring session rings once again);
         // a system stop keeps it, like a process death.
-        runCatching { alertNotifier.onMonitoringStopped(intentional = intentionalStop) }
+        runCatching { alertCoordinator.onMonitoringStopped(intentional = intentionalStop) }
         runCatching { monitoringHealthNotifier.clear() }
         // The ongoing permission notification must not outlive monitoring; the next start re-syncs it.
         runCatching { usbPermissionRequester.onMonitoringStopped() }
@@ -439,11 +436,13 @@ class TpmsMonitorService : Service() {
         val now = System.currentTimeMillis()
         if (TripBoundary.startsOnScreenOn(suspended, screenOffAtMs, now)) {
             debugLog.info("Service", "New trip on SCREEN_ON: alert episodes reset")
-            runCatching { alertNotifier.onNewTrip() }
+            runCatching { alertCoordinator.onNewTrip() }
                 .onFailure { debugLog.exception("Service", it, "alert new trip") }
         }
         screenOffAtMs = null
         monitoringHealthNotifier.onScreenOn(now)
+        // Whatever fell due while the screen was off is presented now.
+        runCatching { alertCoordinator.update() }
         serviceScope.launch { runCatchingCancellable { heartbeatStore.recordScreenOn(survivedSleep) } }
         val session = repository.activeSession()?.takeIf { !it.isClosed }
         val wakeSession = session?.let { WakeSession(it.streamsContinuously, it.silentForMs()) }
@@ -609,7 +608,9 @@ class TpmsMonitorService : Service() {
             streamingWithoutFrames = connection.protocol?.streamsContinuously == true &&
                 repository.isProtocolUnhealthy()
         )
-        monitoringHealthNotifier.evaluate(blind, reason = repository.usbFault.value?.label(this))
+        val due = monitoringHealthNotifier.evaluate(blind)
+        val reason = repository.usbFault.value?.label(this)
+        mainHandler.post { if (!destroyed) alertCoordinator.setMonitoringBlind(due, reason) }
     }
 
     private suspend fun updateWidget() {
@@ -686,9 +687,9 @@ class TpmsMonitorService : Service() {
         private const val UI_TICK_MS = 30_000L
         private const val HEARTBEAT_INTERVAL_MS = 10_000L
         private const val WAKE_LOCK_HOLD_MS = 5_000L
-        private const val MUTE_DURATION_MS = 30 * 60 * 1000L
 
         const val ACTION_MUTE = "com.tpms.app.action.MUTE"
+        const val ACTION_ACKNOWLEDGE = "com.tpms.app.action.ACKNOWLEDGE"
         const val ACTION_STOP = "com.tpms.app.action.STOP"
         const val ACTION_CHECK_NOW = "com.tpms.app.action.CHECK_NOW"
         const val ACTION_RECONNECT_USB = "com.tpms.app.action.RECONNECT_USB"

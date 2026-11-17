@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tpms.app.R
 import com.tpms.app.domain.UsbFault
+import com.tpms.app.domain.model.AlertLevel
 import com.tpms.app.domain.model.AlertType
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.TireSensor
@@ -53,6 +56,7 @@ import com.tpms.app.ui.embedded.EmbeddedMainScreenFrame
 import com.tpms.app.ui.embedded.LocalEmbeddedWindow
 import com.tpms.app.ui.batteryLabel
 import com.tpms.app.domain.toSeverity
+import com.tpms.app.ui.adviceRes
 import com.tpms.app.ui.cardLabel
 import com.tpms.app.ui.localizedLabel
 import com.tpms.app.ui.theme.statusColor
@@ -71,6 +75,7 @@ fun MainScreen(
     val embedded = LocalEmbeddedWindow.current
     val uiState by viewModel.uiState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val faultUnacknowledged by viewModel.faultUnacknowledged.collectAsState()
     var selectedWheel by remember { mutableStateOf<Pair<String, TireSensor?>?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -95,7 +100,7 @@ fun MainScreen(
     val alert = uiState.tpmsState as? TpmsState.Alert
     val (statusText, statusColor) = if (alert != null) {
         // The banner names the wheel and the problem; the header just flags it.
-        stringResource(R.string.label_warning) to alert.type.toSeverity().statusColor()
+        stringResource(R.string.label_warning) to alert.sensor.toSeverity().statusColor()
     } else {
         mainStatusPresentation(uiState)
     }
@@ -116,7 +121,8 @@ fun MainScreen(
             onNavigateToSettings = onNavigateToSettings,
             onNavigateToDebug = onNavigateToDebug,
             showDebug = uiState.advancedMode && uiState.debugToolsEnabled,
-            onWheelClick = { label, sensor -> selectedWheel = label to sensor }
+            onWheelClick = { label, sensor -> selectedWheel = label to sensor },
+            onAcknowledge = if (faultUnacknowledged) viewModel::acknowledgeAlert else null
         )
     }
 
@@ -140,7 +146,8 @@ private fun MainScreenScaffold(
     onNavigateToSettings: () -> Unit,
     onNavigateToDebug: () -> Unit,
     showDebug: Boolean,
-    onWheelClick: (String, TireSensor?) -> Unit
+    onWheelClick: (String, TireSensor?) -> Unit,
+    onAcknowledge: (() -> Unit)?
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -201,6 +208,7 @@ private fun MainScreenScaffold(
             MainDashboardBody(
                 uiState = uiState,
                 onWheelClick = onWheelClick,
+                onAcknowledge = onAcknowledge,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -213,6 +221,7 @@ private fun MainScreenScaffold(
 private fun MainDashboardBody(
     uiState: MainUiState,
     onWheelClick: (String, TireSensor?) -> Unit,
+    onAcknowledge: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -224,6 +233,8 @@ private fun MainDashboardBody(
             AlertBanner(
                 wheel = wheelPositionLabel(slot),
                 type = alert.type,
+                level = alert.sensor.alertLevel,
+                onAcknowledge = onAcknowledge,
                 onClick = { onWheelClick(slot, alert.sensor) }
             )
         }
@@ -243,8 +254,8 @@ private fun MainDashboardBody(
 
 /** Prominent alert under the header, like a cluster warning: wheel, problem and what to do. */
 @Composable
-private fun AlertBanner(wheel: String, type: AlertType, onClick: () -> Unit) {
-    val color = type.toSeverity().statusColor()
+private fun AlertBanner(wheel: String, type: AlertType, level: AlertLevel?, onAcknowledge: (() -> Unit)?, onClick: () -> Unit) {
+    val color = level.toSeverity().statusColor()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -256,7 +267,7 @@ private fun AlertBanner(wheel: String, type: AlertType, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(Icons.Filled.Warning, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
-        Column(modifier = Modifier.padding(start = 14.dp)) {
+        Column(modifier = Modifier.padding(start = 14.dp).weight(1f)) {
             Text(
                 text = stringResource(R.string.status_alert_format, wheel, type.cardLabel()),
                 style = MaterialTheme.typography.titleMedium,
@@ -269,15 +280,17 @@ private fun AlertBanner(wheel: String, type: AlertType, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onBackground
             )
         }
+        // «Понятно» for an unacknowledged fault (wayfinder alerts 05: window, notification, main screen).
+        if (onAcknowledge != null) {
+            Button(
+                onClick = onAcknowledge,
+                colors = ButtonDefaults.buttonColors(containerColor = color),
+                modifier = Modifier.padding(start = 12.dp)
+            ) {
+                Text(stringResource(R.string.alert_window_acknowledge), fontWeight = FontWeight.Bold)
+            }
+        }
     }
-}
-
-private fun AlertType.adviceRes(): Int = when (this) {
-    AlertType.LOW_PRESSURE -> R.string.alert_advice_low
-    AlertType.HIGH_PRESSURE -> R.string.alert_advice_high
-    AlertType.SENSOR_LOST -> R.string.alert_advice_lost
-    AlertType.HIGH_TEMP -> R.string.alert_advice_high_temp
-    AlertType.BATTERY_LOW -> R.string.alert_advice_low_battery
 }
 
 @Composable
@@ -329,7 +342,7 @@ private fun WheelDetailSheet(
             Text(
                 text = alert.cardLabel(),
                 style = MaterialTheme.typography.titleMedium,
-                color = alert.toSeverity().statusColor(),
+                color = sensor.toSeverity().statusColor(),
                 modifier = Modifier.padding(top = 4.dp)
             )
         }

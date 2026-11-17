@@ -29,7 +29,8 @@ class FloatingOverlayController @Inject constructor() {
         val wm = windowManager ?: appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         windowManager = wm
 
-        val view = overlayView ?: createOverlayView(appContext, wm).also { overlayView = it }
+        // The permission may be revoked between the check and the add: then nothing is shown.
+        val view = overlayView ?: (createOverlayView(appContext, wm) ?: return).also { overlayView = it }
         bindSnapshot(view, snapshot)
         view.setOnClickListener {
             appContext.startActivity(MainActivity.newIntent(appContext))
@@ -43,18 +44,12 @@ class FloatingOverlayController @Inject constructor() {
         overlayView = null
     }
 
-    private fun createOverlayView(context: Context, wm: WindowManager): View {
+    private fun createOverlayView(context: Context, wm: WindowManager): View? {
         val view = LayoutInflater.from(context).inflate(R.layout.overlay_tpms, null)
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -62,8 +57,7 @@ class FloatingOverlayController @Inject constructor() {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             y = 24
         }
-        wm.addView(view, params)
-        return view
+        return view.takeIf { runCatching { wm.addView(it, params) }.isSuccess }
     }
 
     private fun bindSnapshot(view: View, snapshot: WidgetSnapshot) {
