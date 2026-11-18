@@ -40,19 +40,19 @@ class MainStageLayoutTest {
     }
 
     @Test
-    fun leftWheelsLeftRightWheelsRightRearOnTop() {
+    fun usualTpmsLayoutFrontOnTop() {
         val layout = mainStageLayout(992f, 500f, hasSpare = false)
         val r = layout.readings
-        // Left column: left wheels, rear above front (the mirrored car's nose points down).
-        assertTrue(r.getValue("RL").right < layout.car.left && r.getValue("RL").top < r.getValue("FL").top)
-        assertEquals(r.getValue("RL").left, r.getValue("FL").left, 0f)
+        // Left column: left wheels, front above rear (the car drives away from the viewer).
+        assertTrue(r.getValue("FL").right < layout.car.left && r.getValue("FL").top < r.getValue("RL").top)
+        assertEquals(r.getValue("FL").left, r.getValue("RL").left, 0f)
         // Right column: right wheels.
-        assertTrue(r.getValue("RR").left > layout.car.right && r.getValue("RR").top < r.getValue("FR").top)
-        assertEquals(r.getValue("RR").left, r.getValue("FR").left, 0f)
+        assertTrue(r.getValue("FR").left > layout.car.right && r.getValue("FR").top < r.getValue("RR").top)
+        assertEquals(r.getValue("FR").left, r.getValue("RR").left, 0f)
     }
 
     @Test
-    fun carIsCentredSoTheMirroredSceneKeepsItInPlace() {
+    fun carIsCentred() {
         for ((w, h) in stages) {
             val car = mainStageLayout(w, h, hasSpare = false).car
             assertEquals("$w×$h", w / 2f, car.center.x, 0.5f)

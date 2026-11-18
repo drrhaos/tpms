@@ -85,64 +85,60 @@ fun CarTopDown(
             .offset(car.left.dp, car.top.dp)
             .size(car.width.dp, car.height.dp)
 
-        // The scene is drawn mirrored (nose to the bottom-right): the car's left side then faces the
-        // left column of readings, as the driver expects. Around the stage centre, where the car sits.
-        Box(Modifier.fillMaxSize().graphicsLayer { scaleX = -1f }) {
-            // The road the car stands on, as on OEM vehicle-status pages; faded out at the stage edges
-            // so it melts into the page instead of ending on a hard line.
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .clipToBounds()
-                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                    .drawWithContent {
-                        drawContent()
-                        drawRect(STAGE_FADE_VERTICAL, blendMode = BlendMode.DstIn)
-                        drawRect(STAGE_FADE_HORIZONTAL, blendMode = BlendMode.DstIn)
-                    }
-            ) {
-                Image(
-                    painter = painterResource(if (TpmsColors.isDark) R.drawable.car_3d_env_dark else R.drawable.car_3d_env_light),
-                    contentDescription = null,
-                    contentScale = ContentScale.FillBounds,
-                    modifier = Modifier
-                        .wrapContentSize(Alignment.TopStart, unbounded = true)
-                        .offset((car.left + ENV_RECT.left * car.width).dp, (car.top + ENV_RECT.top * car.height).dp)
-                        .size((ENV_RECT.width * car.width).dp, (ENV_RECT.height * car.height).dp)
-                )
-            }
-
+        // The road the car stands on, as on OEM vehicle-status pages; faded out at the stage edges
+        // so it melts into the page instead of ending on a hard line.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clipToBounds()
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .drawWithContent {
+                    drawContent()
+                    drawRect(STAGE_FADE_VERTICAL, blendMode = BlendMode.DstIn)
+                    drawRect(STAGE_FADE_HORIZONTAL, blendMode = BlendMode.DstIn)
+                }
+        ) {
             Image(
-                painter = painterResource(if (TpmsColors.isDark) R.drawable.car_3d_dark else R.drawable.car_3d_light),
-                contentDescription = stringResource(R.string.widget_car_content_description),
-                contentScale = ContentScale.Fit,
-                modifier = carModifier
+                painter = painterResource(if (TpmsColors.isDark) R.drawable.car_3d_env_dark else R.drawable.car_3d_env_light),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier
+                    .wrapContentSize(Alignment.TopStart, unbounded = true)
+                    .offset((car.left + ENV_RECT.left * car.width).dp, (car.top + ENV_RECT.top * car.height).dp)
+                    .size((ENV_RECT.width * car.width).dp, (ENV_RECT.height * car.height).dp)
             )
+        }
 
-            // Running gear (axles, prop shaft, suspension, brakes) under the tyres, so the wheels read as
-            // one chassis rather than four loose discs; neutral, in the theme's text colour.
+        Image(
+            painter = painterResource(if (TpmsColors.isDark) R.drawable.car_3d_dark else R.drawable.car_3d_light),
+            contentDescription = stringResource(R.string.widget_car_content_description),
+            contentScale = ContentScale.Fit,
+            modifier = carModifier
+        )
+
+        // Running gear (axles, prop shaft, suspension, brakes) under the tyres, so the wheels read as
+        // one chassis rather than four loose discs; neutral, in the theme's text colour.
+        Image(
+            painter = painterResource(R.drawable.car_3d_axles),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(TpmsColors.onBackground, BlendMode.Modulate),
+            alpha = 0.8f,
+            modifier = carModifier
+        )
+
+        WHEEL_SPOTS.forEach { spot ->
+            val index = indexOf(spot.slot) ?: return@forEach
+            val sensor = sensors.getOrNull(index)
+            val tint by animateColorAsState(tyreColor(sensor, muted.getOrNull(index) == true), label = "tyre")
             Image(
-                painter = painterResource(R.drawable.car_3d_axles),
+                painter = painterResource(spot.mask),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                colorFilter = ColorFilter.tint(TpmsColors.onBackground, BlendMode.Modulate),
-                alpha = 0.8f,
+                colorFilter = ColorFilter.tint(tint, BlendMode.Modulate),
+                alpha = 0.92f,
                 modifier = carModifier
             )
-
-            WHEEL_SPOTS.forEach { spot ->
-                val index = indexOf(spot.slot) ?: return@forEach
-                val sensor = sensors.getOrNull(index)
-                val tint by animateColorAsState(tyreColor(sensor, muted.getOrNull(index) == true), label = "tyre")
-                Image(
-                    painter = painterResource(spot.mask),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    colorFilter = ColorFilter.tint(tint, BlendMode.Modulate),
-                    alpha = 0.92f,
-                    modifier = carModifier
-                )
-            }
         }
 
         WHEEL_SPOTS.forEach { spot ->

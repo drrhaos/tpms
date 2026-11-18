@@ -10,8 +10,11 @@ import kotlin.math.min
 // Geometry of the x-ray car renders (tools/car_render), shared by the main screen and the
 // home-screen widget so both show the same scene.
 
-/** Width / height of `car_3d_*` and `car_3d_wheel_*` (Blender x-ray render, nose to the bottom-left). */
-internal const val CAR_IMAGE_ASPECT = 1349f / 1091f
+/**
+ * Width / height of `car_3d_*` and `car_3d_wheel_*` (Blender x-ray render from behind-left: the car
+ * drives away from the viewer, nose up-left, left wheels on the left; tools/car_render, camera 160° / 38°).
+ */
+internal const val CAR_IMAGE_ASPECT = 1195f / 1056f
 
 /** The car takes this share of the stage: room for the road around it and for large readings. */
 internal const val CAR_SCALE = 0.8f
@@ -20,21 +23,22 @@ internal const val CAR_SCALE = 0.8f
  * `car_3d_env_*` (road, lane lines, floor grid, light pool; same camera, wider frame) in fractions
  * of the car image: it lines up with the car when scaled by the car's size.
  */
-internal val ENV_RECT = Rect(Offset(-1.0756f, -0.6682f), Size(3.1134f, 2.0532f))
+internal val ENV_RECT = Rect(Offset(-1.3431f, -0.7235f), Size(3.5146f, 2.1212f))
 
 /**
  * Each wheel: its tint mask (tyre + rim, rendered with the same camera, shaded so the spokes stay
- * readable) and where its reading sits, as a fraction of the car image: beside its own wheel,
- * outside the body, on its axle's line extended past the wheel (hubs FL 0.438,0.721 / FR 0.175,0.563
- * / RL 0.737,0.340 / RR 0.494,0.222), 0.27 of the image width beyond the hub, like BMW's tyre page.
+ * readable) and where the widget puts its reading, as a fraction of the car image: on its axle's
+ * line extended past the wheel (hubs FL 0.151,0.240 / FR 0.458,0.167 / RL 0.340,0.679 / RR
+ * 0.696,0.577), 0.27 of the image width beyond the hub, outside the body. The main screen puts the
+ * readings in the stage corners instead ([mainStageLayout]).
  */
 internal data class WheelSpot(val slot: String, @DrawableRes val mask: Int, val reading: Offset)
 
 internal val WHEEL_SPOTS = listOf(
-    WheelSpot("FR", R.drawable.car_3d_wheel_fr, Offset(-0.095f, 0.402f)),
-    WheelSpot("RR", R.drawable.car_3d_wheel_rr, Offset(0.224f, 0.091f)),
-    WheelSpot("RL", R.drawable.car_3d_wheel_rl, Offset(1.007f, 0.471f)),
-    WheelSpot("FL", R.drawable.car_3d_wheel_fl, Offset(0.708f, 0.882f))
+    WheelSpot("FL", R.drawable.car_3d_wheel_fl, Offset(-0.113f, 0.303f)),
+    WheelSpot("FR", R.drawable.car_3d_wheel_fr, Offset(0.722f, 0.104f)),
+    WheelSpot("RL", R.drawable.car_3d_wheel_rl, Offset(0.078f, 0.754f)),
+    WheelSpot("RR", R.drawable.car_3d_wheel_rr, Offset(0.958f, 0.502f))
 )
 
 /** Stage layout in dp: the car's rect, the reading size; shared by [CarTopDown] and the widget. */

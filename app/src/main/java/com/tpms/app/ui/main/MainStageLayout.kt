@@ -10,11 +10,10 @@ import kotlin.math.min
  * decoration, older drivers must read the values at a glance). Pure, in dp.
  *
  * The four readings get the stage corners, each as large as the stage allows; the car is fitted into
- * what is left in the middle, so it can never cover a reading. Left wheels on the left, right wheels
- * on the right (the car is drawn mirrored, nose to the bottom-right, so its left side faces left):
- * RL top-left, FL bottom-left, RR top-right, FR bottom-right — each the corner nearest its wheel and
- * the side the driver expects. Landscape: two side columns, the car between them; portrait: two rows,
- * the car between them. The spare, when shown, sits at the bottom centre of the middle band.
+ * what is left in the middle, so it can never cover a reading. The car drives away from the viewer
+ * (rear three-quarter render, nose up), so the corners are the usual TPMS layout and each is the one
+ * nearest its wheel: FL top-left, FR top-right, RL bottom-left, RR bottom-right. Landscape: two side
+ * columns, the car between them; portrait: two rows, the car between them. The spare, when shown, sits at the bottom centre of the middle band.
  */
 internal data class MainStageLayout(
     val pressureSp: Float,
@@ -56,10 +55,10 @@ internal fun mainStageLayout(width: Float, height: Float, hasSpare: Boolean): Ma
     val top = MARGIN
     val bottom = height - MARGIN - rh
     val readings = mapOf(
-        "RL" to Rect(Offset(left, top), Size(rw, rh)),
-        "FL" to Rect(Offset(left, bottom), Size(rw, rh)),
-        "RR" to Rect(Offset(right, top), Size(rw, rh)),
-        "FR" to Rect(Offset(right, bottom), Size(rw, rh))
+        "FL" to Rect(Offset(left, top), Size(rw, rh)),
+        "FR" to Rect(Offset(right, top), Size(rw, rh)),
+        "RL" to Rect(Offset(left, bottom), Size(rw, rh)),
+        "RR" to Rect(Offset(right, bottom), Size(rw, rh))
     )
 
     // The middle band, between the columns (landscape) or the rows (portrait).
