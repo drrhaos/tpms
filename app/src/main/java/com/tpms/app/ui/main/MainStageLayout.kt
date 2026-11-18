@@ -11,7 +11,7 @@ import kotlin.math.min
  *
  * The four readings get the stage corners, each as large as the stage allows; the car is fitted into
  * what is left in the middle, so it can never cover a reading. The car drives away from the viewer
- * (rear three-quarter render, nose up), so the corners are the usual TPMS layout and each is the one
+ * (rear three-quarter render, nose up-right), so the corners are the usual TPMS layout and each is the one
  * nearest its wheel: FL top-left, FR top-right, RL bottom-left, RR bottom-right. Landscape: two side
  * columns, the car between them; portrait: two rows, the car between them. The spare, when shown, sits at the bottom centre of the middle band.
  */

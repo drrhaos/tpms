@@ -1,7 +1,7 @@
 # Car render for the main screen
 
 Renders the main-screen and widget scene into `app/src/main/res/drawable-nodpi/`: the x-ray car
-`car_3d_{dark,light}.webp` (rear 3/4 view from behind-left: the car drives away, nose up; left wheels on the left), per-wheel tint masks, the running
+`car_3d_{dark,light}.webp` (rear 3/4 view from behind-right: the car drives away, lower left to upper right; left wheels on the left), per-wheel tint masks, the running
 gear `car_3d_axles.webp` and the road `car_3d_env_*.webp`, and prints the constants for
 `ui/main/CarStage.kt` (`CAR_IMAGE_ASPECT`, `ENV_RECT`, wheel hubs). Run the commands from this folder.
 Needs Blender (Cycles) and ImageMagick. Model and HDRI are not in git: keep them in `model/`
@@ -21,13 +21,13 @@ blender -b --factory-startup --disable-autoexec model/source/01-passat-generic-s
   -P prepare_generic_sedan.py -- $OUT/sedan.glb
 # 2. Render both themes.
 for t in dark light; do
-  blender -b --factory-startup -P xray_render.py -- $OUT/sedan.glb $STUDIO $OUT $t 160 38 96 1400
+  blender -b --factory-startup -P xray_render.py -- $OUT/sedan.glb $STUDIO $OUT $t 200 38 96 1400
 done
 # 3. Per-wheel tint masks (tyre + rim, same camera; the app multiplies them by the state colour).
-blender -b --factory-startup -P xray_render.py -- $OUT/sedan.glb $STUDIO $OUT dark 160 38 32 1400 "" masks
+blender -b --factory-startup -P xray_render.py -- $OUT/sedan.glb $STUDIO $OUT dark 200 38 32 1400 "" masks
 # 4. Surroundings: road, lane lines, floor grid, light pool (same camera, wider frame).
 for t in dark light; do
-  blender -b --factory-startup -P xray_render.py -- $OUT/sedan.glb $STUDIO $OUT $t 160 38 16 1400 "" env
+  blender -b --factory-startup -P xray_render.py -- $OUT/sedan.glb $STUDIO $OUT $t 200 38 16 1400 "" env
 done
 # 5. Trim, clean the shadow haze, encode WebP (car + masks + env), print the Kotlin constants
 #    (CAR_IMAGE_ASPECT, ENV_RECT, wheel hubs).
