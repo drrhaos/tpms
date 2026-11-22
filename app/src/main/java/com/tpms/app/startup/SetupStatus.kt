@@ -3,6 +3,8 @@ package com.tpms.app.startup
 import android.content.Context
 import com.tpms.app.data.settings.SettingsStore
 import com.tpms.app.data.settings.TeyesChecklist
+import com.tpms.app.domain.AlertSoundRoute
+import com.tpms.app.service.AlertSoundPlayer
 import com.tpms.app.service.NotificationHelper
 import com.tpms.app.service.ServiceRunningChecker
 import com.tpms.app.service.TpmsMonitorService
@@ -20,8 +22,9 @@ data class SetupStatus(
     val alertChannelLoud: Boolean,
     /** "Display over other apps": the red alert window can be drawn (wayfinder alerts 03). */
     val alertWindowAllowed: Boolean = true,
-    /** The alarm stream, which carries the alert signal, is not at zero (wayfinder alerts 04). */
+    /** The stream that carries the alert signal ([alertSoundRoute]) is not at zero (wayfinder alerts 04). */
     val alarmVolumeOn: Boolean = true,
+    val alertSoundRoute: AlertSoundRoute = AlertSoundRoute.ALARM,
     val serviceRunning: Boolean,
     val widgetActive: Boolean
 ) {
@@ -44,6 +47,7 @@ class SetupStatusProvider @Inject constructor(
 ) {
     fun current(context: Context): SetupStatus {
         val checklist = settingsStore.teyesChecklist.value
+        val route = AlertSoundRoute.effective(settingsStore.alertSoundRoute.value, headUnitSupport.isTeyesHeadUnit())
         return SetupStatus(
             isTeyesDevice = headUnitSupport.isTeyesHeadUnit(),
             checklist = checklist,
@@ -52,15 +56,16 @@ class SetupStatusProvider @Inject constructor(
             notificationsEnabled = areNotificationsEnabled(context),
             alertChannelLoud = NotificationHelper.isAlertChannelLoud(context),
             alertWindowAllowed = android.provider.Settings.canDrawOverlays(context),
-            alarmVolumeOn = isAlarmVolumeOn(context),
+            alarmVolumeOn = isAlertVolumeOn(context, route),
+            alertSoundRoute = route,
             serviceRunning = ServiceRunningChecker.isRunning(context, TpmsMonitorService::class.java),
             widgetActive = TpmsWidgetUpdater.hasAnyActiveWidget(context)
         )
     }
 
-    fun isAlarmVolumeOn(context: Context): Boolean {
+    fun isAlertVolumeOn(context: Context, route: AlertSoundRoute): Boolean {
         val audio = context.getSystemService(android.media.AudioManager::class.java) ?: return true
-        return audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) > 0
+        return audio.getStreamVolume(AlertSoundPlayer.stream(route)) > 0
     }
 
     fun isBatteryUnrestricted(context: Context): Boolean {

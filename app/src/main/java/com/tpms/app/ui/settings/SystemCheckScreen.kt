@@ -86,7 +86,8 @@ fun SystemCheckScreen(
                 label = stringResource(R.string.settings_check_alarm_volume),
                 description = stringResource(
                     if (setupStatus.alarmVolumeOn) R.string.settings_check_alarm_volume_ok
-                    else R.string.settings_check_alarm_volume_bad
+                    else R.string.settings_check_alarm_volume_bad,
+                    stringResource(alertSoundRouteLabel(setupStatus.alertSoundRoute))
                 ),
                 ok = setupStatus.alarmVolumeOn,
                 onClick = viewModel::openSoundSettings

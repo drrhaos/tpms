@@ -20,6 +20,8 @@ import com.tpms.app.data.settings.TeyesChecklist
 import com.tpms.app.data.usb.UsbConnection
 import com.tpms.app.data.usb.UsbDebugLog
 import com.tpms.app.data.usb.UsbDeviceInfo
+import com.tpms.app.domain.AlertPresentation
+import com.tpms.app.domain.AlertSoundRoute
 import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.WheelAssignment
@@ -31,6 +33,7 @@ import com.tpms.app.domain.model.TireSensor
 import com.tpms.app.domain.model.WidgetThemeMode
 import com.tpms.app.domain.model.AlertLevel
 import com.tpms.app.service.AlertCoordinator
+import com.tpms.app.service.AlertSoundPlayer
 import com.tpms.app.service.FloatingOverlayController
 import com.tpms.app.service.TpmsMonitorService
 import com.tpms.app.startup.HeadUnitSupport
@@ -66,6 +69,7 @@ class SettingsViewModel @Inject constructor(
     private val usbConnection: UsbConnection,
     private val floatingOverlayController: FloatingOverlayController,
     private val alertCoordinator: AlertCoordinator,
+    private val alertSoundPlayer: AlertSoundPlayer,
     heartbeatStore: ServiceHeartbeatStore
 ) : ViewModel() {
 
@@ -280,6 +284,20 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsStore.setAlertReminderMs(ms) }
     }
 
+    /** The stream of the alert signals, the device's default until the user picks one. */
+    val alertSoundRoute: StateFlow<AlertSoundRoute> = settingsStore.alertSoundRoute
+        .map { AlertSoundRoute.effective(it, headUnitSupport.isTeyesHeadUnit()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, alertSoundPlayer.route())
+
+    /** Stores [route] and plays the fault signal on it at once, so the user hears whether it works. */
+    fun setAlertSoundRoute(route: AlertSoundRoute) {
+        alertSoundPlayer.play(AlertPresentation.Sound.FAULT, route)
+        viewModelScope.launch {
+            settingsStore.setAlertSoundRoute(route)
+            refreshRuntimeSetupStatus()
+        }
+    }
+
     fun openOverlaySettings() = TeyesPermissionHelper.openOverlaySettings(context)
 
     fun openSoundSettings() {
@@ -445,6 +463,7 @@ class SettingsViewModel @Inject constructor(
         floatingOverlayEnabled = floatingOverlayEnabled.value,
         criticalAlertsFullscreen = criticalAlertsFullscreen.value,
         alertReminderMs = settingsStore.alertReminderMs.value,
+        alertSoundRoute = settingsStore.alertSoundRoute.value,
         preferredUsbVidPid = preferredUsbVidPid.value,
         widgetThemeMode = themeMode.value,
         diagnosticLogEnabled = diagnosticLogEnabled.value,

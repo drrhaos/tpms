@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tpms.app.domain.AlertPresentation
+import com.tpms.app.domain.AlertSoundRoute
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.PressureTarget
@@ -104,6 +105,10 @@ class SettingsStore @Inject constructor(
     private val _alertReminderMs = MutableStateFlow(AlertPresentation.DEFAULT_REMINDER_MS)
     val alertReminderMs = _alertReminderMs.asStateFlow()
 
+    /** The stream of the alert signals; null = the device's default ([AlertSoundRoute.effective]). */
+    private val _alertSoundRoute = MutableStateFlow<AlertSoundRoute?>(null)
+    val alertSoundRoute = _alertSoundRoute.asStateFlow()
+
     private val _preferredUsbVidPid = MutableStateFlow<String?>(null)
     val preferredUsbVidPid = _preferredUsbVidPid.asStateFlow()
 
@@ -168,6 +173,7 @@ class SettingsStore @Inject constructor(
                 _floatingOverlayEnabled.value = prefs[KEY_FLOATING_OVERLAY] ?: false
                 _criticalAlertsFullscreen.value = prefs[KEY_CRITICAL_ALERTS_FULLSCREEN] ?: true
                 _alertReminderMs.value = reminderOrDefault(prefs[KEY_ALERT_REMINDER_MS])
+                _alertSoundRoute.value = AlertSoundRoute.fromName(prefs[KEY_ALERT_SOUND_ROUTE])
                 _preferredUsbVidPid.value = prefs[KEY_PREFERRED_USB_VID_PID]?.takeIf { it.isNotBlank() }
                 _widgetThemeMode.value = WidgetThemeMode.fromName(prefs[KEY_WIDGET_THEME_MODE])
                 _diagnosticLogEnabled.value = prefs[KEY_DIAGNOSTIC_LOG] ?: false
@@ -268,6 +274,10 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { it[KEY_ALERT_REMINDER_MS] = reminderOrDefault(ms) }
     }
 
+    suspend fun setAlertSoundRoute(route: AlertSoundRoute) {
+        context.settingsDataStore.edit { it[KEY_ALERT_SOUND_ROUTE] = route.name }
+    }
+
     /** Only the offered intervals are stored; anything else falls back to the default. */
     private fun reminderOrDefault(ms: Long?): Long =
         ms?.takeIf { it in AlertPresentation.REMINDER_CHOICES_MS } ?: AlertPresentation.DEFAULT_REMINDER_MS
@@ -314,6 +324,8 @@ class SettingsStore @Inject constructor(
             prefs[KEY_FLOATING_OVERLAY] = imported.floatingOverlayEnabled
             prefs[KEY_CRITICAL_ALERTS_FULLSCREEN] = imported.criticalAlertsFullscreen
             prefs[KEY_ALERT_REMINDER_MS] = reminderOrDefault(imported.alertReminderMs)
+            imported.alertSoundRoute?.let { prefs[KEY_ALERT_SOUND_ROUTE] = it.name }
+                ?: prefs.remove(KEY_ALERT_SOUND_ROUTE)
             imported.preferredUsbVidPid?.let { prefs[KEY_PREFERRED_USB_VID_PID] = it }
                 ?: prefs.remove(KEY_PREFERRED_USB_VID_PID)
             prefs[KEY_WIDGET_THEME_MODE] = imported.widgetThemeMode.name
@@ -361,6 +373,7 @@ class SettingsStore @Inject constructor(
         private val KEY_FLOATING_OVERLAY = booleanPreferencesKey("floating_overlay")
         private val KEY_CRITICAL_ALERTS_FULLSCREEN = booleanPreferencesKey("critical_alerts_fullscreen")
         private val KEY_ALERT_REMINDER_MS = longPreferencesKey("alert_reminder_ms")
+        private val KEY_ALERT_SOUND_ROUTE = stringPreferencesKey("alert_sound_route")
         private val KEY_PREFERRED_USB_VID_PID = stringPreferencesKey("preferred_usb_vid_pid")
         private val KEY_WIDGET_THEME_MODE = stringPreferencesKey("widget_theme_mode")
         private val KEY_DIAGNOSTIC_LOG = booleanPreferencesKey("diagnostic_log_enabled")

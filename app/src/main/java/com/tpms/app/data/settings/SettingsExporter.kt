@@ -1,6 +1,7 @@
 package com.tpms.app.data.settings
 
 import com.tpms.app.domain.AlertPresentation
+import com.tpms.app.domain.AlertSoundRoute
 import com.tpms.app.domain.ConnectionHealthPolicy
 import com.tpms.app.domain.PressureCalibration
 import com.tpms.app.domain.PressureTarget
@@ -13,7 +14,7 @@ import org.json.JSONObject
 
 object SettingsExporter {
 
-    const val EXPORT_VERSION = 6
+    const val EXPORT_VERSION = 7
 
     fun export(
         pressureUnit: PressureUnit,
@@ -30,6 +31,7 @@ object SettingsExporter {
         floatingOverlayEnabled: Boolean = false,
         criticalAlertsFullscreen: Boolean = true,
         alertReminderMs: Long = AlertPresentation.DEFAULT_REMINDER_MS,
+        alertSoundRoute: AlertSoundRoute? = null,
         preferredUsbVidPid: String? = null,
         widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO,
         diagnosticLogEnabled: Boolean = false,
@@ -55,6 +57,7 @@ object SettingsExporter {
         put("floating_overlay", floatingOverlayEnabled)
         put("critical_alerts_fullscreen", criticalAlertsFullscreen)
         put("alert_reminder_ms", alertReminderMs)
+        alertSoundRoute?.let { put("alert_sound_route", it.name) }
         preferredUsbVidPid?.let { put("preferred_usb_vid_pid", it) }
         put("widget_theme_mode", widgetThemeMode.name)
         put("diagnostic_log_enabled", diagnosticLogEnabled)
@@ -118,6 +121,8 @@ object SettingsExporter {
             criticalAlertsFullscreen = root.optBoolean("critical_alerts_fullscreen", true),
             // Files before version 6 have no reminder interval: the default.
             alertReminderMs = root.optLong("alert_reminder_ms", AlertPresentation.DEFAULT_REMINDER_MS),
+            // Files before version 7 (or without a choice) have no sound route: the device's default.
+            alertSoundRoute = AlertSoundRoute.fromName(root.optString("alert_sound_route", "")),
             preferredUsbVidPid = root.optString("preferred_usb_vid_pid", "").takeIf { it.isNotBlank() },
             widgetThemeMode = WidgetThemeMode.fromName(root.optString("widget_theme_mode", WidgetThemeMode.AUTO.name)),
             diagnosticLogEnabled = root.optBoolean("diagnostic_log_enabled", false),
@@ -145,6 +150,7 @@ data class ImportedSettings(
     val floatingOverlayEnabled: Boolean = false,
     val criticalAlertsFullscreen: Boolean = true,
     val alertReminderMs: Long = AlertPresentation.DEFAULT_REMINDER_MS,
+    val alertSoundRoute: AlertSoundRoute? = null,
     val preferredUsbVidPid: String? = null,
     val widgetThemeMode: WidgetThemeMode = WidgetThemeMode.AUTO,
     val diagnosticLogEnabled: Boolean = false,

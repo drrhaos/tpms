@@ -27,6 +27,7 @@ All notable changes to TPMS Monitor. Versions follow the release tags (`vX.Y.Z`)
 - Alert windows never close by themselves: the red one only with «Got it», the yellow one only with «×»; alerts that cleared meanwhile stay as "back to normal" lines.
 - Alert notifications stay as long as the problem lasts (not swipeable; on Android 14+ a swiped one comes back silently); a fault has «Got it» in the notification and on the main screen.
 - Signals are the app's own sounds at the alarm volume, ducking music; the alert notification channel is silent (channel settings reset once).
+- Settings → Alerts → "Alert sound via": alarm, navigation or media; picking one plays the fault signal on it. Teyes defaults to media (the alarm stream may not reach the speakers there), other devices to alarm; System check shows the volume of the chosen one; settings export v7. The first signal no longer falls back to a beep while its sound is still loading.
 - Onboarding asks for "Display over other apps"; System check shows the alert window permission and the alarm volume; two test buttons in Settings → Alerts. Settings export v6 (reminder interval).
 - One notification per wheel for real alerts only (low / high pressure, signal lost); each alert type rings once per episode, swiping keeps it hidden, "Mute 30 min" survives restarts; only live data rings.
 - Debounced alerts: hysteresis on clear, leak flag held 15 s, battery warning latched 10 min.

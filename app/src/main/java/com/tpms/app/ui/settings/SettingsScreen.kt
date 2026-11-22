@@ -1,5 +1,6 @@
 package com.tpms.app.ui.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tpms.app.R
 import com.tpms.app.data.settings.AppLanguage
+import com.tpms.app.domain.AlertSoundRoute
 import com.tpms.app.domain.WheelLayout
 import com.tpms.app.domain.model.PressureUnit
 import com.tpms.app.domain.model.WidgetThemeMode
@@ -46,6 +48,7 @@ fun SettingsScreen(
     val wheelAssignment by viewModel.wheelAssignment.collectAsState()
     val criticalAlertsFullscreen by viewModel.criticalAlertsFullscreen.collectAsState()
     val alertReminderMs by viewModel.alertReminderMs.collectAsState()
+    val alertSoundRoute by viewModel.alertSoundRoute.collectAsState()
     val floatingOverlayEnabled by viewModel.floatingOverlayEnabled.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val language by viewModel.language.collectAsState()
@@ -107,6 +110,15 @@ fun SettingsScreen(
                 label = stringResource(R.string.settings_alert_sound_configure),
                 description = stringResource(R.string.settings_alert_sound_configure_hint),
                 onClick = viewModel::openAlertChannelSettings
+            )
+            SettingsGroupDivider()
+            SettingsSegmentedRow(
+                label = stringResource(R.string.settings_alert_sound_route),
+                description = stringResource(R.string.settings_alert_sound_route_hint),
+                options = AlertSoundRoute.entries,
+                selected = alertSoundRoute,
+                optionLabel = { stringResource(alertSoundRouteLabel(it)) },
+                onSelect = viewModel::setAlertSoundRoute
             )
             SettingsGroupDivider()
             val testFailed = stringResource(R.string.settings_alert_test_failed)
@@ -262,4 +274,11 @@ fun RefreshSetupStatusOnResume(viewModel: SettingsViewModel) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+}
+
+@StringRes
+internal fun alertSoundRouteLabel(route: AlertSoundRoute): Int = when (route) {
+    AlertSoundRoute.ALARM -> R.string.settings_alert_sound_route_alarm
+    AlertSoundRoute.NAVIGATION -> R.string.settings_alert_sound_route_navigation
+    AlertSoundRoute.MEDIA -> R.string.settings_alert_sound_route_media
 }

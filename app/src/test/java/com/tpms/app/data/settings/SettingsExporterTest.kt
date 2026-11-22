@@ -1,10 +1,12 @@
 package com.tpms.app.data.settings
 
+import com.tpms.app.domain.AlertSoundRoute
 import com.tpms.app.domain.PressureTarget
 import com.tpms.app.domain.model.DongleProtocolMode
 import com.tpms.app.domain.model.PressureUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SettingsExporterTest {
@@ -55,6 +57,24 @@ class SettingsExporterTest {
 
         assertEquals(mapOf("ABC" to 5f, "SENSOR_02" to -12f), SettingsExporter.import(exported).pressureOffsets)
         assertEquals(emptyMap<String, Float>(), SettingsExporter.import("""{"version":4}""").pressureOffsets)
+    }
+
+    @Test
+    fun alertSoundRoute_roundTrip_andNoChoiceInOldFiles() {
+        val exported = SettingsExporter.export(
+            pressureUnit = PressureUnit.BAR,
+            targetPressureKpa = PressureTarget.DEFAULT_KPA,
+            dongleProtocolMode = DongleProtocolMode.AUTO,
+            staleFrameTimeoutMs = 120_000L,
+            wheelMapping = emptyMap(),
+            showSpareWheel = false,
+            minLiveWheelPressureKpa = 100f,
+            teyesChecklist = TeyesChecklist(),
+            alertSoundRoute = AlertSoundRoute.NAVIGATION
+        )
+
+        assertEquals(AlertSoundRoute.NAVIGATION, SettingsExporter.import(exported).alertSoundRoute)
+        assertNull(SettingsExporter.import("""{"version":6}""").alertSoundRoute)
     }
 
     @Test
